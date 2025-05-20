@@ -1,0 +1,900 @@
+  <title>theme-astral.me | Consultations Astrologiques Personnalisées</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Star Background -->
+<canvas id="starBackground" class="fixed top-0 left-0 w-full h-full pointer-events-none z-0"></canvas>
+
+<!-- Hero Section -->
+<section id="accueil" class="relative min-h-screen flex flex-col px-4 pt-24">
+  <div class="absolute inset-0 overflow-hidden">
+    <div class="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] opacity-40"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-indigo-600/20 rounded-full blur-[100px] opacity-30"></div>
+  </div>
+  
+  <div class="container mx-auto max-w-7xl relative z-10 mb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+      <div class="order-2 sm:order-1">
+        <div class="text-center sm:text-left">
+          <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+            <div class="w-2 h-2 bg-orange-500 rounded-full mr-3"></div>
+            <p class="text-indigo-200">Consultations disponibles</p>
+          </div>
+        </div>
+        
+        <h1 class="text-center sm:text-left text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight mb-4">
+          <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+            Découvrez les Mystères
+          </span>
+          <span class="block bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-purple-200 to-white mt-2">
+            de Votre Destinée
+          </span>
+        </h1>
+        
+        <p class="text-center sm:text-left text-lg text-purple-100/90 mb-6 max-w-xl leading-relaxed">
+          Plongez dans une lecture astrologique approfondie qui révèle les secrets de votre carte natale.
+        </p>
+        
+        <div class="flex flex-col sm:flex-row gap-4 mb-12">
+          <%= link_to "Réserver une Consultation", "#contact", class: "text-center bg-gradient-to-r from-amber-400 to-amber-600 px-8 py-4 rounded-full text-indigo-950 font-medium text-lg hover:shadow-lg hover:shadow-amber-500/20 transition-all" %>
+          <%= link_to "Explorer les Services", "#services", class: "text-center border border-purple-400/30 bg-purple-900/20 backdrop-blur-sm px-8 py-4 rounded-full text-purple-100 font-medium text-lg hover:bg-purple-800/30 transition-all group" %>
+        </div>
+      </div>
+      
+      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
+      
+      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
+        <canvas id="birthChart" class="relative z-10 transition-transform duration-1000 hover:scale-105"></canvas>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Services section -->
+  <div class="w-full border-t border-purple-500/20 py-16" id="services">
+    <div class="container mx-auto max-w-7xl">
+      <div class="text-center mb-12">
+        <h2 class="text-2xl md:text-3xl font-serif font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Nos Services Astrologiques
+        </h2>
+        <p class="text-purple-100/80 max-w-2xl mx-auto">
+          Explorez notre gamme complète de consultations astrologiques personnalisées.
+        </p>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Service Card 1 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème Natal
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Une analyse approfondie de votre carte du ciel au moment de votre naissance, révélant vos potentiels innés, vos talents et défis.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 2 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème des Transits
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Comprendre comment les mouvements planétaires actuels influencent votre vie et les opportunités ou défis qu'ils apportent.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 3 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème Progressé
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Explorez l'évolution de votre personnalité et les changements intérieurs qui se produisent avec le temps.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 4 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Révolution Solaire
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Prévisions pour votre année personnelle, depuis votre anniversaire jusqu'au suivant, révélant les thèmes clés à venir.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 5 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème de Synastrie
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Analyse de la compatibilité entre deux personnes, identifiant les forces et les défis dans votre relation.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 6 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème Composite
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Exploration de l'énergie unique créée par votre relation, révélant sa mission et son potentiel.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 7 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème Karmique
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Découvrez les leçons de vies antérieures, votre mission spirituelle et les schémas karmiques à résoudre.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 8 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Thème de naissance d'un enfant
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Une analyse spécialisée pour comprendre le potentiel, les talents et les défis de votre enfant dès sa naissance.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Service Card 9 -->
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+          <div class="flex flex-col h-full">
+            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+              Astro géographie
+            </h3>
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+              Découvrez les lieux propices à votre épanouissement personnel, professionnel et relationnel à travers l'analyse des lignes planétaires.
+            </p>
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+              En savoir plus
+              <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="border-b border-purple-500/20 max-w-7xl mx-auto"></div>
+
+<!-- About Section -->
+<section id="a-propos" class="py-24 px-4 relative">
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute top-1/4 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] opacity-40"></div>
+    <div class="absolute bottom-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] opacity-30"></div>
+  </div>
+  
+  <div class="container mx-auto max-w-7xl">
+    <div class="text-center mb-16">
+      <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+        <svg class="w-4 h-4 text-amber-300 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+        <p class="text-indigo-200">Notre Histoire & Notre Vision</p>
+      </div>
+      <h2 class="text-4xl md:text-5xl font-serif font-bold mb-6">
+        <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Une Expertise Astrologique
+        </span>
+        <span class="block bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-purple-200 to-white mt-2">
+          Transmise à Travers les Âges
+        </span>
+      </h2>
+      <p class="text-purple-100/80 max-w-2xl mx-auto text-lg">
+        Depuis des générations, nous perpétuons l'art ancestral de l'astrologie tout en l'adaptant aux besoins contemporains.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <div class="relative" id="about-image">
+        <div class="relative rounded-lg overflow-hidden aspect-[4/3]">
+          <img 
+            src="https://images.pexels.com/photos/2034892/pexels-photo-2034892.jpeg" 
+            alt="Consultation astrologique avec carte du ciel" 
+            class="w-full h-full object-cover"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-indigo-950/80 to-transparent"></div>
+        </div>
+        
+        <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[90%]">
+          <div class="bg-indigo-900/80 backdrop-blur-sm rounded-xl p-6 border border-purple-500/30">
+            <div class="grid grid-cols-2 gap-6">
+              <div class="text-center">
+                <p class="text-2xl font-serif font-bold text-amber-300">20+</p>
+                <p class="text-purple-100/90 font-medium text-sm">Années</p>
+                <p class="text-purple-100/60 text-xs">D'expertise</p>
+              </div>
+              <div class="text-center">
+                <p class="text-2xl font-serif font-bold text-amber-300">3500+</p>
+                <p class="text-purple-100/90 font-medium text-sm">Clients</p>
+                <p class="text-purple-100/60 text-xs">Satisfaits</p>
+              </div>
+              <div class="text-center">
+                <p class="text-2xl font-serif font-bold text-amber-300">12</p>
+                <p class="text-purple-100/90 font-medium text-sm">Spécialités</p>
+                <p class="text-purple-100/60 text-xs">Astrologiques</p>
+              </div>
+              <div class="text-center">
+                <p class="text-2xl font-serif font-bold text-amber-300">4</p>
+                <p class="text-purple-100/90 font-medium text-sm">Générations</p>
+                <p class="text-purple-100/60 text-xs">De savoir</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="about-content">
+        <div class="space-y-8">
+          <div class="flex gap-6 p-6 bg-indigo-900/30 backdrop-blur-sm rounded-xl border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+            <div class="bg-purple-800/30 p-3 rounded-lg h-fit">
+              <svg class="w-6 h-6 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-2">
+                Tradition & Modernité
+              </h3>
+              <p class="text-purple-100/70 leading-relaxed">
+                Notre approche fusionne l'astrologie traditionnelle avec les découvertes modernes de la psychologie et des sciences.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex gap-6 p-6 bg-indigo-900/30 backdrop-blur-sm rounded-xl border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+            <div class="bg-purple-800/30 p-3 rounded-lg h-fit">
+              <svg class="w-6 h-6 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-2">
+                Accompagnement Personnalisé
+              </h3>
+              <p class="text-purple-100/70 leading-relaxed">
+                Chaque consultation est unique et adaptée à vos besoins spécifiques, votre histoire et vos objectifs.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex gap-6 p-6 bg-indigo-900/30 backdrop-blur-sm rounded-xl border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+            <div class="bg-purple-800/30 p-3 rounded-lg h-fit">
+              <svg class="w-6 h-6 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-2">
+                Formation Continue
+              </h3>
+              <p class="text-purple-100/70 leading-relaxed">
+                Notre équipe se forme continuellement aux dernières avancées en astrologie et techniques d'interprétation.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex gap-6 p-6 bg-indigo-900/30 backdrop-blur-sm rounded-xl border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+            <div class="bg-purple-800/30 p-3 rounded-lg h-fit">
+              <svg class="w-6 h-6 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M2 12h20"></path>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-2">
+                Rayonnement International
+              </h3>
+              <p class="text-purple-100/70 leading-relaxed">
+                Nous accompagnons des clients du monde entier, enrichissant notre pratique de diverses perspectives culturelles.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8 flex flex-col sm:flex-row gap-4">
+          <%= link_to "Réserver une Consultation", "#contact", class: "bg-gradient-to-r from-amber-400 to-amber-600 px-6 py-3 rounded-full text-indigo-950 font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all" %>
+          <%= link_to "#services", class: "border border-purple-400/30 bg-purple-900/20 backdrop-blur-sm px-6 py-3 rounded-full text-purple-100 font-medium hover:bg-purple-800/30 transition-all group" do %>
+            En Savoir Plus
+            <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">
+              →
+            </span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="border-b border-purple-500/20 max-w-7xl mx-auto"></div>
+
+<!-- Testimonials Section -->
+<section id="temoignages" class="py-24 px-4 relative">
+  <div class="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+    <div class="absolute top-1/3 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] opacity-50"></div>
+  </div>
+  
+  <div class="container mx-auto max-w-6xl">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-serif font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+        Ce Que Disent Nos Clients
+      </h2>
+      <p class="text-purple-100/80 max-w-2xl mx-auto">
+        Découvrez les expériences transformatrices vécues par nos clients lors de leurs consultations astrologiques.
+      </p>
+    </div>
+    
+    <div id="testimonials-slider" class="relative max-w-4xl mx-auto">
+      <div class="overflow-hidden rounded-xl">
+        <div id="testimonials-container" class="flex transition-transform duration-500 ease-out">
+          <!-- Testimonial 1 -->
+          <div class="w-full flex-shrink-0 p-8 bg-gradient-to-b from-indigo-900/40 to-indigo-950/40 backdrop-blur-sm border border-indigo-500/20">
+            <div class="flex items-center mb-6">
+              <div class="flex">
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+            </div>
+            <blockquote class="mb-6">
+              <p class="text-lg text-purple-100/90 italic leading-relaxed">"La consultation a été incroyablement révélatrice. Les insights sur ma personnalité et mon parcours de vie étaient d\'une précision étonnante. Je comprends maintenant pourquoi certains schémas se répètent dans ma vie et comment je peux mieux utiliser mes forces."</p>
+            </blockquote>
+            <div class="flex items-center">
+              <div class="h-12 w-12 rounded-full overflow-hidden mr-4">
+                <img src="https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg" alt="Sophie Moreau" class="h-full w-full object-cover">
+              </div>
+              <div>
+                <p class="font-medium text-amber-200">Sophie Moreau</p>
+                <p class="text-sm text-purple-100/60">Thème Natal</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Testimonial 2 -->
+          <div class="w-full flex-shrink-0 p-8 bg-gradient-to-b from-indigo-900/40 to-indigo-950/40 backdrop-blur-sm border border-indigo-500/20">
+            <div class="flex items-center mb-6">
+              <div class="flex">
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+            </div>
+            <blockquote class="mb-6">
+              <p class="text-lg text-purple-100/90 italic leading-relaxed">"Nous avons fait une analyse de notre relation avant de nous marier, et les révélations ont été éclairantes. Comprendre nos dynamiques énergétiques nous a permis d\'aborder notre union avec plus de conscience et de respect pour nos différences."</p>
+            </blockquote>
+            <div class="flex items-center">
+              <div class="h-12 w-12 rounded-full overflow-hidden mr-4">
+                <img src="https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg" alt="Thomas Laurent" class="h-full w-full object-cover">
+              </div>
+              <div>
+                <p class="font-medium text-amber-200">Thomas Laurent</p>
+                <p class="text-sm text-purple-100/60">Thème Composite</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Testimonial 3 -->
+          <div class="w-full flex-shrink-0 p-8 bg-gradient-to-b from-indigo-900/40 to-indigo-950/40 backdrop-blur-sm border border-indigo-500/20">
+            <div class="flex items-center mb-6">
+              <div class="flex">
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+            </div>
+            <blockquote class="mb-6">
+              <p class="text-lg text-purple-100/90 italic leading-relaxed">"L'exploration de mon thème karmique a été transformatrice. J'ai enfin compris pourquoi certains défis revenaient constamment dans ma vie. Cette perspective m'a offert la paix intérieure que je cherchais depuis longtemps."</p>
+            </blockquote>
+            <div class="flex items-center">
+              <div class="h-12 w-12 rounded-full overflow-hidden mr-4">
+                <img src="https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg" alt="Claire Dubois" class="h-full w-full object-cover">
+              </div>
+              <div>
+                <p class="font-medium text-amber-200">Claire Dubois</p>
+                <p class="text-sm text-purple-100/60">Thème Karmique</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Testimonial 4 -->
+          <div class="w-full flex-shrink-0 p-8 bg-gradient-to-b from-indigo-900/40 to-indigo-950/40 backdrop-blur-sm border border-indigo-500/20">
+            <div class="flex items-center mb-6">
+              <div class="flex">
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="w-5 h-5 text-amber-400 fill-amber-400" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+            </div>
+            <blockquote class="mb-6">
+              <p class="text-lg text-purple-100/90 italic leading-relaxed">"Ayant consulté pour ma révolution solaire trois années consécutives, je suis impressionné par la justesse des prévisions. Cela m'a permis de naviguer des périodes difficiles avec sagesse et de saisir des opportunités que j'aurais pu manquer."</p>
+            </blockquote>
+            <div class="flex items-center">
+              <div class="h-12 w-12 rounded-full overflow-hidden mr-4">
+                <img src="https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg" alt="Jean-Pierre Martin" class="h-full w-full object-cover">
+              </div>
+              <div>
+                <p class="font-medium text-amber-200">Jean-Pierre Martin</p>
+                <p class="text-sm text-purple-100/60">Révolution Solaire</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <button 
+        id="prev-testimonial"
+        class="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 md:-translate-x-6 bg-indigo-900/80 backdrop-blur-sm p-2 rounded-full border border-purple-500/30 text-white hover:bg-indigo-800/80 transition-colors"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      
+      <button 
+        id="next-testimonial"
+        class="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 md:translate-x-6 bg-indigo-900/80 backdrop-blur-sm p-2 rounded-full border border-purple-500/30 text-white hover:bg-indigo-800/80 transition-colors"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+      
+      <div id="testimonials-dots" class="flex justify-center mt-6 space-x-2">
+        <button class="w-2.5 h-2.5 rounded-full bg-amber-400"></button>
+        <button class="w-2.5 h-2.5 rounded-full bg-purple-300/30"></button>
+        <button class="w-2.5 h-2.5 rounded-full bg-purple-300/30"></button>
+        <button class="w-2.5 h-2.5 rounded-full bg-purple-300/30"></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="border-b border-purple-500/20 max-w-7xl mx-auto"></div>
+
+<section id="contact" class="py-24 px-4 relative">
+  <div class="text-center mb-16">
+    <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+      <svg class="w-4 h-4 text-amber-300 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+      </svg>
+      <p class="text-indigo-200">Commencez Votre Voyage Astrologique</p>
+    </div>
+    <h2 class="text-4xl md:text-5xl font-serif font-bold mb-6">
+      <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+        Réservez Votre Consultation
+      </span>
+    </h2>
+    <p class="text-purple-100/80 max-w-2xl mx-auto text-lg">
+      Découvrez les mystères de votre carte natale et les influences célestes qui façonnent votre destinée.
+    </p>
+  </div>
+
+  <div id="form-messages"></div>
+              
+  <div id="contact-form">
+    <%= render partial: "public/landing_page/form", locals: { contact: @contact } %>
+  </div>
+</section>
+
+<script>
+  // Initialize everything when Turbo loads the page
+  document.addEventListener('turbo:load', () => {
+    initStarBackground();
+    initBirthChart();
+    initTestimonialsSlider();
+  });
+
+  // Star Background Animation
+  function initStarBackground() {
+    const canvas = document.getElementById('starBackground');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const stars = [];
+    
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initStars();
+    };
+    
+    const initStars = () => {
+      stars.length = 0;
+      const starCount = Math.floor((canvas.width * canvas.height) / 6000);
+      
+      for (let i = 0; i < starCount; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: Math.random() * 1.5 + 0.5,
+          opacity: Math.random() * 0.6 + 0.1,
+          pulse: Math.random() * 0.1 + 0.1,
+          pulseDelta: (Math.random() - 0.5) * 0.01
+        });
+      }
+    };
+    
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      stars.forEach(star => {
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity * star.pulse})`;
+        ctx.fill();
+        
+        star.pulse += star.pulseDelta;
+        if (star.pulse >= 1 || star.pulse <= 0.1) {
+          star.pulseDelta = -star.pulseDelta;
+        }
+      });
+      
+      requestAnimationFrame(animate);
+    };
+    
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    animate();
+  }
+
+  // Birth Chart Animation
+  function initBirthChart() {
+    const canvas = document.getElementById('birthChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let time = 0;
+    
+    const resizeCanvas = () => {
+      const size = Math.min(window.innerWidth * 0.8, 600);
+      canvas.width = size;
+      canvas.height = size;
+    };
+    
+    const toRoman = (num) => {
+      const romanNumerals = [
+        ['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]
+      ];
+      
+      let result = '';
+      let remaining = num;
+      
+      for (const [numeral, value] of romanNumerals) {
+        while (remaining >= value) {
+          result += numeral;
+          remaining -= value;
+        }
+      }
+      
+      return result;
+    };
+    
+    const drawChart = (timestamp) => {
+      time = timestamp * 0.001;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = (canvas.width * 0.8) / 2;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw house sectors
+      for (let i = 0; i < 12; i++) {
+        const startAngle = (i * Math.PI * 2) / 12 + time * 0.05;
+        const endAngle = ((i + 1) * Math.PI * 2) / 12 + time * 0.05;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(139, 92, 246, ${0.03 + Math.sin(time + i) * 0.01})`;
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.lineTo(centerX, centerY);
+        ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        const midAngle = (startAngle + endAngle) / 2;
+        const textRadius = radius * 0.75;
+        const x = centerX + Math.cos(midAngle) * textRadius;
+        const y = centerY + Math.sin(midAngle) * textRadius;
+        
+        ctx.font = 'bold 20px serif';
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(toRoman(i + 1), x, y);
+      }
+      
+      // Draw chart circles
+      const circles = [1, 0.85, 0.7, 0.55];
+      circles.forEach((scale, index) => {
+        const pulseScale = scale + Math.sin(time + index) * 0.005;
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius * pulseScale, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(139, 92, 246, ${0.2 + index * 0.1})`;
+        ctx.lineWidth = index === 0 ? 2 : 1;
+        ctx.stroke();
+      });
+      
+      // Draw zodiac symbols
+      const zodiacData = [
+        { symbol: '♈', color: '#FF6B6B' }, // Aries
+        { symbol: '♉', color: '#4EA8DE' }, // Taurus
+        { symbol: '♊', color: '#FFD93D' }, // Gemini
+        { symbol: '♋', color: '#4EA8DE' }, // Cancer
+        { symbol: '♌', color: '#FF6B6B' }, // Leo
+        { symbol: '♍', color: '#4EA8DE' }, // Virgo
+        { symbol: '♎', color: '#FFD93D' }, // Libra
+        { symbol: '♏', color: '#4EA8DE' }, // Scorpio
+        { symbol: '♐', color: '#FF6B6B' }, // Sagittarius
+        { symbol: '♑', color: '#4EA8DE' }, // Capricorn
+        { symbol: '♒', color: '#FFD93D' }, // Aquarius
+        { symbol: '♓', color: '#4EA8DE' }  // Pisces
+      ];
+
+      zodiacData.forEach((zodiac, i) => {
+        const angle = ((i * Math.PI * 2) / 12) - Math.PI / 12 + time * 0.05;
+        const symbolRadius = radius * (0.925 + Math.sin(time * 2 + i) * 0.005);
+        const x = centerX + Math.cos(angle) * symbolRadius;
+        const y = centerY + Math.sin(angle) * symbolRadius;
+        
+        ctx.font = `bold ${24 + Math.sin(time * 2 + i) * 2}px serif`;
+        ctx.fillStyle = zodiac.color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.sin(time + i) * 0.05);
+        ctx.fillText(zodiac.symbol, 0, 0);
+        ctx.restore();
+      });
+      
+      // Add planetary positions
+      const planets = [
+        { symbol: '☉', name: 'Sun', color: 'rgba(251, 191, 36, 1)', baseAngle: Math.PI * 0.2 },
+        { symbol: '☽', name: 'Moon', color: 'rgba(229, 231, 235, 1)', baseAngle: Math.PI * 0.5 },
+        { symbol: '☿', name: 'Mercury', color: 'rgba(147, 197, 253, 1)', baseAngle: Math.PI * 0.8 },
+        { symbol: '♀', name: 'Venus', color: 'rgba(251, 207, 232, 1)', baseAngle: Math.PI * 1.1 },
+        { symbol: '♂', name: 'Mars', color: 'rgba(248, 113, 113, 1)', baseAngle: Math.PI * 1.4 },
+        { symbol: '♃', name: 'Jupiter', color: 'rgba(147, 197, 253, 1)', baseAngle: Math.PI * 1.7 },
+        { symbol: '♄', name: 'Saturn', color: 'rgba(209, 213, 219, 1)', baseAngle: Math.PI * 0.3 },
+        { symbol: '⛢', name: 'Uranus', color: 'rgba(167, 139, 250, 1)', baseAngle: Math.PI * 0.6 },
+        { symbol: '♆', name: 'Neptune', color: 'rgba(147, 197, 253, 1)', baseAngle: Math.PI * 0.9 },
+        { symbol: '♇', name: 'Pluto', color: 'rgba(167, 139, 250, 1)', baseAngle: Math.PI * 1.2 }
+      ];
+      
+      planets.forEach((planet, i) => {
+        const planetAngle = planet.baseAngle + time * (0.1 + i * 0.02);
+        const planetRadius = radius * (0.6 + Math.sin(time + i) * 0.02);
+        const x = centerX + Math.cos(planetAngle) * planetRadius;
+        const y = centerY + Math.sin(planetAngle) * planetRadius;
+        
+        // Draw aspects between planets
+        planets.forEach((otherPlanet, j) => {
+          if (j > i) {
+            const otherAngle = otherPlanet.baseAngle + time * (0.1 + j * 0.02);
+            const otherRadius = radius * (0.6 + Math.sin(time + j) * 0.02);
+            const otherX = centerX + Math.cos(otherAngle) * otherRadius;
+            const otherY = centerY + Math.sin(otherAngle) * otherRadius;
+            
+            // Calculate aspect angle
+            const angleDiff = Math.abs(planetAngle - otherAngle);
+            const aspectAngle = (angleDiff * 180 / Math.PI) % 360;
+            
+            // Define major aspects (conjunction, sextile, square, trine, opposition)
+            const aspects = [0, 60, 90, 120, 180];
+            const tolerance = 8; // Degree tolerance for aspects
+            
+            aspects.forEach(aspect => {
+              if (Math.abs(aspectAngle - aspect) <= tolerance) {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(otherX, otherY);
+                
+                // Style based on aspect type
+                if (aspect === 0) { // Conjunction
+                  ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+                  ctx.lineWidth = 1.5;
+                } else if (aspect === 60 || aspect === 120) { // Harmonious aspects
+                  ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
+                  ctx.lineWidth = 1;
+                } else { // Challenging aspects
+                  ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([5, 5]);
+                }
+                
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset dash pattern
+              }
+            });
+          }
+        });
+        
+        // Draw planet symbol
+        ctx.font = 'bold 28px serif';
+        ctx.fillStyle = planet.color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(planet.symbol, x, y);
+      });
+      
+      requestAnimationFrame(drawChart);
+    };
+    
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    requestAnimationFrame(drawChart);
+  }
+
+  // Testimonials Slider
+  function initTestimonialsSlider() {
+    const container = document.getElementById('testimonials-container');
+    const prevButton = document.getElementById('prev-testimonial');
+    const nextButton = document.getElementById('next-testimonial');
+    const dots = document.querySelectorAll('#testimonials-dots button');
+    
+    if (!container || !prevButton || !nextButton) return;
+    
+    let currentIndex = 0;
+    const testimonials = container.children;
+    const totalTestimonials = testimonials.length;
+    
+    const updateSlider = () => {
+      // Update container position
+      container.style.transform = `translateX(-${currentIndex * 100}%)`;
+      
+      // Update dots
+      dots.forEach((dot, index) => {
+        dot.classList.toggle('bg-amber-400', index === currentIndex);
+        dot.classList.toggle('bg-purple-300/30', index !== currentIndex);
+      });
+    };
+    
+    const goToSlide = (index) => {
+      currentIndex = (index + totalTestimonials) % totalTestimonials;
+      updateSlider();
+    };
+    
+    // Event listeners
+    prevButton.addEventListener('click', () => goToSlide(currentIndex - 1));
+    nextButton.addEventListener('click', () => goToSlide(currentIndex + 1));
+    
+    // Add click handlers to dots
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => goToSlide(index));
+    });
+    
+    // Auto-advance slides every 5 seconds
+    let autoSlideInterval = setInterval(() => goToSlide(currentIndex + 1), 5000);
+    
+    // Pause auto-advance on hover
+    container.addEventListener('mouseenter', () => clearInterval(autoSlideInterval));
+    container.addEventListener('mouseleave', () => {
+      autoSlideInterval = setInterval(() => goToSlide(currentIndex + 1), 5000);
+    });
+    
+    // Initialize first slide
+    updateSlider();
+  }
+</script>

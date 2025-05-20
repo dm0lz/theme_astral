@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@config "./tailwind.config.js";
+
+.font-serif {
+  font-family: 'Cormorant Garamond', serif;
+}
+
+.font-sans {
+  font-family: 'Inter', sans-serif;
+}

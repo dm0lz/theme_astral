@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+  </head>
+  <body>
+    <h1>New Contact Form Submission</h1>
+    
+    <h2>Contact Details:</h2>
+    <p><strong>Name:</strong> <%= @contact.name %></p>
+    <p><strong>Birthplace:</strong> <%= @contact.birthplace %></p>
+    <p><strong>Birthday:</strong> <%= @contact.birth_datetime %></p>
+    <p><strong>Consultation Type:</strong> <%= @contact.consultation_type %></p>
+    <p><strong>Consultation Date:</strong> <%= @contact.consultation_datetime %></p>
+    <p><strong>Email:</strong> <%= @contact.email %></p>
+    
+    <h2>Message:</h2>
+    <p><%= @contact.message %></p>
+    
+    <p>Submitted at: <%= @contact.created_at.strftime("%B %d, %Y at %I:%M %p") %></p>
+  </body>
+</html>
