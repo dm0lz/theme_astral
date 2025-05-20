@@ -1,4 +1,4 @@
-class Public::ContactsController < ApplicationController
+class Public::ContactsController < Public::ApplicationController
   def create
     @contact = Contact.new(contact_params)
     

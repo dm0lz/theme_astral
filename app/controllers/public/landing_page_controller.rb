@@ -1,4 +1,4 @@
-class Public::LandingPageController < ApplicationController
+class Public::LandingPageController < Public::ApplicationController
   def index
     @contact = Contact.new
   end

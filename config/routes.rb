@@ -14,5 +14,6 @@ Rails.application.routes.draw do
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # Defines the root path route ("/")
+  get "/:id" => "public/seo_pages#show"
   root "public/landing_page#index"
 end

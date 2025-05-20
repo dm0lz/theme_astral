@@ -1,0 +1,77 @@
+<!-- Star Background -->
+<canvas id="starBackground" class="fixed top-0 left-0 w-full h-full pointer-events-none z-0"></canvas>
+
+<!-- Hero Section -->
+<section id="accueil" class="relative min-h-screen flex flex-col px-4 pt-24">
+  
+  <div class="container mx-auto max-w-7xl relative z-10 mb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+      <div class="order-2 sm:order-1">
+        <div class="text-center sm:text-left">
+          <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+            <div class="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+            <p class="text-indigo-200">Consultations disponibles</p>
+          </div>
+        </div>
+        
+        <h1 class="text-center sm:text-left text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight mb-4">
+          <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+            <%= @seo_page.headline %>
+          </span>
+        </h1>
+        
+        <p class="text-center sm:text-left text-lg text-purple-100/90 mb-6 max-w-xl leading-relaxed">
+          <%= @seo_page.subheading %>
+        </p>
+        
+        <div class="flex flex-col sm:flex-row gap-4 mb-12">
+          <%= link_to "Réserver une Consultation", "#contact", class: "text-center bg-gradient-to-r from-amber-400 to-amber-600 px-8 py-4 rounded-full text-indigo-950 font-medium text-lg hover:shadow-lg hover:shadow-amber-500/20 transition-all" %>
+          <%= link_to "Explorer les Services", "#{root_path}#services", class: "text-center border border-purple-400/30 bg-purple-900/20 backdrop-blur-sm px-8 py-4 rounded-full text-purple-100 font-medium text-lg hover:bg-purple-800/30 transition-all group" %>
+        </div>
+      </div>
+      
+      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
+      
+      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
+        <canvas id="birthChart" class="relative z-10 transition-transform duration-1000 hover:scale-105"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- border bottom -->
+  <div class="border-b border-purple-500/20 max-w-7xl mx-auto"></div>
+
+  <!-- display article content -->
+  <div class="container mx-auto max-w-7xl relative z-10 my-12 text-lg leading-relaxed">
+    <p><%= @seo_page.content.html_safe %></p>
+  </div>
+
+  <!-- border bottom -->
+  <div class="border-b border-purple-500/20 max-w-7xl mx-auto"></div>
+
+  <!-- contact form -->
+  <section id="contact" class="py-24 px-4 relative">
+    <div class="text-center mb-16">
+      <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+        <svg class="w-4 h-4 text-amber-300 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+        <p class="text-indigo-200">Commencez Votre Voyage Astrologique</p>
+      </div>
+      <h2 class="text-4xl md:text-5xl font-serif font-bold mb-6">
+        <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Réservez Votre Consultation
+        </span>
+      </h2>
+      <p class="text-purple-100/80 max-w-2xl mx-auto text-lg">
+        Découvrez les mystères de votre carte natale et les influences célestes qui façonnent votre destinée.
+      </p>
+    </div>
+
+    <div id="form-messages"></div>
+                
+    <div id="contact-form">
+      <%= render partial: "public/landing_page/form", locals: { contact: @contact } %>
+    </div>
+  </section>
+</section>
