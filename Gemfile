@@ -21,7 +21,7 @@ gem "jbuilder"
 
 gem "ruby-openai"
 
-gem "mailgun-ruby", "~>1.3.2"
+gem "mailgun-ruby"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"

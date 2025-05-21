@@ -395,7 +395,7 @@ DEPENDENCIES
   jbuilder
   jsbundling-rails
   kamal
-  mailgun-ruby (~> 1.3.2)
+  mailgun-ruby
   pg (~> 1.1)
   propshaft
   puma (>= 5.0)
