@@ -18,7 +18,8 @@ default: &default
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-
+  host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
+  port: <%= Rails.env.production? ? 5436 : 5432 %>
 
 development:
   <<: *default
@@ -83,7 +84,7 @@ production:
     <<: *default
     database: theme_astral_production
     username: theme_astral
-    password: <%= ENV["THEME_ASTRAL_DATABASE_PASSWORD"] %>
+    password: <%= ENV["POSTGRES_PASSWORD"] %>
   cache:
     <<: *primary_production
     database: theme_astral_production_cache
