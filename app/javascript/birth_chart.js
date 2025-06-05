@@ -61,14 +61,16 @@ function initBirthChart() {
 
     // Draw zodiac wheel
     zodiacData.forEach((zodiac, i) => {
-      const angle = (i * Math.PI * 2) / 12 - Math.PI / 12;
+      // Aries (0°) at 9 o'clock, angles increase clockwise, fix 180° mismatch
+      const zodiacLongitude = i * 30; // Each sign is 30°
+      const angle = ((360 - zodiacLongitude + 270) % 360) * Math.PI / 180;
       const symbolRadius = radius * 0.925;
       const x = centerX + Math.cos(angle) * symbolRadius;
       const y = centerY + Math.sin(angle) * symbolRadius;
       
       // Draw zodiac sector
-      const startAngle = angle - Math.PI / 12;
-      const endAngle = angle + Math.PI / 12;
+      const startAngle = ((360 - (zodiacLongitude - 15) + 270) % 360) * Math.PI / 180;
+      const endAngle = ((360 - (zodiacLongitude + 15) + 270) % 360) * Math.PI / 180;
       
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
@@ -92,7 +94,8 @@ function initBirthChart() {
     
     // Draw houses
     housePositions.forEach((house, i) => {
-      const angle = (house.longitude * Math.PI) / 180;
+      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
+      const angle = ((360 - house.longitude + 270) % 360) * Math.PI / 180;
       const houseRadius = radius * 0.75;
       const x = centerX + Math.cos(angle) * houseRadius;
       const y = centerY + Math.sin(angle) * houseRadius;
@@ -141,7 +144,8 @@ function initBirthChart() {
     };
     
     planetPositions.forEach((planet, i) => {
-      const angle = (planet.longitude * Math.PI) / 180;
+      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
+      const angle = ((360 - planet.longitude + 270) % 360) * Math.PI / 180;
       const planetRadius = radius * 0.6;
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
@@ -172,7 +176,8 @@ function initBirthChart() {
     };
     
     chartPoints.forEach((point, i) => {
-      const angle = (point.longitude * Math.PI) / 180;
+      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
+      const angle = ((360 - point.longitude + 270) % 360) * Math.PI / 180;
       const pointRadius = radius * 0.45;
       const x = centerX + Math.cos(angle) * pointRadius;
       const y = centerY + Math.sin(angle) * pointRadius;
@@ -189,8 +194,9 @@ function initBirthChart() {
     planetPositions.forEach((planet1, i) => {
       planetPositions.forEach((planet2, j) => {
         if (j > i) {
-          const angle1 = (planet1.longitude * Math.PI) / 180;
-          const angle2 = (planet2.longitude * Math.PI) / 180;
+          // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
+          const angle1 = ((360 - planet1.longitude + 270) % 360) * Math.PI / 180;
+          const angle2 = ((360 - planet2.longitude + 270) % 360) * Math.PI / 180;
           const radius1 = radius * 0.6;
           const radius2 = radius * 0.6;
           const x1 = centerX + Math.cos(angle1) * radius1;
