@@ -1,0 +1,11 @@
+<% content_for :title, "New birth chart" %>
+
+<h1>New birth chart</h1>
+
+<%= render "form", birth_chart: @birth_chart %>
+
+<br>
+
+<div>
+  <%= link_to "Back to birth charts", app_birth_charts_path %>
+</div>

@@ -1,0 +1,50 @@
+<%# Flash messages %>
+<% if flash[:alert] %>
+  <div class="max-w-md mx-auto mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300">
+    <%= flash[:alert] %>
+  </div>
+<% end %>
+<% if flash[:notice] %>
+  <div class="max-w-md mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
+    <%= flash[:notice] %>
+  </div>
+<% end %>
+
+<div class="max-w-md mx-auto bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30">
+  <h1 class="text-3xl font-serif font-bold mb-8 text-center">
+    <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+      Sign In
+    </span>
+  </h1>
+
+  <%= form_with url: session_path, class: "space-y-6" do |form| %>
+    <div>
+      <%= form.label :email_address, class: "block text-indigo-200 mb-2 text-sm" %>
+      <%= form.email_field :email_address,
+          required: true,
+          autofocus: true,
+          autocomplete: "username",
+          placeholder: "Enter your email address",
+          value: params[:email_address],
+          class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400" %>
+    </div>
+
+    <div>
+      <%= form.label :password, class: "block text-indigo-200 mb-2 text-sm" %>
+      <%= form.password_field :password,
+          required: true,
+          autocomplete: "current-password",
+          placeholder: "Enter your password",
+          maxlength: 72,
+          class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400" %>
+    </div>
+
+    <%= form.submit "Sign in",
+        class: "w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>
+  <% end %>
+
+  <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-indigo-800/30">
+    <%= link_to "Don't have an account? Sign up", new_registration_path, class: "text-indigo-300 hover:text-amber-400 transition duration-200" %>
+    <%= link_to "Forgot password?", new_password_path, class: "text-indigo-300 hover:text-amber-400 transition duration-200" %>
+  </div>
+</div>

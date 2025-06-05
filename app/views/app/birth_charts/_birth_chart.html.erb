@@ -1,0 +1,45 @@
+<div id="<%= dom_id birth_chart %>" class="space-y-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Name</h3>
+      <p class="text-white">
+        <%= birth_chart.first_name %> <%= birth_chart.last_name %>
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Birth Date and Time</h3>
+      <p class="text-white">
+        <%= birth_chart.birth&.strftime("%B %d, %Y at %I:%M %p") %>
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">City</h3>
+      <p class="text-white">
+        <%= birth_chart.city %>
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Country</h3>
+      <p class="text-white">
+        <%= birth_chart.country %>
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Latitude</h3>
+      <p class="text-white">
+        <%= birth_chart.latitude %>
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Longitude</h3>
+      <p class="text-white">
+        <%= birth_chart.longitude %>
+      </p>
+    </div>
+  </div>
+</div>

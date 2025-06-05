@@ -1,7 +1,15 @@
 Rails.application.routes.draw do
+  namespace :app do
+    resources :birth_charts
+    root "birth_charts#index"
+  end
+  resource :session
+  resources :passwords, param: :token
+  resources :registrations, only: [:new, :create]
   namespace :public do
     resources :contacts, only: [:create, :new]
     get "landing_page/index"
+    root "landing_page#index"
   end
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

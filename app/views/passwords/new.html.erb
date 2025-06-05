@@ -1,0 +1,30 @@
+<%# Flash messages %>
+<% if flash[:alert] %>
+  <div class="max-w-md mx-auto mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300">
+    <%= flash[:alert] %>
+  </div>
+<% end %>
+
+<div class="max-w-md mx-auto bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30">
+  <h1 class="text-3xl font-serif font-bold mb-8 text-center">
+    <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+      Forgot your password?
+    </span>
+  </h1>
+
+  <%= form_with url: passwords_path, class: "space-y-6" do |form| %>
+    <div>
+      <%= form.label :email_address, class: "block text-indigo-200 mb-2 text-sm" %>
+      <%= form.email_field :email_address,
+          required: true,
+          autofocus: true,
+          autocomplete: "username",
+          placeholder: "Enter your email address",
+          value: params[:email_address],
+          class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400" %>
+    </div>
+
+    <%= form.submit "Email reset instructions",
+        class: "w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>
+  <% end %>
+</div>

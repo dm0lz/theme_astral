@@ -1,0 +1,27 @@
+<!-- Header -->
+<header class="fixed w-full z-50 transition-all duration-300 bg-indigo-950/50 backdrop-blur-sm">
+  <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between py-4">
+      <div class="flex items-center">
+        <%= link_to root_path, class: "text-xl font-serif font-medium tracking-wide text-white" do %>
+          <span class="text-xl font-serif font-medium tracking-wide text-white">theme-astral.me</span>
+        <% end %>
+      </div>
+      
+      <!-- Desktop Navigation -->
+      <nav class="hidden md:flex space-x-8">
+        <%= button_to session_path, method: :delete, form: {data: {turbo_confirm: 'Are you sure?'}}, class: "flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 hover:cursor-pointer transition-colors" do %>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mr-2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>  
+          Logout
+        <% end %>
+      </nav>
+      
+      <!-- Mobile menu button -->
+      <button class="md:hidden text-white">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-16 6h16"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
