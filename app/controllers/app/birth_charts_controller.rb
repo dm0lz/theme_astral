@@ -4,7 +4,7 @@ module App
 
     # GET /app/birth_charts or /app/birth_charts.json
     def index
-      @birth_charts = BirthChart.all
+      @birth_charts = Current.user.birth_charts.order(last_name: :asc)
     end
 
     # GET /app/birth_charts/1 or /app/birth_charts/1.json
@@ -13,7 +13,7 @@ module App
 
     # GET /app/birth_charts/new
     def new
-      @birth_chart = BirthChart.new
+      @birth_chart = Current.user.birth_charts.build
     end
 
     # GET /app/birth_charts/1/edit
@@ -22,7 +22,7 @@ module App
 
     # POST /app/birth_charts or /app/birth_charts.json
     def create
-      @birth_chart = BirthChart.new(birth_chart_params)
+      @birth_chart = Current.user.birth_charts.build(birth_chart_params)
 
       respond_to do |format|
         if @birth_chart.save

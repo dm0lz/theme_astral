@@ -1,0 +1,19 @@
+<% if notice %>
+  <div class="max-w-lg mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
+    <%= notice %>
+  </div>
+<% end %>
+
+<div class="max-w-lg mx-auto mt-10 bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30">
+  <div class="mb-8">
+    <h1 class="text-2xl font-serif font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">Chat Message</h1>
+    <div class="text-white text-lg">
+      <%= render @chat_message %>
+    </div>
+  </div>
+  <div class="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
+    <%= link_to "Edit this chat message", edit_app_chat_message_path(@chat_message), class: "px-4 py-2 bg-indigo-800/60 hover:bg-indigo-700/80 text-indigo-200 rounded transition" %>
+    <%= link_to "Back to chat messages", app_chat_messages_path, class: "px-4 py-2 bg-indigo-800/60 hover:bg-indigo-700/80 text-indigo-200 rounded transition" %>
+    <%= button_to "Destroy this chat message", [:app, @chat_message], method: :delete, class: "px-4 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-200 rounded transition" %>
+  </div>
+</div>

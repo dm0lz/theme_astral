@@ -1,0 +1,12 @@
+<% content_for :title, "Chat" %>
+
+<div class="max-w-7xl mx-auto mt-10 flex flex-col md:flex-row bg-[#050510]/95 rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
+  <div class="flex-1 flex flex-col h-[calc(100vh-200px)]">
+    <div id="chat_messages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-transparent">
+      <% @chat_messages.reverse.each do |chat_message| %>
+        <%= render partial: "app/chat_messages/chat_message", locals: { chat_message: chat_message } %>
+      <% end %> 
+    </div>
+    <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
+  </div>
+</div>

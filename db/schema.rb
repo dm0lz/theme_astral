@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_06_05_145109) do
+ActiveRecord::Schema[8.0].define(version: 2025_06_05_200401) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,6 +24,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_145109) do
     t.string "country"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_birth_charts_on_user_id"
   end
 
   create_table "chart_points", force: :cascade do |t|
@@ -34,6 +36,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_145109) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["birth_chart_id"], name: "index_chart_points_on_birth_chart_id"
+  end
+
+  create_table "chat_messages", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "author"
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
   create_table "contacts", force: :cascade do |t|
@@ -111,7 +122,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_145109) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "birth_charts", "users"
   add_foreign_key "chart_points", "birth_charts"
+  add_foreign_key "chat_messages", "users"
   add_foreign_key "house_positions", "birth_charts"
   add_foreign_key "planet_positions", "birth_charts"
   add_foreign_key "seo_pages", "keywords"

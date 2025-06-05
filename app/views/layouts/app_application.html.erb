@@ -24,6 +24,7 @@
   </head>
 
   <body>
+    <%= turbo_stream_from "streaming_channel_#{Current.user.id}" %>
     <section class="min-h-screen bg-gradient-to-b from-indigo-950 via-[#121139] to-[#0A0A20] text-white">
       <%= render "shared/app/header" %>
       <section class="min-h-screen">

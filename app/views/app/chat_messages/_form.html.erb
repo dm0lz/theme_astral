@@ -1,0 +1,24 @@
+<div class="border-t border-indigo-800/30 bg-[#050510]/95 p-4" id="chat_form">
+  <%= form_with(model: [:app, chat_message], class: "w-full bg-[#050510]/95") do |form| %>
+    <% if chat_message.errors.any? %>
+      <div class="mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300">
+        <h2 class="font-medium mb-2"><%= pluralize(chat_message.errors.count, "error") %> prohibited this chat message from being saved:</h2>
+        <ul class="list-disc list-inside space-y-1">
+          <% chat_message.errors.each do |error| %>
+            <li><%= error.full_message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="mb-6">
+      <%= form.label :body, "Message", class: "block text-indigo-200 mb-2 text-sm" %>
+      <%= form.text_area :body, rows: 4, class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-none" %>
+    </div>
+    <%= form.hidden_field :author, value: "user" %>
+
+    <div>
+      <%= form.submit "Send", class: "w-full py-3 px-6 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-indigo-950 font-semibold rounded-lg shadow-md hover:text-gray-900 transition duration-200" %>
+    </div>
+  <% end %>
+</div>

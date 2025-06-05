@@ -1,5 +1,6 @@
 Rails.application.routes.draw do
   namespace :app do
+    resources :chat_messages
     resources :birth_charts
     root "birth_charts#index"
   end

@@ -1,0 +1,12 @@
+<div id="<%= dom_id chat_message %>" data-controller="scroll-into-view">
+  <div class="flex <%= chat_message.author == 'user' ? 'justify-start' : 'justify-end' %>">
+    <div class="max-w-xs md:max-w-md px-4 py-3 rounded-2xl shadow bg-indigo-900/60 border border-indigo-800/30 text-white <%= chat_message.author == 'user' ? 'rounded-bl-none' : 'rounded-br-none bg-indigo-800/80' %>">
+      <div class="whitespace-pre-line break-words">
+        <%= chat_message.body %>
+      </div>
+      <div class="text-xs text-indigo-200 mt-2 text-right">
+        <%= chat_message.created_at.strftime('%H:%M') if chat_message.respond_to?(:created_at) && chat_message.created_at %>
+      </div>
+    </div>
+  </div>
+</div>

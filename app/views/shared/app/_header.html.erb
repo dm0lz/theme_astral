@@ -6,10 +6,15 @@
         <%= link_to root_path, class: "text-xl font-serif font-medium tracking-wide text-white" do %>
           <span class="text-xl font-serif font-medium tracking-wide text-white">theme-astral.me</span>
         <% end %>
+        <nav class="ml-16 space-x-4">
+          <%= link_to "Accueil", root_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
+          <%= link_to "Birth Charts", app_birth_charts_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
+          <%= link_to "Chat", app_chat_messages_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
+        </nav>
       </div>
       
       <!-- Desktop Navigation -->
-      <nav class="hidden md:flex space-x-8">
+      <nav class="space-x-8">
         <%= button_to session_path, method: :delete, form: {data: {turbo_confirm: 'Are you sure?'}}, class: "flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 hover:cursor-pointer transition-colors" do %>
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mr-2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>  
           Logout
