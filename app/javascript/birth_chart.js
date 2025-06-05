@@ -30,20 +30,16 @@ function initBirthChart() {
     const radius = (canvas.width * 0.8) / 2;
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw solid background for the wheel (bg-gray-900)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = '#111827'; // Tailwind's bg-gray-900
+    ctx.fill();
+    ctx.restore();
     
-    // Draw chart circles
-    const circles = [1, 0.85, 0.7, 0.55];
-    circles.forEach((scale, index) => {
-      const pulseScale = scale + Math.sin(time + index) * 0.005;
-      
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius * pulseScale, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(139, 92, 246, ${0.2 + index * 0.1})`;
-      ctx.lineWidth = index === 0 ? 2 : 1;
-      ctx.stroke();
-    });
-    
-    // Draw zodiac symbols
+    // Draw zodiac wheel
     const zodiacData = [
       { symbol: '♈', name: 'Aries', color: '#FF6B6B' },
       { symbol: '♉', name: 'Taurus', color: '#4EA8DE' },
@@ -59,37 +55,46 @@ function initBirthChart() {
       { symbol: '♓', name: 'Pisces', color: '#4EA8DE' }
     ];
 
-    // Draw zodiac wheel
     zodiacData.forEach((zodiac, i) => {
-      // Aries (0°) at 9 o'clock, angles increase clockwise, fix 180° mismatch
-      const zodiacLongitude = i * 30; // Each sign is 30°
-      const angle = ((360 - zodiacLongitude + 270) % 360) * Math.PI / 180;
-      const symbolRadius = radius * 0.925;
-      const x = centerX + Math.cos(angle) * symbolRadius;
-      const y = centerY + Math.sin(angle) * symbolRadius;
-      
-      // Draw zodiac sector
-      const startAngle = ((360 - (zodiacLongitude - 15) + 270) % 360) * Math.PI / 180;
-      const endAngle = ((360 - (zodiacLongitude + 15) + 270) % 360) * Math.PI / 180;
-      
+      // Each sign sector: 30° wide, starting at i*30°
+      const startAngle = ((360 - (i * 30) + 270) % 360) * Math.PI / 180;
+      const endAngle = ((360 - ((i + 1) * 30) + 270) % 360) * Math.PI / 180;
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, startAngle, endAngle);
       ctx.closePath();
-      ctx.fillStyle = `rgba(139, 92, 246, 0.03)`;
-      ctx.fill();
-      
-      // Draw zodiac symbol
+      ctx.strokeStyle = 'rgba(139, 92, 246, 0.18)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      // Symbol in the center of the sector
+      const symbolAngle = ((360 - (i * 30 + 15) + 270) % 360) * Math.PI / 180;
+      const symbolRadius = radius * 0.925;
+      const x = centerX + Math.cos(symbolAngle) * symbolRadius;
+      const y = centerY + Math.sin(symbolAngle) * symbolRadius;
+
       ctx.font = 'bold 24px serif';
       ctx.fillStyle = zodiac.color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(zodiac.symbol, x, y);
-      
-      // Draw zodiac name
+
       ctx.font = '12px sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.fillText(zodiac.name, x, y + 20);
+    });
+    
+    // Draw chart circles (after sectors, so they're visible)
+    const circles = [1, 0.85, 0.7, 0.55];
+    circles.forEach((scale, index) => {
+      const pulseScale = scale + Math.sin(time + index) * 0.005;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius * pulseScale, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(139, 92, 246, ${0.25 + index * 0.1})`;
+      ctx.lineWidth = index === 0 ? 2 : 1;
+      ctx.stroke();
     });
     
     // Draw houses
