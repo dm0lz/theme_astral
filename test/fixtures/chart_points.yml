@@ -1,0 +1,13 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  birth_chart: one
+  name: MyString
+  longitude: 1.5
+  zodiac: MyString
+
+two:
+  birth_chart: two
+  name: MyString
+  longitude: 1.5
+  zodiac: MyString

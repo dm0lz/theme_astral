@@ -33,6 +33,11 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev node-gyp pkg-config python-is-python3 && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+RUN git clone https://github.com/aloistr/swisseph.git /tmp/swisseph && \
+    cd /tmp/swisseph && \
+    make && \
+    cp swetest /usr/local/bin/
+
 # Install JavaScript dependencies
 ARG NODE_VERSION=23.6.1
 ARG YARN_VERSION=1.22.19
@@ -71,11 +76,13 @@ FROM base
 # Copy built artifacts: gems, application
 COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --from=build /rails /rails
+COPY --from=build /usr/local/bin/swetest /usr/local/bin/swetest
 
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp public
+    chown -R rails:rails db log storage tmp public && \
+    chown rails:rails /usr/local/bin/swetest
 USER 1000:1000
 
 # Entrypoint prepares the database.

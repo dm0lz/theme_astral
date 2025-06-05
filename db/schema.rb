@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_06_05_125649) do
+ActiveRecord::Schema[8.0].define(version: 2025_06_05_145109) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -26,6 +26,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_125649) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "chart_points", force: :cascade do |t|
+    t.bigint "birth_chart_id", null: false
+    t.string "name"
+    t.float "longitude"
+    t.string "zodiac"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["birth_chart_id"], name: "index_chart_points_on_birth_chart_id"
+  end
+
   create_table "contacts", force: :cascade do |t|
     t.string "name"
     t.string "email"
@@ -38,6 +48,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_125649) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "house_positions", force: :cascade do |t|
+    t.bigint "birth_chart_id", null: false
+    t.integer "house"
+    t.float "longitude"
+    t.string "zodiac"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["birth_chart_id"], name: "index_house_positions_on_birth_chart_id"
+  end
+
   create_table "keywords", force: :cascade do |t|
     t.string "name"
     t.boolean "is_long_tail"
@@ -46,6 +66,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_125649) do
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_keywords_on_name", unique: true
     t.index ["pillar"], name: "index_keywords_on_pillar"
+  end
+
+  create_table "planet_positions", force: :cascade do |t|
+    t.bigint "birth_chart_id", null: false
+    t.string "planet"
+    t.float "longitude"
+    t.string "zodiac"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["birth_chart_id"], name: "index_planet_positions_on_birth_chart_id"
   end
 
   create_table "seo_pages", force: :cascade do |t|
@@ -81,6 +111,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_125649) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "chart_points", "birth_charts"
+  add_foreign_key "house_positions", "birth_charts"
+  add_foreign_key "planet_positions", "birth_charts"
   add_foreign_key "seo_pages", "keywords"
   add_foreign_key "sessions", "users"
 end

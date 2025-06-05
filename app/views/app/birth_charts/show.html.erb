@@ -6,7 +6,8 @@
 <% end %>
 
 <div class="max-w-7xl mx-auto px-4">
-  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30">
+  <%# Birth Chart Details %>
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8">
     <div class="flex items-center justify-between mb-8">
       <h1 class="text-3xl font-serif font-bold">
         <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
@@ -38,6 +39,100 @@
         </svg>
         Back to Birth Charts
       <% end %>
+    </div>
+  </div>
+
+  <%# Planet Positions %>
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 mb-8 overflow-hidden">
+    <div class="p-6 border-b border-indigo-800/30">
+      <h2 class="text-xl font-serif font-bold text-white">Planet Positions</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-indigo-800/30">
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Planet</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Longitude</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Zodiac Sign</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-indigo-800/30">
+          <% @birth_chart.planet_positions.each do |position| %>
+            <tr class="hover:bg-indigo-900/20 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= position.planet %></td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= number_with_precision(position.longitude, precision: 4) %>°</td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= position.zodiac %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# House Positions %>
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 mb-8 overflow-hidden">
+    <div class="p-6 border-b border-indigo-800/30">
+      <h2 class="text-xl font-serif font-bold text-white">House Positions</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-indigo-800/30">
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">House</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Longitude</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Zodiac Sign</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-indigo-800/30">
+          <% @birth_chart.house_positions.each do |position| %>
+            <tr class="hover:bg-indigo-900/20 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap text-white">House <%= position.house %></td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= number_with_precision(position.longitude, precision: 4) %>°</td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= position.zodiac %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# Chart Points %>
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
+    <div class="p-6 border-b border-indigo-800/30">
+      <h2 class="text-xl font-serif font-bold text-white">Chart Points</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-indigo-800/30">
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Point</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Longitude</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Zodiac Sign</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-indigo-800/30">
+          <% @birth_chart.chart_points.each do |point| %>
+            <tr class="hover:bg-indigo-900/20 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= point.name %></td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= number_with_precision(point.longitude, precision: 4) %>°</td>
+              <td class="px-6 py-4 whitespace-nowrap text-white"><%= point.zodiac %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Birth Chart Visualization</h2>
+    <div class="bg-gray-900 rounded-lg p-4 flex justify-center">
+      <canvas
+        id="birthChartCanvas"
+        data-planet-positions="<%= @birth_chart.planet_positions.to_json %>"
+        data-house-positions="<%= @birth_chart.house_positions.to_json %>"
+        data-chart-points="<%= @birth_chart.chart_points.to_json %>"
+        class="w-full max-w-3xl aspect-square"
+      ></canvas>
     </div>
   </div>
 </div>
