@@ -36,7 +36,8 @@ RUN apt-get update -qq && \
 RUN git clone https://github.com/aloistr/swisseph.git /tmp/swisseph && \
     cd /tmp/swisseph && \
     make && \
-    cp swetest /usr/local/bin/
+    cp swetest /usr/local/bin/ && \
+    rm -rf /tmp/swisseph
 
 # Install JavaScript dependencies
 ARG NODE_VERSION=23.6.1
