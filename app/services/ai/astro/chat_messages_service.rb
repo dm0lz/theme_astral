@@ -12,7 +12,7 @@ class Ai::Astro::ChatMessagesService
 					type: "json_schema",
 					json_schema: response_schema
 				},
-				messages: [ { role: "system", content: system_prompt } ] + chat_history + [ { role: "user", content: user_prompt } ],
+				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
 			}
 		)
 		json = JSON.parse(response["choices"][0]["message"]["content"].match(/{.*}/m).to_s) rescue nil
@@ -21,12 +21,14 @@ class Ai::Astro::ChatMessagesService
 
   private
 
+  def prompt_messages
+    birth_charts + current_positions + chat_history + [ { role: "user", content: user_prompt } ]
+  end
+
   def user_prompt
     <<~PROMPT.strip
       
-      Here are the birthcharts for the user along with their planet positions, house positions, and chart points: #{birth_charts}
       The user sent the following message:
-
       "#{@chat_message.body}"
 
       Write a thoughtful, astrology-informed reply to this message.
@@ -65,29 +67,51 @@ class Ai::Astro::ChatMessagesService
 
   def birth_charts
     @chat_message.user.birth_charts.map do |birth_chart|
-      <<~BIRTH_CHART.strip
-        First name: #{birth_chart.first_name}
-        Last name: #{birth_chart.last_name}
-        Date of birth: #{birth_chart.birth}
-        Place of birth: #{birth_chart.location}
-        Latitude: #{birth_chart.latitude}
-        Longitude: #{birth_chart.longitude}
-        City: #{birth_chart.city}
-        Country: #{birth_chart.country}
-        Planet positions: #{birth_chart_positions(birth_chart)}
-        House positions: #{birth_chart_positions(birth_chart)}
-        Chart points: #{birth_chart_positions(birth_chart)}
-      BIRTH_CHART
+      {
+        role: "user",
+        content: <<~BIRTH_CHART.strip
+          Here is the birthchart for #{birth_chart.first_name} #{birth_chart.last_name}:
+          Date of birth: #{birth_chart.birth}
+          Place of birth: #{birth_chart.location}
+          Latitude: #{birth_chart.latitude}
+          Longitude: #{birth_chart.longitude}
+          City: #{birth_chart.city}
+          Country: #{birth_chart.country}
+          Planet positions: #{planet_positions(birth_chart.planet_positions)}
+          House positions: #{house_positions(birth_chart.house_positions)}
+          Chart points: #{chart_points(birth_chart.chart_points)}
+        BIRTH_CHART
+      }
+    end
+  end
+
+  def planet_positions(positions)
+    positions.map do |position|
+      <<~PLANET_POSITION.strip
+        Planet: #{position.planet}
+        Longitude: #{position.longitude}
+        Zodiac: #{position.zodiac}
+      PLANET_POSITION
     end.join("\n")
   end
 
-  def birth_chart_positions(birth_chart)
-    birth_chart.planet_positions.map do |planet_position|
-      <<~PLANET_POSITION.strip
-        Planet: #{planet_position.planet}
-        Longitude: #{planet_position.longitude}
-        Zodiac: #{planet_position.zodiac}
-      PLANET_POSITION
+  def house_positions(positions)
+    positions.map do |position|
+      <<~HOUSE_POSITION.strip
+        House: #{position.house}
+        Longitude: #{position.longitude}
+        Zodiac: #{position.zodiac}
+      HOUSE_POSITION
+    end.join("\n")
+  end
+
+  def chart_points(positions)
+    positions.map do |position|
+      <<~CHART_POINT.strip
+        Chart point: #{position.name}
+        Longitude: #{position.longitude}
+        Zodiac: #{position.zodiac}
+      CHART_POINT
     end.join("\n")
   end
 
@@ -98,5 +122,68 @@ class Ai::Astro::ChatMessagesService
         content: msg.body
       }
     end
+  end
+
+  def current_positions
+    birth_chart = @chat_message.user.birth_charts.build(
+      birth: DateTime.now,
+      first_name: "astro",
+      last_name: "astro",
+      city: "Paris",
+      country: "France"
+    )
+    birth_chart.valid?
+    positions = SwissEphemerisService.new(birth_chart).call
+
+    planets = positions[:planets]
+    planets_positions = planets.map do |planet|
+      <<~PLANET_POSITION.strip
+        Planet: #{planet[:planet]}
+        Longitude: #{planet[:longitude]}
+        Zodiac: #{planet[:zodiac]}
+      PLANET_POSITION
+    end.join("\n")
+
+    houses = positions[:houses]
+    houses_positions = houses.map do |house|
+      <<~HOUSE_POSITION.strip
+        House: #{house[:house]}
+        Longitude: #{house[:longitude]}
+        Zodiac: #{house[:zodiac]}
+      HOUSE_POSITION
+    end.join("\n")
+
+    chart_points = positions[:chart_points]
+    chart_points_positions = chart_points.map do |chart_point|
+      <<~CHART_POINT.strip  
+        Chart point: #{chart_point[:name]}
+        Longitude: #{chart_point[:longitude]}
+        Zodiac: #{chart_point[:zodiac]}
+      CHART_POINT
+    end.join("\n")
+
+    [
+      {
+        role: "user",
+        content: <<~CURRENT_POSITIONS.strip
+          Here are the current positions of the planets in Paris, France :
+          #{planets_positions}
+        CURRENT_POSITIONS
+      },
+      {
+        role: "user",
+        content: <<~CURRENT_POSITIONS.strip
+          Here are the current positions of the houses in Paris, France :
+          #{houses_positions}
+        CURRENT_POSITIONS
+      },
+      {
+        role: "user",
+        content: <<~CURRENT_POSITIONS.strip
+          Here are the current positions of the chart points in Paris, France :
+          #{chart_points_positions}
+        CURRENT_POSITIONS
+      }
+    ]
   end
 end
