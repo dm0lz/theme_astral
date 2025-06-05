@@ -121,6 +121,34 @@ function initBirthChart() {
       ctx.fillText(house.house.toString(), x, y);
     });
     
+    // Draw degree ticks and labels
+    for (let deg = 0; deg < 360; deg += 10) {
+      const angle = ((360 - deg + 180) % 360) * Math.PI / 180;
+      const outerRadius = radius;
+      const innerRadius = deg % 30 === 0 ? radius * 0.97 : radius * 0.985;
+      const x1 = centerX + Math.cos(angle) * outerRadius;
+      const y1 = centerY + Math.sin(angle) * outerRadius;
+      const x2 = centerX + Math.cos(angle) * innerRadius;
+      const y2 = centerY + Math.sin(angle) * innerRadius;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = deg % 30 === 0 ? '#fff' : 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = deg % 30 === 0 ? 2 : 1;
+      ctx.stroke();
+      // Draw degree label every 30°
+      if (deg % 30 === 0) {
+        const labelRadius = radius * 1.03;
+        const lx = centerX + Math.cos(angle) * labelRadius;
+        const ly = centerY + Math.sin(angle) * labelRadius;
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(deg.toString(), lx, ly);
+      }
+    }
+    
     // Draw planets
     const planetSymbols = {
       'Sun': '☉',
@@ -149,23 +177,25 @@ function initBirthChart() {
     };
     
     planetPositions.forEach((planet, i) => {
-      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
+      // Ascendant at 270° (9 o'clock)
       const angle = ((360 - planet.longitude + 270) % 360) * Math.PI / 180;
       const planetRadius = radius * 0.6;
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
-      
       // Draw planet symbol
       ctx.font = 'bold 28px serif';
       ctx.fillStyle = planetColors[planet.planet] || 'rgba(255, 255, 255, 0.8)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(planetSymbols[planet.planet] || planet.planet[0], x, y);
-      
       // Draw planet name
       ctx.font = '12px sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.fillText(planet.planet, x, y + 20);
+      // Draw planet degree
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(formatPlanetDegree(planet.longitude), x, y - 22);
     });
     
     // Draw chart points
@@ -261,4 +291,24 @@ function initBirthChart() {
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
   requestAnimationFrame(drawChart);
+}
+
+function formatPlanetDegree(longitude) {
+  const signs = [
+    { name: 'Aries', abbr: 'Ar' },
+    { name: 'Taurus', abbr: 'Ta' },
+    { name: 'Gemini', abbr: 'Ge' },
+    { name: 'Cancer', abbr: 'Cn' },
+    { name: 'Leo', abbr: 'Le' },
+    { name: 'Virgo', abbr: 'Vi' },
+    { name: 'Libra', abbr: 'Li' },
+    { name: 'Scorpio', abbr: 'Sc' },
+    { name: 'Sagittarius', abbr: 'Sa' },
+    { name: 'Capricorn', abbr: 'Cp' },
+    { name: 'Aquarius', abbr: 'Aq' },
+    { name: 'Pisces', abbr: 'Pi' }
+  ];
+  const signIndex = Math.floor(longitude / 30) % 12;
+  const degInSign = longitude - signIndex * 30;
+  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}`;
 } 
