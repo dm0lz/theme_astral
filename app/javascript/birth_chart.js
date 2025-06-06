@@ -55,10 +55,19 @@ function initBirthChart() {
       { symbol: '♓', name: 'Pisces', color: '#4EA8DE' }
     ];
 
+    // Find the longitude of House 1 (Ascendant)
+    const house1 = housePositions.find(h => h.house === 1);
+    const house1Longitude = house1 ? house1.longitude : 0;
+    // Rotation offset: 90° counterclockwise
+    const rotationOffset = -90;
+
+    // Draw zodiac wheel (rotated and shifted relative to House 1)
     zodiacData.forEach((zodiac, i) => {
-      // Each sign sector: 30° wide, starting at i*30°
-      const startAngle = ((360 - (i * 30) + 270) % 360) * Math.PI / 180;
-      const endAngle = ((360 - ((i + 1) * 30) + 270) % 360) * Math.PI / 180;
+      // Each sign sector: 30° wide, starting at i*30°, shifted by house1Longitude
+      const shiftedStart = (i * 30 - house1Longitude + 360) % 360;
+      const shiftedEnd = ((i + 1) * 30 - house1Longitude + 360) % 360;
+      const startAngle = ((360 - shiftedStart + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const endAngle = ((360 - shiftedEnd + 270 + rotationOffset) % 360) * Math.PI / 180;
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
@@ -68,19 +77,17 @@ function initBirthChart() {
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.restore();
-
       // Symbol in the center of the sector
-      const symbolAngle = ((360 - (i * 30 + 15) + 270) % 360) * Math.PI / 180;
+      const shiftedSymbol = (i * 30 + 15 - house1Longitude + 360) % 360;
+      const symbolAngle = ((360 - shiftedSymbol + 270 + rotationOffset) % 360) * Math.PI / 180;
       const symbolRadius = radius * 0.925;
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
-
       ctx.font = 'bold 24px serif';
       ctx.fillStyle = zodiac.color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(zodiac.symbol, x, y);
-
       ctx.font = '12px sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.fillText(zodiac.name, x, y + 20);
@@ -97,23 +104,19 @@ function initBirthChart() {
       ctx.stroke();
     });
     
-    // Draw houses
+    // Draw houses (relative to House 1 at 0°, rotated)
     housePositions.forEach((house, i) => {
-      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
-      const angle = ((360 - house.longitude + 270) % 360) * Math.PI / 180;
+      const shifted = (house.longitude - house1Longitude + 360) % 360;
+      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
       const houseRadius = radius * 0.75;
       const x = centerX + Math.cos(angle) * houseRadius;
       const y = centerY + Math.sin(angle) * houseRadius;
-      
-      // Draw house cusp line
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
       ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      
-      // Draw house number
       ctx.font = 'bold 16px serif';
       ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
       ctx.textAlign = 'center';
@@ -121,9 +124,9 @@ function initBirthChart() {
       ctx.fillText(house.house.toString(), x, y);
     });
     
-    // Draw degree ticks and labels
+    // Draw degree ticks and labels (rotated)
     for (let deg = 0; deg < 360; deg += 10) {
-      const angle = ((360 - deg + 180) % 360) * Math.PI / 180;
+      const angle = ((360 - deg + 180 + rotationOffset) % 360) * Math.PI / 180;
       const outerRadius = radius;
       const innerRadius = deg % 30 === 0 ? radius * 0.97 : radius * 0.985;
       const x1 = centerX + Math.cos(angle) * outerRadius;
@@ -136,7 +139,6 @@ function initBirthChart() {
       ctx.strokeStyle = deg % 30 === 0 ? '#fff' : 'rgba(255,255,255,0.3)';
       ctx.lineWidth = deg % 30 === 0 ? 2 : 1;
       ctx.stroke();
-      // Draw degree label every 30°
       if (deg % 30 === 0) {
         const labelRadius = radius * 1.03;
         const lx = centerX + Math.cos(angle) * labelRadius;
@@ -149,7 +151,7 @@ function initBirthChart() {
       }
     }
     
-    // Draw planets
+    // Draw planets (relative to House 1 at 0°, rotated)
     const planetSymbols = {
       'Sun': '☉',
       'Moon': '☽',
@@ -177,28 +179,25 @@ function initBirthChart() {
     };
     
     planetPositions.forEach((planet, i) => {
-      // Ascendant at 270° (9 o'clock)
-      const angle = ((360 - planet.longitude + 270) % 360) * Math.PI / 180;
+      const shifted = (planet.longitude - house1Longitude + 360) % 360;
+      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
       const planetRadius = radius * 0.6;
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
-      // Draw planet symbol
       ctx.font = 'bold 28px serif';
       ctx.fillStyle = planetColors[planet.planet] || 'rgba(255, 255, 255, 0.8)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(planetSymbols[planet.planet] || planet.planet[0], x, y);
-      // Draw planet name
       ctx.font = '12px sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.fillText(planet.planet, x, y + 20);
-      // Draw planet degree
       ctx.font = '11px monospace';
       ctx.fillStyle = '#fff';
       ctx.fillText(formatPlanetDegree(planet.longitude), x, y - 22);
     });
     
-    // Draw chart points
+    // Draw chart points (relative to House 1 at 0°, rotated)
     const pointSymbols = {
       'Ascendant': 'AS',
       'MC': 'MC',
@@ -211,13 +210,11 @@ function initBirthChart() {
     };
     
     chartPoints.forEach((point, i) => {
-      // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
-      const angle = ((360 - point.longitude + 270) % 360) * Math.PI / 180;
+      const shifted = (point.longitude - house1Longitude + 360) % 360;
+      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
       const pointRadius = radius * 0.45;
       const x = centerX + Math.cos(angle) * pointRadius;
       const y = centerY + Math.sin(angle) * pointRadius;
-      
-      // Draw point symbol
       ctx.font = 'bold 16px sans-serif';
       ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
       ctx.textAlign = 'center';
@@ -225,13 +222,14 @@ function initBirthChart() {
       ctx.fillText(pointSymbols[point.name] || point.name, x, y);
     });
     
-    // Draw aspects between planets
+    // Draw aspects between planets (relative to House 1 at 0°, rotated)
     planetPositions.forEach((planet1, i) => {
       planetPositions.forEach((planet2, j) => {
         if (j > i) {
-          // 0° at 9 o'clock, angles increase clockwise, fix 180° mismatch
-          const angle1 = ((360 - planet1.longitude + 270) % 360) * Math.PI / 180;
-          const angle2 = ((360 - planet2.longitude + 270) % 360) * Math.PI / 180;
+          const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
+          const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
+          const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
+          const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
           const radius1 = radius * 0.6;
           const radius2 = radius * 0.6;
           const x1 = centerX + Math.cos(angle1) * radius1;
