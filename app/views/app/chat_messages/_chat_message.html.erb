@@ -1,21 +1,30 @@
 <div id="<%= dom_id chat_message %>" data-controller="scroll-into-view">
-  <div class="flex <%= chat_message.author == 'user' ? 'justify-start' : 'justify-end' %>">
-    <div class="max-w-xs md:max-w-md px-4 py-3 rounded-2xl shadow bg-indigo-900/60 border border-indigo-800/30 text-white <%= chat_message.author == 'user' ? 'rounded-bl-none' : 'rounded-br-none bg-indigo-800/80' %>">
-      <div class="whitespace-pre-line break-words">
+  <div class="flex <%= chat_message.author == 'user' ? 'justify-start' : 'justify-end' %> mb-4">
+    <div class="max-w-xs md:max-w-md px-4 py-3 rounded-2xl shadow-lg bg-indigo-900/60 border border-indigo-800/30 <%= chat_message.author == 'user' ? 'bg-amber-600/90 border border-amber-500/50 rounded-bl-none' : 'bg-indigo-600/90 border border-indigo-500/50 rounded-br-none' %> text-white">
+      <div class="whitespace-pre-line break-words leading-relaxed p-2">
         <%= chat_message.body %>
       </div>
-      <div class="flex items-center justify-between mt-2">
-        <button 
-          onclick="copyToClipboard('<%= dom_id chat_message %>')"
-          class="text-indigo-300 hover:text-indigo-100 transition-colors duration-200 p-1 rounded hover:bg-indigo-700/50"
-          title="Copy message"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-          </svg>
-        </button>
-        <div class="text-xs text-indigo-200">
-          <%= chat_message.created_at.strftime('%H:%M') if chat_message.respond_to?(:created_at) && chat_message.created_at %>
+      <div class="flex items-center justify-between mt-3 pt-2 border-t border-white/20 p-2">
+        <div class="flex items-center space-x-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center <%= chat_message.author == 'user' ? 'bg-amber-500' : 'bg-indigo-500' %>">
+            <span class="text-xs font-medium text-white"><%= chat_message.author == 'user' ? 'U' : 'AI' %></span>
+          </div>
+          <span class="text-xs font-medium text-white/90"><%= chat_message.author == 'user' ? 'You' : 'Assistant' %></span>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+          <div class="text-xs text-white/70">
+            <%= chat_message.created_at.strftime('%H:%M') if chat_message.respond_to?(:created_at) && chat_message.created_at %>
+          </div>
+          <button 
+            onclick="copyToClipboard('<%= dom_id chat_message %>')"
+            class="text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10"
+            title="Copy message"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
