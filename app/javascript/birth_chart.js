@@ -124,9 +124,9 @@ function initBirthChart() {
       ctx.fillText(house.house.toString(), x, y);
     });
     
-    // Draw degree ticks and labels (rotated)
+    // Draw degree ticks and labels (rotated 90° counterclockwise)
     for (let deg = 0; deg < 360; deg += 10) {
-      const angle = ((360 - deg + 180 + rotationOffset) % 360) * Math.PI / 180;
+      const angle = ((360 - deg + 180) % 360) * Math.PI / 180;
       const outerRadius = radius;
       const innerRadius = deg % 30 === 0 ? radius * 0.97 : radius * 0.985;
       const x1 = centerX + Math.cos(angle) * outerRadius;
