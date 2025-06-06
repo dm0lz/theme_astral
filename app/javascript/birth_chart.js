@@ -33,7 +33,8 @@ function initBirthChart() {
     const radius = ((canvas.width - padding) * 0.8) / 2; // Adjust radius to account for padding
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw solid background for the wheel (bg-gray-900)
+    
+    // Draw solid background for the center area
     ctx.save();
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -41,73 +42,128 @@ function initBirthChart() {
     ctx.fillStyle = '#0A0A20'; // Tailwind's bg-gray-900
     ctx.fill();
     ctx.restore();
-    
-    
-    // Draw only the main outer chart circle (outer wheel)
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(139, 92, 246, 0.35)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    // Draw zodiac wheel
+
+    // Draw zodiac wheel with elemental background colors
     const zodiacData = [
-      { symbol: '♈', name: 'Aries', color: '#FF6B6B' },
-      { symbol: '♉', name: 'Taurus', color: '#4EA8DE' },
-      { symbol: '♊', name: 'Gemini', color: '#FFD93D' },
-      { symbol: '♋', name: 'Cancer', color: '#4EA8DE' },
-      { symbol: '♌', name: 'Leo', color: '#FF6B6B' },
-      { symbol: '♍', name: 'Virgo', color: '#4EA8DE' },
-      { symbol: '♎', name: 'Libra', color: '#FFD93D' },
-      { symbol: '♏', name: 'Scorpio', color: '#4EA8DE' },
-      { symbol: '♐', name: 'Sagittarius', color: '#FF6B6B' },
-      { symbol: '♑', name: 'Capricorn', color: '#4EA8DE' },
-      { symbol: '♒', name: 'Aquarius', color: '#FFD93D' },
-      { symbol: '♓', name: 'Pisces', color: '#4EA8DE' }
+      { symbol: '♈', name: 'Aries', element: 'fire' },
+      { symbol: '♉', name: 'Taurus', element: 'earth' },
+      { symbol: '♊', name: 'Gemini', element: 'air' },
+      { symbol: '♋', name: 'Cancer', element: 'water' },
+      { symbol: '♌', name: 'Leo', element: 'fire' },
+      { symbol: '♍', name: 'Virgo', element: 'earth' },
+      { symbol: '♎', name: 'Libra', element: 'air' },
+      { symbol: '♏', name: 'Scorpio', element: 'water' },
+      { symbol: '♐', name: 'Sagittarius', element: 'fire' },
+      { symbol: '♑', name: 'Capricorn', element: 'earth' },
+      { symbol: '♒', name: 'Aquarius', element: 'air' },
+      { symbol: '♓', name: 'Pisces', element: 'water' }
     ];
+
+    // Elemental colors using traditional associations, optimized for dark theme
+    const elementColors = {
+      'fire': 'rgba(239, 68, 68, 0.7)', // Traditional red, adjusted for dark background
+      'earth': 'rgba(224, 227, 24, 0.74)', // Golden yellow complementing existing theme
+      'air': 'rgba(34, 197, 94, 0.6)', // Vibrant green, good contrast on dark background
+      'water': 'rgba(59, 130, 246, 0.7)' // Traditional blue, maintains water association
+    };
 
     // Find the longitude of House 1 (Ascendant)
     const house1 = housePositions.find(h => h.house === 1);
     const house1Longitude = house1 ? house1.longitude : 0;
-    // Rotation offset: 90° counterclockwise
-    const rotationOffset = -90;
 
-    // Draw zodiac wheel (rotated and shifted relative to House 1)
+    // Draw zodiac wheel sectors with elemental colors
     zodiacData.forEach((zodiac, i) => {
-      // Each sign sector: 30° wide, starting at i*30°, shifted by house1Longitude
-      const shiftedStart = (i * 30 - house1Longitude + 360) % 360;
-      const shiftedEnd = ((i + 1) * 30 - house1Longitude + 360) % 360;
-      const startAngle = ((360 - shiftedStart + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const endAngle = ((360 - shiftedEnd + 270 + rotationOffset) % 360) * Math.PI / 180;
-      // Remove radial lines: do not draw from center to wheel for zodiac sectors
+      // Calculate the start and end angles for this zodiac sign (each is 30°)
+      const signStart = i * 30;
+      const signEnd = (i + 1) * 30;
+      
+      // Adjust for house 1 position and convert to canvas coordinates
+      const adjustedStart = (signStart - house1Longitude + 360) % 360;
+      const adjustedEnd = (signEnd - house1Longitude + 360) % 360;
+      
+      // Convert to canvas angles (0° = 3 o'clock, going clockwise)
+      // We want 0° to be at 9 o'clock (left side), so subtract from 180°
+      const startAngle = ((180 - adjustedStart) * Math.PI) / 180;
+      const endAngle = ((180 - adjustedEnd) * Math.PI) / 180;
+      
+      // Draw colored sector background
+      const innerRadius = radius * 0.85; // Inner boundary of zodiac ring (moved much closer to edge)
+      const outerRadius = radius; // Outer boundary at the wheel edge (no padding)
+      
       ctx.save();
       ctx.beginPath();
-      //ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      ctx.arc(centerX, centerY, outerRadius, startAngle, endAngle, true);
+      ctx.arc(centerX, centerY, innerRadius, endAngle, startAngle, false);
       ctx.closePath();
-      ctx.strokeStyle = 'rgba(139, 92, 246, 0.18)';
+      ctx.fillStyle = elementColors[zodiac.element];
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.restore();
-      // Symbol in the center of the sector
-      const shiftedSymbol = (i * 30 + 15 - house1Longitude + 360) % 360;
-      const symbolAngle = ((360 - shiftedSymbol + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const symbolRadius = radius * 0.85;
+      
+      // Draw zodiac symbol in the center of the sector
+      const symbolPosition = signStart + 15; // Middle of the 30° sector
+      const adjustedSymbol = (symbolPosition - house1Longitude + 360) % 360;
+      const symbolAngle = ((180 - adjustedSymbol) * Math.PI) / 180;
+      const symbolRadius = (innerRadius + outerRadius) / 2;
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
-      ctx.font = 'bold 24px serif';
-      ctx.fillStyle = zodiac.color;
+      
+      ctx.font = 'bold 20px serif';
+      ctx.fillStyle = '#333';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(zodiac.symbol, x, y);
-      ctx.font = '12px sans-serif';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.fillText(zodiac.name, x, y + 20);
+    });
+
+    // Draw the main outer chart circle (outer wheel)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(139, 92, 246, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Draw house delimiters outside the outer wheel
+    housePositions.forEach((house, i) => {
+      const adjustedLongitude = (house.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
+      
+      // Delimiter outside the wheel (keep this)
+      const outerInnerRadius = radius; // Start at the outer wheel edge
+      const outerOuterRadius = radius + 15; // Extend 15px outside the wheel
+      const x1 = centerX + Math.cos(angle) * outerInnerRadius;
+      const y1 = centerY + Math.sin(angle) * outerInnerRadius;
+      const x2 = centerX + Math.cos(angle) * outerOuterRadius;
+      const y2 = centerY + Math.sin(angle) * outerOuterRadius;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = '#f3f4f6'; // text-gray-100
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Only 10px delimiter between zodiac area and house degrees text
+      const zodiacEdge = radius * 0.85; // Edge of zodiac sign area
+      const delimiterStart = zodiacEdge; // Start at zodiac edge
+      const delimiterEnd = zodiacEdge - 15; // Only 10px inward
+      const x3 = centerX + Math.cos(angle) * delimiterStart;
+      const y3 = centerY + Math.sin(angle) * delimiterStart;
+      const x4 = centerX + Math.cos(angle) * delimiterEnd;
+      const y4 = centerY + Math.sin(angle) * delimiterEnd;
+      ctx.beginPath();
+      ctx.moveTo(x3, y3);
+      ctx.lineTo(x4, y4);
+      ctx.strokeStyle = '#f3f4f6'; // text-gray-100
+      ctx.lineWidth = 1;
+      ctx.stroke();
     });
     
     // Draw zodiac sign delimiters inside the wheel
     for (let i = 0; i < 12; i++) {
-      const shifted = (i * 30 - house1Longitude + 360) % 360;
-      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const signBoundary = i * 30;
+      const adjustedBoundary = (signBoundary - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedBoundary) * Math.PI) / 180;
       const outerRadius = radius;
       const innerRadius = radius - 18; // 18px inside the wheel
       const x1 = centerX + Math.cos(angle) * innerRadius;
@@ -118,7 +174,7 @@ function initBirthChart() {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1;
       ctx.stroke();
     }
     
@@ -130,29 +186,32 @@ function initBirthChart() {
     
     // Draw houses (relative to House 1 at 0°, rotated)
     housePositions.forEach((house, i) => {
-      const shifted = (house.longitude - house1Longitude + 360) % 360;
-      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const houseRadius = radius; // draw to the outer wheel
+      const adjustedLongitude = (house.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
+      const houseRadius = radius + 10; // extend 10px beyond the outer wheel
       const x = centerX + Math.cos(angle) * houseRadius;
       const y = centerY + Math.sin(angle) * houseRadius;
-      // Draw house cusp line (full radius)
+      // Draw house cusp line (extending 10px beyond outer wheel)
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
       ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      // Draw Roman numeral at the outer wheel
-      ctx.font = 'bold 16px serif';
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+      // Draw Roman numeral with more padding from outer wheel
+      const romanRadius = radius * 1.08; // Moved further out for more padding from outer wheel
+      const rx = centerX + Math.cos(angle) * romanRadius;
+      const ry = centerY + Math.sin(angle) * romanRadius;
+      ctx.font = 'bold 14px serif';
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(toRoman(house.house), x, y);
-      // Draw house degree and sign inside the wheel
-      const degreeRadius = radius * 0.85;
+      ctx.fillText(toRoman(house.house), rx, ry);
+      // Draw house degree and sign with more padding from zodiac ring
+      const degreeRadius = radius * 0.75; // Moved further inside for more padding from zodiac ring
       const dx = centerX + Math.cos(angle) * degreeRadius;
       const dy = centerY + Math.sin(angle) * degreeRadius;
-      ctx.font = '11px monospace';
+      ctx.font = '10px monospace';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -250,8 +309,8 @@ function initBirthChart() {
 
     // Second pass: draw planets with assigned padding
     planetPositions.forEach((planet, i) => {
-      const shifted = (planet.longitude - house1Longitude + 360) % 360;
-      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const adjustedLongitude = (planet.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
       
       // Use assigned padding or default if no overlaps
       const assignedPadding = planetPadding.get(planet.planet) || 64;
@@ -302,8 +361,8 @@ function initBirthChart() {
     };
     
     chartPoints.forEach((point, i) => {
-      const shifted = (point.longitude - house1Longitude + 360) % 360;
-      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const adjustedLongitude = (point.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
       const pointRadius = radius * 0.45;
       const x = centerX + Math.cos(angle) * pointRadius;
       const y = centerY + Math.sin(angle) * pointRadius;
@@ -318,10 +377,10 @@ function initBirthChart() {
     planetPositions.forEach((planet1, i) => {
       planetPositions.forEach((planet2, j) => {
         if (j > i) {
-          const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
-          const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
-          const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
-          const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
+          const adjustedLongitude1 = (planet1.longitude - house1Longitude + 360) % 360;
+          const adjustedLongitude2 = (planet2.longitude - house1Longitude + 360) % 360;
+          const angle1 = ((180 - adjustedLongitude1) * Math.PI) / 180;
+          const angle2 = ((180 - adjustedLongitude2) * Math.PI) / 180;
           const radius1 = radius; // extend to outer wheel
           const radius2 = radius; // extend to outer wheel
           const x1 = centerX + Math.cos(angle1) * radius1;
