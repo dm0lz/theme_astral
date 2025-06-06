@@ -18,16 +18,19 @@ function initBirthChart() {
   let time = 0;
   
   const resizeCanvas = () => {
-    const size = Math.min(window.innerWidth * 0.8, 800);
+    const padding = 100; // Add padding for labels
+    const baseSize = Math.min(window.innerWidth * 0.8, 800);
+    const size = baseSize + padding;
     canvas.width = size;
     canvas.height = size;
   };
   
   const drawChart = (timestamp) => {
     time = timestamp * 0.001;
+    const padding = 100; // Match the padding from resizeCanvas
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const radius = (canvas.width * 0.8) / 2;
+    const radius = ((canvas.width - padding) * 0.8) / 2; // Adjust radius to account for padding
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // Draw solid background for the wheel (bg-gray-900)
@@ -88,7 +91,7 @@ function initBirthChart() {
       // Symbol in the center of the sector
       const shiftedSymbol = (i * 30 + 15 - house1Longitude + 360) % 360;
       const symbolAngle = ((360 - shiftedSymbol + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const symbolRadius = radius * 0.925;
+      const symbolRadius = radius * 0.85;
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
       ctx.font = 'bold 24px serif';
@@ -100,6 +103,24 @@ function initBirthChart() {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.fillText(zodiac.name, x, y + 20);
     });
+    
+    // Draw zodiac sign delimiters inside the wheel
+    for (let i = 0; i < 12; i++) {
+      const shifted = (i * 30 - house1Longitude + 360) % 360;
+      const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const outerRadius = radius;
+      const innerRadius = radius - 18; // 18px inside the wheel
+      const x1 = centerX + Math.cos(angle) * innerRadius;
+      const y1 = centerY + Math.sin(angle) * innerRadius;
+      const x2 = centerX + Math.cos(angle) * outerRadius;
+      const y2 = centerY + Math.sin(angle) * outerRadius;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
     
     // Helper for Roman numerals
     function toRoman(num) {
@@ -178,25 +199,64 @@ function initBirthChart() {
       'Neptune': '♆',
       'Pluto': '♇'
     };
-    
-    const planetColors = {
-      'Sun': 'rgba(251, 191, 36, 1)',
-      'Moon': 'rgba(229, 231, 235, 1)',
-      'Mercury': 'rgba(147, 197, 253, 1)',
-      'Venus': 'rgba(251, 207, 232, 1)',
-      'Mars': 'rgba(248, 113, 113, 1)',
-      'Jupiter': 'rgba(147, 197, 253, 1)',
-      'Saturn': 'rgba(209, 213, 219, 1)',
-      'Uranus': 'rgba(167, 139, 250, 1)',
-      'Neptune': 'rgba(147, 197, 253, 1)',
-      'Pluto': 'rgba(167, 139, 250, 1)'
+
+    // Define planetary rulerships
+    const planetRulerships = {
+      'Sun': [4], // Leo (5th sign, index 4)
+      'Moon': [3], // Cancer (4th sign, index 3)
+      'Mercury': [2, 5], // Gemini (3rd sign, index 2) and Virgo (6th sign, index 5)
+      'Venus': [1, 6], // Taurus (2nd sign, index 1) and Libra (7th sign, index 6)
+      'Mars': [0, 7], // Aries (1st sign, index 0) and Scorpio (8th sign, index 7)
+      'Jupiter': [8, 11], // Sagittarius (9th sign, index 8) and Pisces (12th sign, index 11)
+      'Saturn': [9, 10], // Capricorn (10th sign, index 9) and Aquarius (11th sign, index 10)
+      'Uranus': [10], // Aquarius (11th sign, index 10) - modern ruler
+      'Neptune': [11], // Pisces (12th sign, index 11) - modern ruler
+      'Pluto': [7] // Scorpio (8th sign, index 7) - modern ruler
     };
+
+    // First pass: identify overlapping planets and assign padding levels
+    const planetPadding = new Map();
+    const processedGroups = new Set();
     
+    planetPositions.forEach((planet1, i) => {
+      if (planetPadding.has(planet1.planet)) return; // Already processed
+      
+      // Find all planets that overlap with this one
+      const overlappingGroup = [planet1];
+      planetPositions.forEach((planet2, j) => {
+        if (i !== j) {
+          const diff = Math.abs(planet1.longitude - planet2.longitude) % 360;
+          const minDiff = Math.min(diff, 360 - diff);
+          if (minDiff < 5) { // Consider planets within 5 degrees as overlapping
+            overlappingGroup.push(planet2);
+          }
+        }
+      });
+      
+      // Assign padding levels to each planet in the group
+      overlappingGroup.forEach((planet, index) => {
+        if (!planetPadding.has(planet.planet)) {
+          // Only use special padding if there are actually overlapping planets
+          if (overlappingGroup.length > 1) {
+            // Assign padding: 32px for first, 64px for second, 96px for third, etc.
+            const basePadding = 32;
+            const padding = basePadding + (index * 32);
+            planetPadding.set(planet.planet, padding);
+          }
+          // If no overlaps, the planet will use the default 64px padding (handled in the drawing phase)
+        }
+      });
+    });
+
+    // Second pass: draw planets with assigned padding
     planetPositions.forEach((planet, i) => {
       const shifted = (planet.longitude - house1Longitude + 360) % 360;
       const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const padding = 64; // px padding between planets and outer wheel (increased)
-      const planetRadius = radius + padding; // further outside the wheel
+      
+      // Use assigned padding or default if no overlaps
+      const assignedPadding = planetPadding.get(planet.planet) || 64;
+      
+      const planetRadius = radius + assignedPadding;
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
       // Draw a line from the wheel edge to the planet symbol
@@ -209,18 +269,24 @@ function initBirthChart() {
       ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      // Draw planet symbol (bigger, all gray-300)
+      
+      // Check if planet is in its own sign
+      const planetSignIndex = Math.floor(planet.longitude / 30) % 12;
+      const isInOwnSign = planetRulerships[planet.planet] && planetRulerships[planet.planet].includes(planetSignIndex);
+      
+      // Draw planet symbol (colored based on whether it's in its own sign)
       ctx.font = 'bold 72px serif';
-      ctx.fillStyle = '#d1d5db'; // Tailwind's text-gray-300
+      ctx.fillStyle = isInOwnSign ? 'rgba(251, 191, 36, 1)' : '#d1d5db'; // Sun color if in own sign, otherwise gray
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(planetSymbols[planet.planet] || planet.planet[0], x, y);
-      // Draw planet degree label below the symbol
+      
+      // Draw planet degree label below the symbol with reduced offset
       ctx.font = '13px monospace';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 36);
+      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 28);
     });
     
     // Draw chart points (relative to House 1 at 0°, rotated)
@@ -284,7 +350,7 @@ function initBirthChart() {
 
           aspects.forEach(aspect => {
             if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
-              console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.planet} and ${planet2.planet}`);
+              // console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.planet} and ${planet2.planet}`); // Commented out to prevent flooding
 
               ctx.beginPath();
               ctx.moveTo(x1, y1);
@@ -346,8 +412,11 @@ function initBirthChart() {
   };
   
   resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-  requestAnimationFrame(drawChart);
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    drawChart(0);
+  });
+  drawChart(0);
 }
 
 function formatPlanetDegree(longitude) {
