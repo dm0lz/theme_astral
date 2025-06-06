@@ -4,19 +4,14 @@ class Ai::Astro::ChatMessagesService
   end
 
   def call
-    client = OpenAI::Client.new(access_token: Rails.application.credentials.openai_api_key, uri_base: "https://api.openai.com/v1")
+    client = OpenAI::Client.new(access_token: Rails.application.credentials.deep_seek_api_key, uri_base: "https://api.deepseek.com")
 		response = client.chat(
 			parameters: {
-				model: "gpt-4o",
-				response_format: {
-					type: "json_schema",
-					json_schema: response_schema
-				},
+				model: "deepseek-reasoner",
 				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
 			}
 		)
-		json = JSON.parse(response["choices"][0]["message"]["content"].match(/{.*}/m).to_s) rescue nil
-    json["chat_message"]
+		response["choices"][0]["message"]["content"]
   end
 
   private
@@ -46,24 +41,24 @@ class Ai::Astro::ChatMessagesService
     PROMPT
   end
 
-  def response_schema
-    {
-      strict: true,
-      name: "chat_message_response",
-      description: "Generate a concise and insightful astrology-related chat message response.",
-      schema: {
-        type: "object",
-        properties: {
-          chat_message: {
-            type: "string",
-            description: "The generated response to the user's astrology-related message"
-          }
-        },
-        additionalProperties: false,
-        required: ["chat_message"]
-      }
-    }
-  end
+  # def response_schema
+  #   {
+  #     strict: true,
+  #     name: "chat_message_response",
+  #     description: "Generate a concise and insightful astrology-related chat message response.",
+  #     schema: {
+  #       type: "object",
+  #       properties: {
+  #         chat_message: {
+  #           type: "string",
+  #           description: "The generated response to the user's astrology-related message"
+  #         }
+  #       },
+  #       additionalProperties: false,
+  #       required: ["chat_message"]
+  #     }
+  #   }
+  # end
 
   def birth_charts
     @chat_message.user.birth_charts.map do |birth_chart|
