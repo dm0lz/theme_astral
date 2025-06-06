@@ -35,9 +35,10 @@ function initBirthChart() {
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.closePath();
-    ctx.fillStyle = '#111827'; // Tailwind's bg-gray-900
+    ctx.fillStyle = '#0A0A20'; // Tailwind's bg-gray-900
     ctx.fill();
     ctx.restore();
+    
     
     // Draw only the main outer chart circle (outer wheel)
     ctx.beginPath();
@@ -120,39 +121,49 @@ function initBirthChart() {
       ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
+      // Draw Roman numeral at the outer wheel
       ctx.font = 'bold 16px serif';
       ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(toRoman(house.house), x, y);
+      // Draw house degree and sign inside the wheel
+      const degreeRadius = radius * 0.85;
+      const dx = centerX + Math.cos(angle) * degreeRadius;
+      const dy = centerY + Math.sin(angle) * degreeRadius;
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(formatPlanetDegree(house.longitude), dx, dy);
     });
     
     // Draw degree ticks and labels (rotated 90° counterclockwise)
-    for (let deg = 0; deg < 360; deg += 10) {
-      const angle = ((360 - deg + 180) % 360) * Math.PI / 180;
-      const outerRadius = radius;
-      const innerRadius = deg % 30 === 0 ? radius * 0.97 : radius * 0.985;
-      const x1 = centerX + Math.cos(angle) * outerRadius;
-      const y1 = centerY + Math.sin(angle) * outerRadius;
-      const x2 = centerX + Math.cos(angle) * innerRadius;
-      const y2 = centerY + Math.sin(angle) * innerRadius;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = deg % 30 === 0 ? '#fff' : 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = deg % 30 === 0 ? 2 : 1;
-      ctx.stroke();
-      if (deg % 30 === 0) {
-        const labelRadius = radius * 1.03;
-        const lx = centerX + Math.cos(angle) * labelRadius;
-        const ly = centerY + Math.sin(angle) * labelRadius;
-        ctx.font = '11px sans-serif';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(deg.toString(), lx, ly);
-      }
-    }
+    // for (let deg = 0; deg < 360; deg += 10) {
+    //   const angle = ((360 - deg + 180) % 360) * Math.PI / 180;
+    //   const outerRadius = radius;
+    //   const innerRadius = deg % 30 === 0 ? radius * 0.97 : radius * 0.985;
+    //   const x1 = centerX + Math.cos(angle) * outerRadius;
+    //   const y1 = centerY + Math.sin(angle) * outerRadius;
+    //   const x2 = centerX + Math.cos(angle) * innerRadius;
+    //   const y2 = centerY + Math.sin(angle) * innerRadius;
+    //   ctx.beginPath();
+    //   ctx.moveTo(x1, y1);
+    //   ctx.lineTo(x2, y2);
+    //   ctx.strokeStyle = deg % 30 === 0 ? '#fff' : 'rgba(255,255,255,0.3)';
+    //   ctx.lineWidth = deg % 30 === 0 ? 2 : 1;
+    //   ctx.stroke();
+    //   if (deg % 30 === 0) {
+    //     const labelRadius = radius * 1.03;
+    //     const lx = centerX + Math.cos(angle) * labelRadius;
+    //     const ly = centerY + Math.sin(angle) * labelRadius;
+    //     ctx.font = '11px sans-serif';
+    //     ctx.fillStyle = '#fff';
+    //     ctx.textAlign = 'center';
+    //     ctx.textBaseline = 'middle';
+    //     ctx.fillText(deg.toString(), lx, ly);
+    //   }
+    // }
     
     // Draw planets (outside the wheel, like the reference image)
     const planetSymbols = {
@@ -184,7 +195,8 @@ function initBirthChart() {
     planetPositions.forEach((planet, i) => {
       const shifted = (planet.longitude - house1Longitude + 360) % 360;
       const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const planetRadius = radius * 1.07; // outside the wheel
+      const padding = 64; // px padding between planets and outer wheel (increased)
+      const planetRadius = radius + padding; // further outside the wheel
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
       // Draw a line from the wheel edge to the planet symbol
@@ -197,18 +209,18 @@ function initBirthChart() {
       ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      // Draw planet symbol
-      ctx.font = 'bold 52px serif';
-      ctx.fillStyle = planetColors[planet.planet] || 'rgba(255, 255, 255, 0.9)';
+      // Draw planet symbol (bigger, all gray-300)
+      ctx.font = 'bold 72px serif';
+      ctx.fillStyle = '#d1d5db'; // Tailwind's text-gray-300
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(planetSymbols[planet.planet] || planet.planet[0], x, y);
       // Draw planet degree label below the symbol
-      ctx.font = '11px monospace';
+      ctx.font = '13px monospace';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 18);
+      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 36);
     });
     
     // Draw chart points (relative to House 1 at 0°, rotated)
@@ -258,21 +270,21 @@ function initBirthChart() {
           // All aspects
           const aspects = [
             { angle: 0, tolerance: 8, type: 'conjunction' },
-            { angle: 30, tolerance: 2, type: 'semi-sextile' },
-            { angle: 45, tolerance: 2, type: 'semi-square' },
+            // { angle: 30, tolerance: 2, type: 'semi-sextile' },
+            // { angle: 45, tolerance: 2, type: 'semi-square' },
             { angle: 60, tolerance: 6, type: 'sextile' },
-            { angle: 72, tolerance: 2, type: 'quintile' },
+            // { angle: 72, tolerance: 2, type: 'quintile' },
             { angle: 90, tolerance: 6, type: 'square' },
             { angle: 120, tolerance: 6, type: 'trine' },
-            { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
-            { angle: 144, tolerance: 2, type: 'biquintile' },
-            { angle: 150, tolerance: 3, type: 'quincunx' },
+            // { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
+            // { angle: 144, tolerance: 2, type: 'biquintile' },
+            // { angle: 150, tolerance: 3, type: 'quincunx' },
             { angle: 180, tolerance: 8, type: 'opposition' }
           ];
 
           aspects.forEach(aspect => {
             if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
-              console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.name} and ${planet2.name}`);
+              console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.planet} and ${planet2.planet}`);
 
               ctx.beginPath();
               ctx.moveTo(x1, y1);
@@ -286,12 +298,20 @@ function initBirthChart() {
                   ctx.setLineDash([]);
                   break;
                 case 'sextile':
+                  ctx.strokeStyle = 'rgb(31, 55, 167)'; // solid red
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([]); // solid line
+                  break;
                 case 'trine':
-                  ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
-                  ctx.lineWidth = 1;
+                  ctx.strokeStyle = 'rgb(31, 55, 167)'; // solid red
+                  ctx.lineWidth = 2;
                   ctx.setLineDash([]);
                   break;
                 case 'square':
+                  ctx.strokeStyle = 'rgb(156, 27, 27)'; // solid red
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([]); // solid line
+                  break;
                 case 'opposition':
                   ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
                   ctx.lineWidth = 1;
@@ -321,7 +341,8 @@ function initBirthChart() {
       });
     });
     
-    requestAnimationFrame(drawChart);
+    // Remove the animation loop to prevent infinite redraw
+    // requestAnimationFrame(drawChart);
   };
   
   resizeCanvas();
