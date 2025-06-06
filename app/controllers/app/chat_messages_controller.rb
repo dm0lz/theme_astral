@@ -64,6 +64,11 @@ class App::ChatMessagesController < App::ApplicationController
       format.json { head :no_content }
     end
   end
+  
+  def clear
+    @chat_messages = Current.user.chat_messages.destroy_all
+    redirect_to app_chat_messages_path, status: :see_other, notice: "Chat messages were successfully destroyed."
+  end
 
   private
     # Use callbacks to share common setup or constraints between actions.

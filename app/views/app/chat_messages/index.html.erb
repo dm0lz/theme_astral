@@ -1,5 +1,9 @@
 <% content_for :title, "Chat" %>
 
+<div class="max-w-7xl mx-auto flex justify-end">
+  <%= button_to "clear chat", clear_app_chat_messages_path, method: :delete, class: "text-indigo-300 hover:text-amber-400 transition duration-200" %>
+</div>
+
 <div class="max-w-7xl mx-auto mt-10 flex flex-col md:flex-row bg-[#050510]/95 rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
   <div class="flex-1 flex flex-col h-[calc(100vh-200px)]">
     <div id="chat_messages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-transparent">
