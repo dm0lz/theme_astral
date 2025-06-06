@@ -86,9 +86,9 @@ function initBirthChart() {
       const startAngle = ((180 - adjustedStart) * Math.PI) / 180;
       const endAngle = ((180 - adjustedEnd) * Math.PI) / 180;
       
-      // Draw colored sector background
-      const innerRadius = radius * 0.85; // Inner boundary of zodiac ring (moved much closer to edge)
-      const outerRadius = radius; // Outer boundary at the wheel edge (no padding)
+      // Draw thin colored line at outer edge
+      const innerRadius = radius * 0.99; // Very thin line - just 3% of radius
+      const outerRadius = radius; // At the wheel edge
       
       ctx.save();
       ctx.beginPath();
@@ -97,21 +97,21 @@ function initBirthChart() {
       ctx.closePath();
       ctx.fillStyle = elementColors[zodiac.element];
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 0.5;
       ctx.stroke();
       ctx.restore();
       
-      // Draw zodiac symbol in the center of the sector
+      // Draw zodiac symbol inside the outer wheel
       const symbolPosition = signStart + 15; // Middle of the 30° sector
       const adjustedSymbol = (symbolPosition - house1Longitude + 360) % 360;
       const symbolAngle = ((180 - adjustedSymbol) * Math.PI) / 180;
-      const symbolRadius = (innerRadius + outerRadius) / 2;
+      const symbolRadius = radius * 0.88; // Position symbols further inside with more padding from outer wheel
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
       
-      ctx.font = 'bold 20px serif';
-      ctx.fillStyle = '#333';
+      ctx.font = 'bold 28px serif';
+      ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(zodiac.symbol, x, y);
@@ -144,7 +144,7 @@ function initBirthChart() {
       ctx.stroke();
       
       // Only 10px delimiter between zodiac area and house degrees text
-      const zodiacEdge = radius * 0.85; // Edge of zodiac sign area
+      const zodiacEdge = radius * 0.97; // Edge of thin zodiac line
       const delimiterStart = zodiacEdge; // Start at zodiac edge
       const delimiterEnd = zodiacEdge - 15; // Only 10px inward
       const x3 = centerX + Math.cos(angle) * delimiterStart;
@@ -400,7 +400,7 @@ function initBirthChart() {
             { angle: 60, tolerance: 6, type: 'sextile' },
             // { angle: 72, tolerance: 2, type: 'quintile' },
             { angle: 90, tolerance: 6, type: 'square' },
-            { angle: 120, tolerance: 6, type: 'trine' },
+            { angle: 120, tolerance: 10, type: 'trine' },
             // { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
             // { angle: 144, tolerance: 2, type: 'biquintile' },
             // { angle: 150, tolerance: 3, type: 'quincunx' },
