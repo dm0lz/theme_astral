@@ -39,6 +39,13 @@ function initBirthChart() {
     ctx.fill();
     ctx.restore();
     
+    // Draw only the main outer chart circle (outer wheel)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(139, 92, 246, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
     // Draw zodiac wheel
     const zodiacData = [
       { symbol: '♈', name: 'Aries', color: '#FF6B6B' },
@@ -68,10 +75,10 @@ function initBirthChart() {
       const shiftedEnd = ((i + 1) * 30 - house1Longitude + 360) % 360;
       const startAngle = ((360 - shiftedStart + 270 + rotationOffset) % 360) * Math.PI / 180;
       const endAngle = ((360 - shiftedEnd + 270 + rotationOffset) % 360) * Math.PI / 180;
+      // Remove radial lines: do not draw from center to wheel for zodiac sectors
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      //ctx.arc(centerX, centerY, radius, startAngle, endAngle);
       ctx.closePath();
       ctx.strokeStyle = 'rgba(139, 92, 246, 0.18)';
       ctx.lineWidth = 1;
@@ -93,24 +100,20 @@ function initBirthChart() {
       ctx.fillText(zodiac.name, x, y + 20);
     });
     
-    // Draw chart circles (after sectors, so they're visible)
-    const circles = [1, 0.85, 0.7, 0.55];
-    circles.forEach((scale, index) => {
-      const pulseScale = scale + Math.sin(time + index) * 0.005;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius * pulseScale, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(139, 92, 246, ${0.25 + index * 0.1})`;
-      ctx.lineWidth = index === 0 ? 2 : 1;
-      ctx.stroke();
-    });
+    // Helper for Roman numerals
+    function toRoman(num) {
+      const romans = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+      return romans[num-1] || num;
+    }
     
     // Draw houses (relative to House 1 at 0°, rotated)
     housePositions.forEach((house, i) => {
       const shifted = (house.longitude - house1Longitude + 360) % 360;
       const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const houseRadius = radius * 0.75;
+      const houseRadius = radius; // draw to the outer wheel
       const x = centerX + Math.cos(angle) * houseRadius;
       const y = centerY + Math.sin(angle) * houseRadius;
+      // Draw house cusp line (full radius)
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
@@ -121,7 +124,7 @@ function initBirthChart() {
       ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(house.house.toString(), x, y);
+      ctx.fillText(toRoman(house.house), x, y);
     });
     
     // Draw degree ticks and labels (rotated 90° counterclockwise)
@@ -151,7 +154,7 @@ function initBirthChart() {
       }
     }
     
-    // Draw planets (relative to House 1 at 0°, rotated)
+    // Draw planets (outside the wheel, like the reference image)
     const planetSymbols = {
       'Sun': '☉',
       'Moon': '☽',
@@ -181,20 +184,31 @@ function initBirthChart() {
     planetPositions.forEach((planet, i) => {
       const shifted = (planet.longitude - house1Longitude + 360) % 360;
       const angle = ((360 - shifted + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const planetRadius = radius * 0.6;
+      const planetRadius = radius * 1.07; // outside the wheel
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
-      ctx.font = 'bold 28px serif';
-      ctx.fillStyle = planetColors[planet.planet] || 'rgba(255, 255, 255, 0.8)';
+      // Draw a line from the wheel edge to the planet symbol
+      const edgeRadius = radius * 0.98;
+      const ex = centerX + Math.cos(angle) * edgeRadius;
+      const ey = centerY + Math.sin(angle) * edgeRadius;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Draw planet symbol
+      ctx.font = 'bold 52px serif';
+      ctx.fillStyle = planetColors[planet.planet] || 'rgba(255, 255, 255, 0.9)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(planetSymbols[planet.planet] || planet.planet[0], x, y);
-      ctx.font = '12px sans-serif';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.fillText(planet.planet, x, y + 20);
+      // Draw planet degree label below the symbol
       ctx.font = '11px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y - 22);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 18);
     });
     
     // Draw chart points (relative to House 1 at 0°, rotated)
@@ -223,94 +237,89 @@ function initBirthChart() {
     });
     
     // Draw aspects between planets (relative to House 1 at 0°, rotated)
-    // Draw aspects between planets (relative to House 1 at 0°, rotated)
-planetPositions.forEach((planet1, i) => {
-  planetPositions.forEach((planet2, j) => {
-    if (j > i) {
-      const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
-      const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
+    planetPositions.forEach((planet1, i) => {
+      planetPositions.forEach((planet2, j) => {
+        if (j > i) {
+          const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
+          const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
+          const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
+          const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
+          const radius1 = radius; // extend to outer wheel
+          const radius2 = radius; // extend to outer wheel
+          const x1 = centerX + Math.cos(angle1) * radius1;
+          const y1 = centerY + Math.sin(angle1) * radius1;
+          const x2 = centerX + Math.cos(angle2) * radius2;
+          const y2 = centerY + Math.sin(angle2) * radius2;
 
-      const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
-      const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
+          // Accurate minimal angular difference
+          const rawDiff = Math.abs(planet1.longitude - planet2.longitude) % 360;
+          const aspectAngle = rawDiff > 180 ? 360 - rawDiff : rawDiff;
 
-      const radius1 = radius * 0.6;
-      const radius2 = radius * 0.6;
+          // All aspects
+          const aspects = [
+            { angle: 0, tolerance: 8, type: 'conjunction' },
+            { angle: 30, tolerance: 2, type: 'semi-sextile' },
+            { angle: 45, tolerance: 2, type: 'semi-square' },
+            { angle: 60, tolerance: 6, type: 'sextile' },
+            { angle: 72, tolerance: 2, type: 'quintile' },
+            { angle: 90, tolerance: 6, type: 'square' },
+            { angle: 120, tolerance: 6, type: 'trine' },
+            { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
+            { angle: 144, tolerance: 2, type: 'biquintile' },
+            { angle: 150, tolerance: 3, type: 'quincunx' },
+            { angle: 180, tolerance: 8, type: 'opposition' }
+          ];
 
-      const x1 = centerX + Math.cos(angle1) * radius1;
-      const y1 = centerY + Math.sin(angle1) * radius1;
-      const x2 = centerX + Math.cos(angle2) * radius2;
-      const y2 = centerY + Math.sin(angle2) * radius2;
+          aspects.forEach(aspect => {
+            if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
+              console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.name} and ${planet2.name}`);
 
-      // Accurate minimal angular difference
-      const rawDiff = Math.abs(planet1.longitude - planet2.longitude) % 360;
-      const aspectAngle = rawDiff > 180 ? 360 - rawDiff : rawDiff;
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
 
-      // All aspects
-      const aspects = [
-        { angle: 0, tolerance: 8, type: 'conjunction' },
-        { angle: 30, tolerance: 2, type: 'semi-sextile' },
-        { angle: 45, tolerance: 2, type: 'semi-square' },
-        { angle: 60, tolerance: 6, type: 'sextile' },
-        { angle: 72, tolerance: 2, type: 'quintile' },
-        { angle: 90, tolerance: 6, type: 'square' },
-        { angle: 120, tolerance: 6, type: 'trine' },
-        { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
-        { angle: 144, tolerance: 2, type: 'biquintile' },
-        { angle: 150, tolerance: 3, type: 'quincunx' },
-        { angle: 180, tolerance: 8, type: 'opposition' }
-      ];
+              // Visual styling by aspect type
+              switch (aspect.type) {
+                case 'conjunction':
+                  ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+                  ctx.lineWidth = 1.5;
+                  ctx.setLineDash([]);
+                  break;
+                case 'sextile':
+                case 'trine':
+                  ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([]);
+                  break;
+                case 'square':
+                case 'opposition':
+                  ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([5, 5]);
+                  break;
+                case 'semi-sextile':
+                case 'semi-square':
+                case 'quintile':
+                case 'sesquiquadrate':
+                case 'biquintile':
+                case 'quincunx':
+                  ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)'; // soft gray
+                  ctx.lineWidth = 0.8;
+                  ctx.setLineDash([2, 4]);
+                  break;
+                default:
+                  ctx.strokeStyle = 'gray';
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([]);
+              }
 
-      aspects.forEach(aspect => {
-        if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
-          console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.name} and ${planet2.name}`);
-
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-
-          // Visual styling by aspect type
-          switch (aspect.type) {
-            case 'conjunction':
-              ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
-              ctx.lineWidth = 1.5;
-              ctx.setLineDash([]);
-              break;
-            case 'sextile':
-            case 'trine':
-              ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
-              ctx.lineWidth = 1;
-              ctx.setLineDash([]);
-              break;
-            case 'square':
-            case 'opposition':
-              ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
-              ctx.lineWidth = 1;
-              ctx.setLineDash([5, 5]);
-              break;
-            case 'semi-sextile':
-            case 'semi-square':
-            case 'quintile':
-            case 'sesquiquadrate':
-            case 'biquintile':
-            case 'quincunx':
-              ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)'; // soft gray
-              ctx.lineWidth = 0.8;
-              ctx.setLineDash([2, 4]);
-              break;
-            default:
-              ctx.strokeStyle = 'gray';
-              ctx.lineWidth = 1;
-              ctx.setLineDash([]);
-          }
-
-          ctx.stroke();
-          ctx.setLineDash([]); // reset after each draw
+              ctx.stroke();
+              ctx.setLineDash([]); // reset after each draw
+            }
+          });
         }
       });
-    }
-  });
-});
-
+    });
     
     requestAnimationFrame(drawChart);
   };
