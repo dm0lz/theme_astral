@@ -61,10 +61,10 @@ function initBirthChart() {
 
     // Elemental colors using traditional associations, optimized for dark theme
     const elementColors = {
-      'fire': 'rgba(239, 68, 68, 0.7)', // Traditional red, adjusted for dark background
-      'earth': 'rgba(224, 227, 24, 0.74)', // Golden yellow complementing existing theme
-      'air': 'rgba(34, 197, 94, 0.6)', // Vibrant green, good contrast on dark background
-      'water': 'rgba(59, 130, 246, 0.7)' // Traditional blue, maintains water association
+      'fire': 'rgba(176, 23, 23, 0.8)', // Warmer red that harmonizes with the gold theme
+      'earth': 'rgba(232, 225, 21, 0.8)', // Golden yellow matching existing house numbers
+      'air': 'rgba(35, 205, 75, 0.8)', // Softer green that complements purple
+      'water': 'rgba(28, 35, 227, 0.8)' // Purple-blue matching the main chart color
     };
 
     // Find the longitude of House 1 (Ascendant)
@@ -110,7 +110,7 @@ function initBirthChart() {
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
       
-      ctx.font = 'bold 28px serif';
+      ctx.font = 'bold 36px serif';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
