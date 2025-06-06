@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_06_05_200401) do
+ActiveRecord::Schema[8.0].define(version: 2025_06_06_200032) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -79,6 +79,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_200401) do
     t.index ["pillar"], name: "index_keywords_on_pillar"
   end
 
+  create_table "notebooks", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "title"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_notebooks_on_user_id"
+  end
+
+  create_table "notes", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["notebook_id"], name: "index_notes_on_notebook_id"
+  end
+
   create_table "planet_positions", force: :cascade do |t|
     t.bigint "birth_chart_id", null: false
     t.string "planet"
@@ -126,6 +143,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_05_200401) do
   add_foreign_key "chart_points", "birth_charts"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "house_positions", "birth_charts"
+  add_foreign_key "notebooks", "users"
+  add_foreign_key "notes", "notebooks"
   add_foreign_key "planet_positions", "birth_charts"
   add_foreign_key "seo_pages", "keywords"
   add_foreign_key "sessions", "users"

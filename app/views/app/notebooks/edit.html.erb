@@ -1,0 +1,3 @@
+<% content_for :title, "Editing #{@notebook.title.presence || 'Notebook'}" %>
+
+<%= render "form", notebook: @notebook %>

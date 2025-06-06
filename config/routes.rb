@@ -6,6 +6,10 @@ Rails.application.routes.draw do
       end
     end
     resources :birth_charts
+    resources :notebooks do
+      resources :notes, except: [:index]
+    end
+    resources :notes
     root "birth_charts#index"
   end
   resource :session
