@@ -223,65 +223,94 @@ function initBirthChart() {
     });
     
     // Draw aspects between planets (relative to House 1 at 0°, rotated)
-    planetPositions.forEach((planet1, i) => {
-      planetPositions.forEach((planet2, j) => {
-        if (j > i) {
-          const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
-          const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
-          const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
-          const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
-          const radius1 = radius * 0.6;
-          const radius2 = radius * 0.6;
-          const x1 = centerX + Math.cos(angle1) * radius1;
-          const y1 = centerY + Math.sin(angle1) * radius1;
-          const x2 = centerX + Math.cos(angle2) * radius2;
-          const y2 = centerY + Math.sin(angle2) * radius2;
-          
-          // Calculate aspect angle
-          const angleDiff = Math.abs(planet1.longitude - planet2.longitude);
-          const aspectAngle = angleDiff % 360;
-          
-          // Define major aspects
-          const aspects = [
-            { angle: 0, tolerance: 8, type: 'conjunction' },
-            { angle: 60, tolerance: 8, type: 'sextile' },
-            { angle: 90, tolerance: 8, type: 'square' },
-            { angle: 120, tolerance: 8, type: 'trine' },
-            { angle: 180, tolerance: 8, type: 'opposition' }
-          ];
-          
-          aspects.forEach(aspect => {
-            if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
-              ctx.beginPath();
-              ctx.moveTo(x1, y1);
-              ctx.lineTo(x2, y2);
-              
-              // Style based on aspect type
-              switch (aspect.type) {
-                case 'conjunction':
-                  ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
-                  ctx.lineWidth = 1.5;
-                  break;
-                case 'sextile':
-                case 'trine':
-                  ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
-                  ctx.lineWidth = 1;
-                  break;
-                case 'square':
-                case 'opposition':
-                  ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
-                  ctx.lineWidth = 1;
-                  ctx.setLineDash([5, 5]);
-                  break;
-              }
-              
-              ctx.stroke();
+    // Draw aspects between planets (relative to House 1 at 0°, rotated)
+planetPositions.forEach((planet1, i) => {
+  planetPositions.forEach((planet2, j) => {
+    if (j > i) {
+      const shifted1 = (planet1.longitude - house1Longitude + 360) % 360;
+      const shifted2 = (planet2.longitude - house1Longitude + 360) % 360;
+
+      const angle1 = ((360 - shifted1 + 270 + rotationOffset) % 360) * Math.PI / 180;
+      const angle2 = ((360 - shifted2 + 270 + rotationOffset) % 360) * Math.PI / 180;
+
+      const radius1 = radius * 0.6;
+      const radius2 = radius * 0.6;
+
+      const x1 = centerX + Math.cos(angle1) * radius1;
+      const y1 = centerY + Math.sin(angle1) * radius1;
+      const x2 = centerX + Math.cos(angle2) * radius2;
+      const y2 = centerY + Math.sin(angle2) * radius2;
+
+      // Accurate minimal angular difference
+      const rawDiff = Math.abs(planet1.longitude - planet2.longitude) % 360;
+      const aspectAngle = rawDiff > 180 ? 360 - rawDiff : rawDiff;
+
+      // All aspects
+      const aspects = [
+        { angle: 0, tolerance: 8, type: 'conjunction' },
+        { angle: 30, tolerance: 2, type: 'semi-sextile' },
+        { angle: 45, tolerance: 2, type: 'semi-square' },
+        { angle: 60, tolerance: 6, type: 'sextile' },
+        { angle: 72, tolerance: 2, type: 'quintile' },
+        { angle: 90, tolerance: 6, type: 'square' },
+        { angle: 120, tolerance: 6, type: 'trine' },
+        { angle: 135, tolerance: 2, type: 'sesquiquadrate' },
+        { angle: 144, tolerance: 2, type: 'biquintile' },
+        { angle: 150, tolerance: 3, type: 'quincunx' },
+        { angle: 180, tolerance: 8, type: 'opposition' }
+      ];
+
+      aspects.forEach(aspect => {
+        if (Math.abs(aspectAngle - aspect.angle) <= aspect.tolerance) {
+          console.log(`Drawing ${aspect.type} (${aspectAngle}°) between ${planet1.name} and ${planet2.name}`);
+
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+
+          // Visual styling by aspect type
+          switch (aspect.type) {
+            case 'conjunction':
+              ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+              ctx.lineWidth = 1.5;
               ctx.setLineDash([]);
-            }
-          });
+              break;
+            case 'sextile':
+            case 'trine':
+              ctx.strokeStyle = 'rgba(147, 197, 253, 0.4)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([]);
+              break;
+            case 'square':
+            case 'opposition':
+              ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([5, 5]);
+              break;
+            case 'semi-sextile':
+            case 'semi-square':
+            case 'quintile':
+            case 'sesquiquadrate':
+            case 'biquintile':
+            case 'quincunx':
+              ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)'; // soft gray
+              ctx.lineWidth = 0.8;
+              ctx.setLineDash([2, 4]);
+              break;
+            default:
+              ctx.strokeStyle = 'gray';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([]);
+          }
+
+          ctx.stroke();
+          ctx.setLineDash([]); // reset after each draw
         }
       });
-    });
+    }
+  });
+});
+
     
     requestAnimationFrame(drawChart);
   };
