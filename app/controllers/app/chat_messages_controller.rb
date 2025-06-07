@@ -28,9 +28,9 @@ class App::ChatMessagesController < App::ApplicationController
         CreateChatMessageJob.perform_later(@chat_message)
         format.turbo_stream do
           render turbo_stream: [
-            turbo_stream.append("chat_messages", partial: "app/chat_messages/chat_message", locals: { chat_message: @chat_message }),
+            turbo_stream.prepend("chat_messages", partial: "app/chat_messages/chat_message", locals: { chat_message: @chat_message }),
             turbo_stream.replace("chat_form", partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new }),
-            turbo_stream.append("chat_messages", partial: "app/chat_messages/temp_message")
+            turbo_stream.prepend("chat_messages", partial: "app/chat_messages/temp_message")
           ]
         end
       else

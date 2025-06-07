@@ -1,0 +1,94 @@
+<% content_for :title, "Transits" %>
+
+<div class="max-w-7xl mx-auto px-4 mb-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-serif font-bold">
+      <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+        🌌 Transits
+      </span>
+    </h1>
+    
+    <% if @birth_charts.any? %>
+      <div class="flex items-center space-x-4">
+        <label for="birth_chart_selector" class="text-white font-medium">Select Birth Chart:</label>
+        <select 
+          id="birth_chart_selector" 
+          class="px-4 py-2 bg-[#0f172a] border border-indigo-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition duration-200"
+          onchange="handleBirthChartChange()"
+        >
+          <% @birth_charts.each do |birth_chart| %>
+            <option 
+              value="<%= birth_chart.id %>" 
+              <%= 'selected' if birth_chart.id == @birth_chart.id %>
+            >
+              <%= "#{birth_chart.first_name} #{birth_chart.last_name}" %>
+            </option>
+          <% end %>
+        </select>
+      </div>
+    <% end %>
+  </div>
+  
+  <% if @birth_chart %>
+    <div class="mb-4 p-4 rounded-lg border border-indigo-800/30">
+      <h2 class="text-xl font-serif text-amber-300 mb-2">
+        Current Chart: <%= "#{@birth_chart.first_name} #{@birth_chart.last_name}" %>
+      </h2>
+      <p class="text-gray-300 text-sm">
+        Born <%= @birth_chart.birth.strftime("%B %d, %Y at %I:%M %p") %> in <%= @birth_chart.location %>
+      </p>
+    </div>
+  <% end %>
+</div>
+
+<% if @birth_chart %>
+  <div class="max-w-7xl mx-auto px-4 mb-12">
+    <div class="rounded-xl p-8 shadow-xl border border-indigo-800/30">
+      <h2 class="text-2xl font-serif font-bold text-center mb-6">
+        <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Birth Chart with Current Transits
+        </span>
+      </h2>
+      
+      <div class="flex justify-center">
+        <canvas
+          id="transitChartCanvas"
+          data-planets-positions="<%= @birth_chart.planet_positions.to_json %>"
+          data-houses-positions="<%= @birth_chart.house_positions.to_json %>"
+          data-chart-points="<%= @birth_chart.chart_points.where.not(name: ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc']).to_json %>"
+          data-current-planets-positions="<%= @current_positions[:planets].to_json %>"
+          data-current-houses-positions="<%= @current_positions[:houses].to_json %>"
+          data-current-chart-points="<%= @current_positions[:chart_points].to_json %>"
+          class="w-full max-w-4xl"
+        ></canvas>
+      </div>
+      
+      <div class="mt-6 text-center text-sm text-gray-400">
+        <p class="mb-2">Inner wheel: Birth Chart • Outer wheel: Current Transits</p>
+        <p>Updated: <%= Time.current.strftime("%B %d, %Y at %I:%M %p") %></p>
+      </div>
+    </div>
+  </div>
+<% else %>
+  <div class="max-w-lg mx-auto mt-20">
+    <div class="text-center rounded-xl p-8 shadow-xl border border-indigo-800/30">
+      <div class="text-6xl mb-4">🌟</div>
+      <h2 class="text-2xl font-serif font-bold text-amber-300 mb-4">No Birth Charts Found</h2>
+      <p class="text-gray-300 mb-6">Create your first birth chart to view transits.</p>
+      <%= link_to "Create Birth Chart", new_app_birth_chart_path, 
+          class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>
+    </div>
+  </div>
+<% end %>
+
+<script>
+function handleBirthChartChange() {
+  const selector = document.getElementById('birth_chart_selector');
+  const selectedBirthChartId = selector.value;
+  
+  // Reload the page with the selected birth chart
+  const currentUrl = new URL(window.location);
+  currentUrl.searchParams.set('birth_chart_id', selectedBirthChartId);
+  Turbo.visit(currentUrl.toString());
+}
+</script>

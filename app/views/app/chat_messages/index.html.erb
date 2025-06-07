@@ -7,7 +7,7 @@
 
 <% content_for :title, "Chat" %>
 
-<div class="max-w-7xl mx-auto px-4 mb-6">
+<div class="max-w-7xl mx-auto px-4 mb-6 overflow-hidden">
   <div class="flex items-center justify-between">
     <h1 class="text-3xl font-serif font-bold">
       <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
@@ -21,12 +21,12 @@
   </div>
 </div>
 
-<div class="max-w-7xl mx-auto flex flex-col md:flex-row bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden mb-12">
+<div class="max-w-7xl mx-auto flex flex-row bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden mb-12">
   <div class="flex-1 flex flex-col h-[calc(100vh-200px)]">
-    <div id="chat_messages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-transparent">
-      <% @chat_messages.reverse.each do |chat_message| %>
+    <div id="chat_messages" class="flex-1 flex flex-col-reverse overflow-y-auto p-6 space-y-4 bg-transparent">
+      <% @chat_messages.each do |chat_message| %>
         <%= render partial: "app/chat_messages/chat_message", locals: { chat_message: chat_message } %>
-      <% end %> 
+      <% end %>
     </div>
     <div class="border-t border-indigo-800/30 bg-[#050510]/95 p-6">
       <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
