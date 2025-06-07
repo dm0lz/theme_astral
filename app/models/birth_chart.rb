@@ -2,6 +2,7 @@ class BirthChart < ApplicationRecord
   has_many :planet_positions, dependent: :destroy
   has_many :house_positions, dependent: :destroy
   has_many :chart_points, dependent: :destroy
+  has_many :karmic_points, dependent: :destroy
   validates :first_name, presence: true
   validates :last_name, presence: true
   validates :birth, presence: true
@@ -18,8 +19,9 @@ class BirthChart < ApplicationRecord
   private
 
   def calculate_positions
-    planet_positions = SwissEphemerisService.new(self).call
-    planet_positions[:planets].each do |planet_position|
+    ephemeris_data = SwissEphemerisService.new(self).call
+    
+    ephemeris_data[:planets].each do |planet_position|
       self.planet_positions.create(
         planet: planet_position[:planet],
         longitude: planet_position[:longitude],
@@ -27,18 +29,30 @@ class BirthChart < ApplicationRecord
         retrograde: planet_position[:retrograde]
       )
     end
-    planet_positions[:houses].each do |house_position|
+    
+    ephemeris_data[:houses].each do |house_position|
       self.house_positions.create(
         house: house_position[:house],
         longitude: house_position[:longitude],
         zodiac: house_position[:zodiac]
       )
     end
-    planet_positions[:chart_points].each do |chart_point|
+    
+    ephemeris_data[:chart_points].each do |chart_point|
       self.chart_points.create(
         name: chart_point[:name],
         longitude: chart_point[:longitude],
         zodiac: chart_point[:zodiac]
+      )
+    end
+    
+    ephemeris_data[:karmic_points].each do |karmic_point|
+      self.karmic_points.create(
+        name: karmic_point[:name],
+        longitude: karmic_point[:longitude],
+        zodiac: karmic_point[:zodiac],
+        speed: karmic_point[:speed],
+        retrograde: karmic_point[:retrograde]
       )
     end
   end

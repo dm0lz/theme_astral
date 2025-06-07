@@ -14,6 +14,7 @@ function initBirthChart() {
   const planetPositions = JSON.parse(canvas.dataset.planetPositions || '[]');
   const housePositions = JSON.parse(canvas.dataset.housePositions || '[]');
   const chartPoints = JSON.parse(canvas.dataset.chartPoints || '[]');
+  const karmicPoints = JSON.parse(canvas.dataset.karmicPoints || '[]');
   
   let time = 0;
   
@@ -259,6 +260,14 @@ function initBirthChart() {
       'Pluto': '♇'
     };
 
+    // Karmic points symbols
+    const karmicSymbols = {
+      'NorthNode': '☊',  // Nœud Nord
+      'SouthNode': '☋',  // Nœud Sud  
+      'Chiron': '⚷',     // Chiron
+      'Lilith': '⚸'      // Lilith (Lune Noire)
+    };
+
     // Define planetary rulerships
     const planetRulerships = {
       'Sun': [4], // Leo (5th sign, index 4)
@@ -372,6 +381,29 @@ function initBirthChart() {
       ctx.textBaseline = 'middle';
       ctx.fillText(pointSymbols[point.name] || point.name, x, y);
     });
+
+    // Draw karmic points (lunar nodes, Chiron, Lilith) 
+    karmicPoints.forEach((karmic, i) => {
+      const adjustedLongitude = (karmic.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
+      const karmicRadius = radius * 0.35; // Slightly inside chart points
+      const x = centerX + Math.cos(angle) * karmicRadius;
+      const y = centerY + Math.sin(angle) * karmicRadius;
+      
+      // Draw karmic point symbol
+      ctx.font = 'bold 20px serif';
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.9)'; // Golden color for karmic points
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(karmicSymbols[karmic.name] || karmic.name[0], x, y);
+      
+      // Draw karmic point degree label
+      ctx.font = '11px monospace';
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(formatKarmicDegree(karmic.longitude, karmic.retrograde), x, y + 12);
+    });
     
     // Draw aspects between planets (relative to House 1 at 0°, rotated)
     planetPositions.forEach((planet1, i) => {
@@ -479,6 +511,27 @@ function initBirthChart() {
 }
 
 function formatPlanetDegree(longitude, retrograde = false) {
+  const signs = [
+    { name: 'Aries', abbr: 'Ar' },
+    { name: 'Taurus', abbr: 'Ta' },
+    { name: 'Gemini', abbr: 'Ge' },
+    { name: 'Cancer', abbr: 'Cn' },
+    { name: 'Leo', abbr: 'Le' },
+    { name: 'Virgo', abbr: 'Vi' },
+    { name: 'Libra', abbr: 'Li' },
+    { name: 'Scorpio', abbr: 'Sc' },
+    { name: 'Sagittarius', abbr: 'Sa' },
+    { name: 'Capricorn', abbr: 'Cp' },
+    { name: 'Aquarius', abbr: 'Aq' },
+    { name: 'Pisces', abbr: 'Pi' }
+  ];
+  const signIndex = Math.floor(longitude / 30) % 12;
+  const degInSign = longitude - signIndex * 30;
+  const retrogradeSymbol = retrograde ? '(R)' : '';
+  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}${retrogradeSymbol}`;
+}
+
+function formatKarmicDegree(longitude, retrograde = false) {
   const signs = [
     { name: 'Aries', abbr: 'Ar' },
     { name: 'Taurus', abbr: 'Ta' },

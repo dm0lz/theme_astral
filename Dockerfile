@@ -33,6 +33,7 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev node-gyp pkg-config python-is-python3 && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Build Swiss Ephemeris from source and copy data files
 RUN git clone https://github.com/aloistr/swisseph.git /tmp/swisseph && \
     cd /tmp/swisseph && \
     make && \
@@ -82,7 +83,7 @@ COPY --from=build /usr/local/bin/swetest /usr/local/bin/swetest
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp public && \
+    chown -R rails:rails db log storage tmp public vendor && \
     chown rails:rails /usr/local/bin/swetest
 USER 1000:1000
 

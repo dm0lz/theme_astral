@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_06_07_183353) do
+ActiveRecord::Schema[8.0].define(version: 2025_06_07_204321) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -107,6 +107,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_07_183353) do
     t.index ["birth_chart_id"], name: "index_house_positions_on_birth_chart_id"
   end
 
+  create_table "karmic_points", force: :cascade do |t|
+    t.bigint "birth_chart_id", null: false
+    t.string "name", null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.string "zodiac"
+    t.decimal "speed", precision: 10, scale: 7
+    t.boolean "retrograde", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["birth_chart_id", "name"], name: "index_karmic_points_on_birth_chart_id_and_name", unique: true
+    t.index ["birth_chart_id"], name: "index_karmic_points_on_birth_chart_id"
+  end
+
   create_table "keywords", force: :cascade do |t|
     t.string "name"
     t.boolean "is_long_tail"
@@ -184,6 +197,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_07_183353) do
   add_foreign_key "chart_points", "birth_charts"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "house_positions", "birth_charts"
+  add_foreign_key "karmic_points", "birth_charts"
   add_foreign_key "notebooks", "users"
   add_foreign_key "notes", "notebooks"
   add_foreign_key "notes", "users"
