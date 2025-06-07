@@ -1,0 +1,172 @@
+<%# Flash messages %>
+<% if notice %>
+  <div class="max-w-7xl mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
+    <%= notice %>
+  </div>
+<% end %>
+
+<% if alert %>
+  <div class="max-w-7xl mx-auto mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300">
+    <%= alert %>
+  </div>
+<% end %>
+
+<div class="max-w-7xl mx-auto px-4">
+  <%# Page Header %>
+  <div class="text-center mb-8">
+    <h1 class="text-4xl font-serif font-bold mb-4">
+      <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+        ☀️ Solar Revolution Analysis
+      </span>
+    </h1>
+    <p class="text-lg text-gray-300 max-w-3xl mx-auto">
+      Explore your solar return chart - the astrological forecast for the year ahead based on when the Sun returns to its natal position.
+    </p>
+  </div>
+
+  <%# Birth Chart and Year Selectors %>
+  <% if @birth_charts.any? %>
+    <div class="rounded-xl p-6 shadow-xl border border-indigo-800/30 mb-8">
+      <h2 class="text-xl font-serif font-bold text-center mb-6">
+        <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Select Birth Chart and Solar Revolution Year
+        </span>
+      </h2>
+      
+      <div class="grid md:grid-cols-2 gap-6">
+        <%# Birth Chart Selector %>
+        <div>
+          <label for="birth_chart_select" class="block text-sm font-medium text-indigo-200 mb-2">
+            Birth Chart (Inner Wheel)
+          </label>
+          <select 
+            id="birth_chart_select" 
+            class="w-full p-3 bg-indigo-900/50 border border-indigo-700 rounded-lg text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            onchange="handleSolarRevolutionChange()"
+          >
+            <option value="">Select a birth chart...</option>
+            <% @birth_charts.each do |chart| %>
+              <option 
+                value="<%= chart.id %>" 
+                <%= 'selected' if @birth_chart&.id == chart.id %>
+              >
+                <%= "#{chart.first_name} #{chart.last_name}" %>
+              </option>
+            <% end %>
+          </select>
+          
+          <% if @birth_chart %>
+            <div class="mt-3 p-3 bg-indigo-900/30 rounded-lg">
+              <p class="text-sm text-gray-300">
+                <strong class="text-amber-400"><%= @birth_chart.first_name %> <%= @birth_chart.last_name %></strong><br>
+                Born: <%= @birth_chart.birth.strftime("%B %d, %Y at %I:%M %p") %><br>
+                Location: <%= @birth_chart.location %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+
+        <%# Year Selector %>
+        <div>
+          <label for="year_select" class="block text-sm font-medium text-indigo-200 mb-2">
+            Solar Revolution Year (Outer Wheel)
+          </label>
+          <select 
+            id="year_select" 
+            class="w-full p-3 bg-indigo-900/50 border border-indigo-700 rounded-lg text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            onchange="handleSolarRevolutionChange()"
+            <%= 'disabled' unless @birth_chart %>
+          >
+            <option value="">Select a year...</option>
+            <% if @available_years %>
+              <% @available_years.each do |year| %>
+                <option 
+                  value="<%= year %>" 
+                  <%= 'selected' if @selected_year == year %>
+                >
+                  <%= year %> <%= "(Current Year)" if year == Date.current.year %>
+                </option>
+              <% end %>
+            <% end %>
+          </select>
+          
+          <% if @solar_revolution_date %>
+            <div class="mt-3 p-3 bg-indigo-900/30 rounded-lg">
+              <p class="text-sm text-gray-300">
+                <strong class="text-amber-400">Solar Revolution <%= @selected_year %></strong><br>
+                Date: <%= @solar_revolution_date.strftime("%B %d, %Y at %I:%M %p") %><br>
+                Location: <%= @birth_chart.location %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <%# Solar Revolution Chart Display %>
+    <% if @birth_chart && @solar_revolution_chart %>
+      <div class="rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-12">
+        <h2 class="text-2xl font-serif font-bold text-center mb-6">
+          <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+            Solar Revolution <%= @selected_year %>: <%= @birth_chart.first_name %> <%= @birth_chart.last_name %>
+          </span>
+        </h2>
+        
+        <div class="flex justify-center">
+          <canvas
+            id="solarRevolutionChartCanvas"
+            data-birth-chart-planets="<%= @birth_chart.planet_positions.to_json %>"
+            data-birth-chart-houses="<%= @birth_chart.house_positions.to_json %>"
+            data-birth-chart-chart-points="<%= (@birth_chart.respond_to?(:chart_points) ? @birth_chart.chart_points.where.not(name: ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc']) : []).to_json %>"
+            data-solar-revolution-planets="<%= @solar_revolution_chart.planet_positions.to_json %>"
+            data-solar-revolution-houses="<%= @solar_revolution_chart.house_positions.to_json %>"
+            data-solar-revolution-chart-points="<%= (@solar_revolution_chart.respond_to?(:chart_points) ? @solar_revolution_chart.chart_points.reject { |point| ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc'].include?(point.name) } : []).to_json %>"
+            class="w-full max-w-4xl"
+          ></canvas>
+        </div>
+        
+        <div class="mt-6 text-center text-sm text-gray-400">
+          <p class="mb-2">Inner wheel: Birth Chart • Outer wheel: Solar Revolution <%= @selected_year %></p>
+          <p>Solar Revolution analysis shows the planetary influences for the year starting from your <%= @selected_year %> birthday</p>
+        </div>
+      </div>
+    <% elsif @birth_chart && !@solar_revolution_chart %>
+      <div class="rounded-xl p-6 shadow-xl border border-yellow-600/30 bg-yellow-900/20 text-center">
+        <p class="text-yellow-300">Please select a year to view the solar revolution chart.</p>
+      </div>
+    <% end %>
+
+    <script>
+      function handleSolarRevolutionChange() {
+        const chartId = document.getElementById('birth_chart_select').value;
+        const year = document.getElementById('year_select').value;
+        
+        if (chartId) {
+          const url = new URL(window.location);
+          url.searchParams.set('birth_chart_id', chartId);
+          if (year) {
+            url.searchParams.set('year', year);
+          } else {
+            url.searchParams.delete('year');
+          }
+          Turbo.visit(url.toString());
+        }
+      }
+    </script>
+
+  <% else %>
+    <%# Empty State %>
+    <div class="text-center py-16">
+      <div class="rounded-xl p-8 border border-indigo-800/30 max-w-2xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-300 mb-4">No Birth Charts Available</h2>
+        <p class="text-gray-400 mb-6">You need at least 1 birth chart to create solar revolution analysis.</p>
+        <%= link_to new_app_birth_chart_path, class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-lg transition duration-200" do %>
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          Create Your First Birth Chart
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

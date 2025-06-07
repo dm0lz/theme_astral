@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
   namespace :app do
     resources :synastries, only: [:index]
+    resources :solar_revolutions, only: [:index]
     resources :chat_messages do
       collection do
         delete :clear

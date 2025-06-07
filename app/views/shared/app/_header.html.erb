@@ -8,12 +8,26 @@
         <% end %>
         <nav class="ml-16 space-x-4">
           <%= link_to "Accueil", root_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-          <%= link_to "Birth Charts", app_birth_charts_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-          <%= link_to "Transits", app_transits_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-          <%= link_to "Synastries", app_synastries_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
+          
           <%= link_to "Chat", app_chat_messages_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
           <%= link_to "Notebooks", app_notebooks_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-          <%= link_to "Notes", app_notes_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
+
+          <!-- Birth Chart Dropdown -->
+          <div class="relative inline-block" data-dropdown>
+            <button type="button" class="text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2 flex items-center" data-dropdown-toggle>
+              Birth Chart
+              <svg class="w-4 h-4 ml-1 transition-transform duration-200" data-dropdown-arrow fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            <div class="absolute left-0 mt-2 w-48 bg-indigo-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-indigo-700/50 hidden" data-dropdown-menu>
+              <%= link_to "Birth Charts", app_birth_charts_path, class: "block px-4 py-3 text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors" %>
+              <%= link_to "Transits", app_transits_path, class: "block px-4 py-3 text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors" %>
+              <%= link_to "Synastries", app_synastries_path, class: "block px-4 py-3 text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors" %>
+              <%= link_to "Solar Revolutions", app_solar_revolutions_path, class: "block px-4 py-3 text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors rounded-b-lg" %>
+            </div>
+          </div>
+          
         </nav>
       </div>
       
@@ -34,3 +48,85 @@
     </div>
   </div>
 </header>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Use event delegation to handle dropdown clicks
+  document.addEventListener('click', (e) => {
+    const dropdownToggle = e.target.closest('[data-dropdown-toggle]');
+    
+    if (dropdownToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const dropdown = dropdownToggle.closest('[data-dropdown]');
+      const menu = dropdown.querySelector('[data-dropdown-menu]');
+      const arrow = dropdown.querySelector('[data-dropdown-arrow]');
+      
+      if (!menu || !arrow) return;
+      
+      // Close all other dropdowns first
+      document.querySelectorAll('[data-dropdown]').forEach(otherDropdown => {
+        if (otherDropdown !== dropdown) {
+          const otherMenu = otherDropdown.querySelector('[data-dropdown-menu]');
+          const otherArrow = otherDropdown.querySelector('[data-dropdown-arrow]');
+          if (otherMenu && otherArrow) {
+            otherMenu.classList.add('hidden');
+            otherArrow.style.transform = 'rotate(0deg)';
+          }
+        }
+      });
+      
+      // Toggle current dropdown
+      const isOpen = !menu.classList.contains('hidden');
+      if (isOpen) {
+        menu.classList.add('hidden');
+        arrow.style.transform = 'rotate(0deg)';
+      } else {
+        menu.classList.remove('hidden');
+        arrow.style.transform = 'rotate(180deg)';
+      }
+      return;
+    }
+    
+    // Close all dropdowns when clicking outside
+    if (!e.target.closest('[data-dropdown]')) {
+      document.querySelectorAll('[data-dropdown]').forEach(dropdown => {
+        const menu = dropdown.querySelector('[data-dropdown-menu]');
+        const arrow = dropdown.querySelector('[data-dropdown-arrow]');
+        if (menu && arrow) {
+          menu.classList.add('hidden');
+          arrow.style.transform = 'rotate(0deg)';
+        }
+      });
+    }
+  });
+  
+  // Handle escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[data-dropdown]').forEach(dropdown => {
+        const menu = dropdown.querySelector('[data-dropdown-menu]');
+        const arrow = dropdown.querySelector('[data-dropdown-arrow]');
+        if (menu && arrow) {
+          menu.classList.add('hidden');
+          arrow.style.transform = 'rotate(0deg)';
+        }
+      });
+    }
+  });
+});
+
+// Also handle turbo navigation
+document.addEventListener('turbo:load', () => {
+  // Close any open dropdowns when navigating
+  document.querySelectorAll('[data-dropdown]').forEach(dropdown => {
+    const menu = dropdown.querySelector('[data-dropdown-menu]');
+    const arrow = dropdown.querySelector('[data-dropdown-arrow]');
+    if (menu && arrow) {
+      menu.classList.add('hidden');
+      arrow.style.transform = 'rotate(0deg)';
+    }
+  });
+});
+</script>
