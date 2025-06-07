@@ -1,6 +1,7 @@
 class Notebook < ApplicationRecord
   belongs_to :user
   has_many :notes, dependent: :destroy
+  has_rich_text :description
   
   validates :title, presence: { message: "Notebook title cannot be blank" },
                     length: { minimum: 3, maximum: 255,

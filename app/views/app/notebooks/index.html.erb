@@ -46,7 +46,7 @@
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-white max-w-md">
-                    <%= notebook.description.present? ? truncate(notebook.description, length: 100) : "No description" %>
+                    <%= notebook.description.present? ? truncate(notebook.description.to_plain_text, length: 100) : "No description" %>
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">

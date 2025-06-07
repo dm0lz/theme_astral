@@ -4,3 +4,6 @@ import "./channels"
 import "./controllers"
 import "./landing"
 import "./birth_chart"
+
+import "trix"
+import "@rails/actiontext"

@@ -55,9 +55,7 @@
 
     <%= form_with(model: [@notebook, @new_note], url: app_notebook_notes_path(@notebook), class: "space-y-4") do |form| %>
       <div>
-        <%= form.text_area :body, 
-            rows: 4,
-            required: true,
+        <%= form.rich_text_area :body, 
             class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical",
             placeholder: "Write your note here..." %>
       </div>
