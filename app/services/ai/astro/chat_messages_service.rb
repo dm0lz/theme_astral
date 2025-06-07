@@ -95,6 +95,7 @@ class Ai::Astro::ChatMessagesService
           Planet positions: #{planet_positions(birth_chart.planet_positions)}
           House positions: #{house_positions(birth_chart.house_positions)}
           Chart points: #{chart_points(birth_chart.chart_points)}
+          Karmic points: #{karmic_points(birth_chart.karmic_points)}
         BIRTH_CHART
       }
     end
@@ -128,6 +129,17 @@ class Ai::Astro::ChatMessagesService
         Longitude: #{position.longitude}
         Zodiac: #{position.zodiac}
       CHART_POINT
+    end.join("\n")
+  end
+
+  def karmic_points(positions)
+    positions.map do |position|
+      <<~KARMIC_POINT.strip
+        Karmic point: #{position.name}
+        Longitude: #{position.longitude}
+        Zodiac: #{position.zodiac}
+        Retrograde: #{position.retrograde}
+      KARMIC_POINT
     end.join("\n")
   end
 
@@ -179,6 +191,16 @@ class Ai::Astro::ChatMessagesService
       CHART_POINT
     end.join("\n")
 
+    karmic_points = positions[:karmic_points]
+    karmic_points_positions = karmic_points.map do |karmic_point|
+      <<~KARMIC_POINT.strip
+        Karmic point: #{karmic_point[:name]}
+        Longitude: #{karmic_point[:longitude]}
+        Zodiac: #{karmic_point[:zodiac]}
+        Retrograde: #{karmic_point[:retrograde]}
+      KARMIC_POINT
+    end.join("\n")
+
     [
       {
         role: "user",
@@ -199,6 +221,13 @@ class Ai::Astro::ChatMessagesService
         content: <<~CURRENT_POSITIONS.strip
           Here are the current positions of the chart points in Paris, France :
           #{chart_points_positions}
+        CURRENT_POSITIONS
+      },
+      {
+        role: "user",
+        content: <<~CURRENT_POSITIONS.strip
+          Here are the current positions of the karmic points in Paris, France :
+          #{karmic_points_positions}
         CURRENT_POSITIONS
       }
     ]

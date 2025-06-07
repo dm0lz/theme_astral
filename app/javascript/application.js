@@ -2,6 +2,7 @@
 import "@hotwired/turbo-rails"
 import "./channels"
 import "./controllers"
+import "./header_dropdowns"
 import "./landing"
 import "./birth_chart"
 import "./transits_chart"
