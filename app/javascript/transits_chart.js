@@ -23,7 +23,7 @@ function initBirthChart() {
   let time = 0;
   
   const resizeCanvas = () => {
-    const padding = 140; // Increased padding for extra outer wheel
+    const padding = 140; // Increased padding for better outer wheel planet display
     const baseSize = Math.min(window.innerWidth * 0.8, 800);
     const size = baseSize + padding;
     canvas.width = size;
@@ -32,17 +32,27 @@ function initBirthChart() {
   
   const drawChart = (timestamp) => {
     time = timestamp * 0.001;
-    const padding = 140; // Match the padding from resizeCanvas
+    const padding = 180; // Match the padding from resizeCanvas
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = ((canvas.width - padding) * 0.8) / 2; // Adjust radius to account for padding
     
     // Define wheel radii
-    const innerRadius = radius * 0.7; // Inner wheel (birth chart)
+    const innerRadius = radius * 0.8; // Inner wheel (birth chart)
     const middleRadius = radius; // Middle wheel (birth chart outer edge)
-    const outerRadius = radius * 1.3; // Outer wheel (current positions)
+    const outerRadius = radius * 1.2; // Outer wheel (current positions)
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Get chart data from data attributes
+    const planetPositions = JSON.parse(canvas.dataset.planetsPositions || '[]');
+    const housePositions = JSON.parse(canvas.dataset.housesPositions || '[]');
+    const chartPoints = JSON.parse(canvas.dataset.chartPoints || '[]');
+    
+    // Get current positions data
+    const currentPlanetPositions = JSON.parse(canvas.dataset.currentPlanetsPositions || '[]');
+    const currentHousePositions = JSON.parse(canvas.dataset.currentHousesPositions || '[]');
+    const currentChartPoints = JSON.parse(canvas.dataset.currentChartPoints || '[]');
     
     // Draw zodiac wheel with elemental background colors for middle wheel
     const zodiacData = [
@@ -458,8 +468,8 @@ function initBirthChart() {
       overlappingGroup.forEach((planet, index) => {
         if (!currentPlanetPadding.has(planet.planet)) {
           if (overlappingGroup.length > 1) {
-            const basePadding = 32;
-            const padding = basePadding + (index * 32);
+            const basePadding = 50; // Increased base padding for better spacing
+            const padding = basePadding + (index * 40); // Increased increment for overlaps
             currentPlanetPadding.set(planet.planet, padding);
           }
         }
@@ -468,9 +478,11 @@ function initBirthChart() {
 
     // Draw current planets on outer wheel
     currentPlanetPositions.forEach((planet, i) => {
-      const angle = ((180 - planet.longitude) * Math.PI) / 180;
+      // Apply same adjustment as zodiac signs for alignment
+      const adjustedLongitude = (planet.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
       
-      const assignedPadding = currentPlanetPadding.get(planet.planet) || 64;
+      const assignedPadding = currentPlanetPadding.get(planet.planet) || 80; // Increased default padding
       const planetRadius = outerRadius + assignedPadding;
       const x = centerX + Math.cos(angle) * planetRadius;
       const y = centerY + Math.sin(angle) * planetRadius;
@@ -532,7 +544,9 @@ function initBirthChart() {
     
     // Draw current chart points 
     currentChartPoints.forEach((point, i) => {
-      const angle = ((180 - point.longitude) * Math.PI) / 180;
+      // Apply same adjustment as zodiac signs for alignment
+      const adjustedLongitude = (point.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
       const pointRadius = outerRadius * 0.45;
       const x = centerX + Math.cos(angle) * pointRadius;
       const y = centerY + Math.sin(angle) * pointRadius;
