@@ -106,6 +106,7 @@ class Ai::Astro::ChatMessagesService
         Planet: #{position.planet}
         Longitude: #{position.longitude}
         Zodiac: #{position.zodiac}
+        Retrograde: #{position.retrograde}
       PLANET_POSITION
     end.join("\n")
   end
@@ -156,6 +157,7 @@ class Ai::Astro::ChatMessagesService
         Planet: #{planet[:planet]}
         Longitude: #{planet[:longitude]}
         Zodiac: #{planet[:zodiac]}
+        Retrograde: #{planet[:retrograde]}
       PLANET_POSITION
     end.join("\n")
 
