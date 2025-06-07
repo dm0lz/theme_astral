@@ -129,13 +129,17 @@ function initBirthChart() {
 
     // Draw zodiac wheel sectors for outer wheel (current positions)
     zodiacData.forEach((zodiac, i) => {
-      // For current positions, use current time (0° at current time)
+      // Apply same adjustment as inner wheel for alignment
       const signStart = i * 30;
       const signEnd = (i + 1) * 30;
       
-      // No adjustment needed for current positions - use actual zodiac positions
-      const startAngle = ((180 - signStart) * Math.PI) / 180;
-      const endAngle = ((180 - signEnd) * Math.PI) / 180;
+      // Adjust for house 1 position to align with inner wheel
+      const adjustedStart = (signStart - house1Longitude + 360) % 360;
+      const adjustedEnd = (signEnd - house1Longitude + 360) % 360;
+      
+      // Convert to canvas angles (same as inner wheel)
+      const startAngle = ((180 - adjustedStart) * Math.PI) / 180;
+      const endAngle = ((180 - adjustedEnd) * Math.PI) / 180;
       
       // Draw thin colored line at outer wheel edge
       const innerOuterZodiacRadius = outerRadius * 0.99;
@@ -155,9 +159,10 @@ function initBirthChart() {
       ctx.stroke();
       ctx.restore();
       
-      // Draw zodiac symbol for outer wheel
+      // Draw zodiac symbol for outer wheel (aligned with inner wheel)
       const symbolPosition = signStart + 15; // Middle of the 30° sector
-      const symbolAngle = ((180 - symbolPosition) * Math.PI) / 180;
+      const adjustedSymbol = (symbolPosition - house1Longitude + 360) % 360;
+      const symbolAngle = ((180 - adjustedSymbol) * Math.PI) / 180;
       const symbolRadius = outerRadius * 0.88;
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
@@ -259,7 +264,8 @@ function initBirthChart() {
     // Draw zodiac sign delimiters for outer wheel
     for (let i = 0; i < 12; i++) {
       const signBoundary = i * 30;
-      const angle = ((180 - signBoundary) * Math.PI) / 180;
+      const adjustedBoundary = (signBoundary - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedBoundary) * Math.PI) / 180;
       const outerZodiacRadius = outerRadius;
       const innerZodiacRadius = outerRadius - 18;
       const x1 = centerX + Math.cos(angle) * innerZodiacRadius;
