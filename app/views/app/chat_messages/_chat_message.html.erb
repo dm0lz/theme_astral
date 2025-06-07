@@ -1,4 +1,4 @@
-<div id="<%= dom_id chat_message %>" data-controller="scroll-into-view">
+<div id="<%= dom_id chat_message %>">
   <div class="flex <%= chat_message.author == 'user' ? 'justify-start' : 'justify-end' %> mb-4">
     <div class="max-w-xs md:max-w-md px-4 py-3 rounded-2xl shadow-lg bg-indigo-900/60 border border-indigo-800/30 <%= chat_message.author == 'user' ? 'bg-amber-600/90 border border-amber-500/50 rounded-bl-none' : 'bg-indigo-600/90 border border-indigo-500/50 rounded-br-none' %> text-white">
       <div class="whitespace-pre-line break-words leading-relaxed p-2">
@@ -29,6 +29,7 @@
       </div>
     </div>
   </div>
+  <div data-controller="scroll-into-view"></div>
 </div>
 
 <script>

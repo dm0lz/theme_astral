@@ -54,6 +54,8 @@
     <% end %>
   </div>
 
+  <%= form.hidden_field :user_id, value: Current.user.id %>
+
   <div class="flex justify-end">
     <%= form.submit note.persisted? ? "Update Note" : "Create Note",
         class: "inline-flex items-center px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>

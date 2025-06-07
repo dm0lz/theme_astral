@@ -28,7 +28,6 @@ class App::NotesController < App::ApplicationController
 
   # POST /notes or /notes.json
   def create
-    #binding.pry
     if @notebook
       @note = @notebook.notes.build(note_params)
     else
@@ -85,6 +84,6 @@ class App::NotesController < App::ApplicationController
 
     # Only allow a list of trusted parameters through.
     def note_params
-      params.expect(note: [ :notebook_id, :body ])
+      params.expect(note: [ :notebook_id, :body, :user_id ])
     end
 end

@@ -3,7 +3,7 @@ class App::NotebooksController < App::ApplicationController
 
   # GET /notebooks or /notebooks.json
   def index
-    @notebooks = Notebook.all
+    @notebooks = Current.user.notebooks
   end
 
   # GET /notebooks/1 or /notebooks/1.json
@@ -14,7 +14,7 @@ class App::NotebooksController < App::ApplicationController
 
   # GET /notebooks/new
   def new
-    @notebook = Notebook.new
+    @notebook = Current.user.notebooks.build
   end
 
   # GET /notebooks/1/edit
@@ -23,7 +23,7 @@ class App::NotebooksController < App::ApplicationController
 
   # POST /notebooks or /notebooks.json
   def create
-    @notebook = Notebook.new(notebook_params)
+    @notebook = Current.user.notebooks.build(notebook_params)
 
     respond_to do |format|
       if @notebook.save
@@ -62,7 +62,7 @@ class App::NotebooksController < App::ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_notebook
-      @notebook = Notebook.find(params.expect(:id))
+      @notebook = Current.user.notebooks.find(params.expect(:id))
     end
 
     # Only allow a list of trusted parameters through.

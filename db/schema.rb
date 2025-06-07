@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_06_06_200032) do
+ActiveRecord::Schema[8.0].define(version: 2025_06_07_094322) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -93,7 +93,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_06_200032) do
     t.text "body"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["notebook_id"], name: "index_notes_on_notebook_id"
+    t.index ["user_id"], name: "index_notes_on_user_id"
   end
 
   create_table "planet_positions", force: :cascade do |t|
@@ -145,6 +147,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_06_06_200032) do
   add_foreign_key "house_positions", "birth_charts"
   add_foreign_key "notebooks", "users"
   add_foreign_key "notes", "notebooks"
+  add_foreign_key "notes", "users"
   add_foreign_key "planet_positions", "birth_charts"
   add_foreign_key "seo_pages", "keywords"
   add_foreign_key "sessions", "users"

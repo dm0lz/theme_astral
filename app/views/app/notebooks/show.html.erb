@@ -59,6 +59,7 @@
             class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical",
             placeholder: "Write your note here..." %>
       </div>
+      <%= form.hidden_field :user_id, value: Current.user.id %>
 
       <div class="flex justify-end">
         <%= form.submit "Add Note", 
