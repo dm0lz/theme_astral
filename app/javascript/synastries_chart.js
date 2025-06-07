@@ -388,8 +388,8 @@ function initSynastryChart() {
       const adjustedLongitude = (planet.longitude - house1Longitude + 360) % 360;
       const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
       
-      // Use assigned padding or default if no overlaps
-      const assignedPadding = planetPadding.get(planet.planet) || 64;
+      // Use assigned padding or default if no overlaps (reduced from 64px to 32px)
+      const assignedPadding = planetPadding.get(planet.planet) || 32;
       
       const planetRadius = middleRadius + assignedPadding;
       const x = centerX + Math.cos(angle) * planetRadius;

@@ -58,7 +58,7 @@
           data-chart-points="<%= @birth_chart.chart_points.where.not(name: ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc']).to_json %>"
           data-current-planets-positions="<%= @current_positions[:planets].to_json %>"
           data-current-houses-positions="<%= @current_positions[:houses].to_json %>"
-          data-current-chart-points="<%= @current_positions[:chart_points].to_json %>"
+          data-current-chart-points="<%= @current_positions[:chart_points].reject { |point| ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc'].include? point[:name] }.to_json %>"
           class="w-full max-w-4xl"
         ></canvas>
       </div>
