@@ -345,7 +345,7 @@ function initBirthChart() {
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 28);
+      ctx.fillText(formatPlanetDegree(planet.longitude, planet.retrograde), x, y + 28);
     });
     
     // Draw chart points (relative to House 1 at 0°, rotated)
@@ -478,7 +478,7 @@ function initBirthChart() {
   drawChart(0);
 }
 
-function formatPlanetDegree(longitude) {
+function formatPlanetDegree(longitude, retrograde = false) {
   const signs = [
     { name: 'Aries', abbr: 'Ar' },
     { name: 'Taurus', abbr: 'Ta' },
@@ -495,5 +495,6 @@ function formatPlanetDegree(longitude) {
   ];
   const signIndex = Math.floor(longitude / 30) % 12;
   const degInSign = longitude - signIndex * 30;
-  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}`;
+  const retrogradeSymbol = retrograde ? '(R)' : '';
+  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}${retrogradeSymbol}`;
 } 

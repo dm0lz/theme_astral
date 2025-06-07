@@ -15,9 +15,8 @@ class SwissEphemerisService
     ut_time = birth_datetime.utc.strftime("%H:%M")
     date_str = birth_datetime.strftime("%d.%m.%Y")
 
-    # Use house system 'P' (Placidus)
     house_args = "-house#{lon},#{lat},#{timezone_offset},P"
-    cmd = "swetest -b#{date_str} -ut#{ut_time} -p0123456789 -fPlZ -g, #{house_args}"
+    cmd = "swetest -b#{date_str} -ut#{ut_time} -p0123456789 -fPlZVs -g, #{house_args}"
 
     output = `#{cmd}`
     raise "Swiss Ephemeris failed: #{output}" unless $?.success?
@@ -29,17 +28,23 @@ class SwissEphemerisService
     }
   end
 
-  private
-
   def parse_planets(output)
     output.lines.map do |line|
-      planet, longitude, zodiac = line.strip.split(',')
-      next unless PLANETS.include?(planet&.strip)
+      parts = line.strip.split(',')
+      planet = parts[0]&.strip
+      next unless PLANETS.include?(planet)
+
+      longitude = parts[1].to_f
+      zodiac = parts[2].strip
+      speed = parts[3].to_f
+      longitude_speed = parts[4].to_f
 
       {
-        planet: planet.strip,
-        longitude: longitude.to_f,
-        zodiac: zodiac.strip
+        planet: planet,
+        longitude: longitude,
+        zodiac: zodiac,
+        speed: speed,
+        retrograde: longitude_speed < 0
       }
     end.compact
   end

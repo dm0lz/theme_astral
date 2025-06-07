@@ -53,7 +53,7 @@ function initBirthChart() {
     const currentPlanetPositions = JSON.parse(canvas.dataset.currentPlanetsPositions || '[]');
     const currentHousePositions = JSON.parse(canvas.dataset.currentHousesPositions || '[]');
     const currentChartPoints = JSON.parse(canvas.dataset.currentChartPoints || '[]');
-    
+
     // Draw zodiac wheel with elemental background colors for middle wheel
     const zodiacData = [
       { symbol: '♈', name: 'Aries', element: 'fire' },
@@ -159,20 +159,6 @@ function initBirthChart() {
       ctx.lineWidth = 0.5;
       ctx.stroke();
       ctx.restore();
-      
-      // Draw zodiac symbol for outer wheel (aligned with inner wheel)
-      const symbolPosition = signStart + 15; // Middle of the 30° sector
-      const adjustedSymbol = (symbolPosition - house1Longitude + 360) % 360;
-      const symbolAngle = ((180 - adjustedSymbol) * Math.PI) / 180;
-      const symbolRadius = outerRadius * 0.88;
-      const x = centerX + Math.cos(symbolAngle) * symbolRadius;
-      const y = centerY + Math.sin(symbolAngle) * symbolRadius;
-      
-      ctx.font = 'bold 18px serif';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(zodiac.symbol, x, y);
     });
 
     // Draw the main middle chart circle (birth chart outer wheel)
@@ -445,7 +431,7 @@ function initBirthChart() {
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 20);
+      ctx.fillText(formatPlanetDegree(planet.longitude, planet.retrograde), x, y + 20);
     });
     
     // Handle overlapping current planets
@@ -514,7 +500,7 @@ function initBirthChart() {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(formatPlanetDegree(planet.longitude), x, y + 18);
+      ctx.fillText(formatPlanetDegree(planet.longitude, planet.retrograde), x, y + 18);
     });
     
     // Draw birth chart points (relative to House 1 at 0°, rotated)
@@ -662,7 +648,7 @@ function initBirthChart() {
   drawChart(0);
 }
 
-function formatPlanetDegree(longitude) {
+function formatPlanetDegree(longitude, retrograde = false) {
   const signs = [
     { name: 'Aries', abbr: 'Ar' },
     { name: 'Taurus', abbr: 'Ta' },
@@ -679,5 +665,6 @@ function formatPlanetDegree(longitude) {
   ];
   const signIndex = Math.floor(longitude / 30) % 12;
   const degInSign = longitude - signIndex * 30;
-  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}`;
+  const retrogradeSymbol = retrograde ? '(R)' : '';
+  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}${retrogradeSymbol}`;
 } 

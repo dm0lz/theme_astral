@@ -23,7 +23,8 @@ class BirthChart < ApplicationRecord
       self.planet_positions.create(
         planet: planet_position[:planet],
         longitude: planet_position[:longitude],
-        zodiac: planet_position[:zodiac]
+        zodiac: planet_position[:zodiac],
+        retrograde: planet_position[:retrograde]
       )
     end
     planet_positions[:houses].each do |house_position|

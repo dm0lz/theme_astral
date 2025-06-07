@@ -1,6 +1,6 @@
 <%# Flash messages %>
 <% if notice %>
-  <div class="max-w-7xl mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
+  <div class="max-w-5xl mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
     <%= notice %>
   </div>
 <% end %>
@@ -54,6 +54,7 @@
             <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Planet</th>
             <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Longitude</th>
             <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Zodiac Sign</th>
+            <th class="px-6 py-4 text-left text-sm font-medium text-indigo-200/80">Motion</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-indigo-800/30">
@@ -62,6 +63,13 @@
               <td class="px-6 py-4 whitespace-nowrap text-white"><%= position.planet %></td>
               <td class="px-6 py-4 whitespace-nowrap text-white"><%= number_with_precision(position.longitude, precision: 4) %>°</td>
               <td class="px-6 py-4 whitespace-nowrap text-white"><%= position.zodiac %></td>
+              <td class="px-6 py-4 whitespace-nowrap text-white">
+                <% if position.retrograde %>
+                  <span class="text-red-400 font-semibold">Retrograde</span>
+                <% else %>
+                  <span class="text-green-400">Direct</span>
+                <% end %>
+              </td>
             </tr>
           <% end %>
         </tbody>
