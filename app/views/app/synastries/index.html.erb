@@ -1,0 +1,165 @@
+<%# Flash messages %>
+<% if notice %>
+  <div class="max-w-7xl mx-auto mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
+    <%= notice %>
+  </div>
+<% end %>
+
+<% if alert %>
+  <div class="max-w-7xl mx-auto mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300">
+    <%= alert %>
+  </div>
+<% end %>
+
+<div class="max-w-7xl mx-auto px-4">
+  <%# Page Header %>
+  <div class="text-center mb-8">
+    <h1 class="text-4xl font-serif font-bold mb-4">
+      <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+        🌌 Synastry Analysis
+      </span>
+    </h1>
+    <p class="text-lg text-gray-300 max-w-3xl mx-auto">
+      Compare two birth charts to explore relationship compatibility and planetary aspects between two people.
+    </p>
+  </div>
+
+  <%# Birth Chart Selectors %>
+  <% if @birth_charts.any? %>
+    <div class="rounded-xl p-6 shadow-xl border border-indigo-800/30 mb-8">
+      <h2 class="text-xl font-serif font-bold text-center mb-6">
+        <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+          Select Birth Charts to Compare
+        </span>
+      </h2>
+      
+      <div class="grid md:grid-cols-2 gap-6">
+        <%# First Birth Chart Selector %>
+        <div>
+          <label for="birth_chart_1_select" class="block text-sm font-medium text-indigo-200 mb-2">
+            First Person (Inner Wheel)
+          </label>
+          <select 
+            id="birth_chart_1_select" 
+            class="w-full p-3 bg-indigo-900/50 border border-indigo-700 rounded-lg text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            onchange="handleSynastryChange()"
+          >
+            <option value="">Select a birth chart...</option>
+            <% @birth_charts.each do |chart| %>
+              <option 
+                value="<%= chart.id %>" 
+                <%= 'selected' if @birth_chart_1&.id == chart.id %>
+              >
+                <%= "#{chart.first_name} #{chart.last_name}" %>
+              </option>
+            <% end %>
+          </select>
+          
+          <% if @birth_chart_1 %>
+            <div class="mt-3 p-3 bg-indigo-900/30 rounded-lg">
+              <p class="text-sm text-gray-300">
+                <strong class="text-amber-400"><%= @birth_chart_1.first_name %> <%= @birth_chart_1.last_name %></strong><br>
+                Born: <%= @birth_chart_1.birth.strftime("%B %d, %Y at %I:%M %p") %><br>
+                Location: <%= @birth_chart_1.location %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+
+        <%# Second Birth Chart Selector %>
+        <div>
+          <label for="birth_chart_2_select" class="block text-sm font-medium text-indigo-200 mb-2">
+            Second Person (Outer Wheel)
+          </label>
+          <select 
+            id="birth_chart_2_select" 
+            class="w-full p-3 bg-indigo-900/50 border border-indigo-700 rounded-lg text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            onchange="handleSynastryChange()"
+          >
+            <option value="">Select a birth chart...</option>
+            <% @birth_charts.each do |chart| %>
+              <option 
+                value="<%= chart.id %>" 
+                <%= 'selected' if @birth_chart_2&.id == chart.id %>
+              >
+                <%= "#{chart.first_name} #{chart.last_name}" %>
+              </option>
+            <% end %>
+          </select>
+          
+          <% if @birth_chart_2 %>
+            <div class="mt-3 p-3 bg-indigo-900/30 rounded-lg">
+              <p class="text-sm text-gray-300">
+                <strong class="text-amber-400"><%= @birth_chart_2.first_name %> <%= @birth_chart_2.last_name %></strong><br>
+                Born: <%= @birth_chart_2.birth.strftime("%B %d, %Y at %I:%M %p") %><br>
+                Location: <%= @birth_chart_2.location %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <%# Synastry Chart Display %>
+    <% if @birth_chart_1 && @birth_chart_2 && @birth_chart_1 != @birth_chart_2 %>
+      <div class="rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-12">
+        <h2 class="text-2xl font-serif font-bold text-center mb-6">
+          <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+            Synastry Chart: <%= @birth_chart_1.first_name %> & <%= @birth_chart_2.first_name %>
+          </span>
+        </h2>
+        
+        <div class="flex justify-center">
+          <canvas
+            id="synastryChartCanvas"
+            data-birth-chart1-planets="<%= @birth_chart_1.planet_positions.to_json %>"
+            data-birth-chart1-houses="<%= @birth_chart_1.house_positions.to_json %>"
+            data-birth-chart1-chart-points="<%= @birth_chart_1.chart_points.where.not(name: ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc']).to_json %>"
+            data-birth-chart2-planets="<%= @birth_chart_2.planet_positions.to_json %>"
+            data-birth-chart2-houses="<%= @birth_chart_2.house_positions.to_json %>"
+            data-birth-chart2-chart-points="<%= @birth_chart_2.chart_points.where.not(name: ['ARMC', 'EquatAsc', 'CoAscWK', 'CoAscM', 'PolarAsc']).to_json %>"
+            class="w-full max-w-4xl"
+          ></canvas>
+        </div>
+        
+        <div class="mt-6 text-center text-sm text-gray-400">
+          <p class="mb-2">Inner wheel: <%= @birth_chart_1.first_name %> <%= @birth_chart_1.last_name %> • Outer wheel: <%= @birth_chart_2.first_name %> <%= @birth_chart_2.last_name %></p>
+          <p>Synastry analysis explores the planetary aspects and connections between two birth charts</p>
+        </div>
+      </div>
+    <% elsif @birth_chart_1 && @birth_chart_2 && @birth_chart_1 == @birth_chart_2 %>
+      <div class="rounded-xl p-6 shadow-xl border border-yellow-600/30 bg-yellow-900/20 text-center">
+        <p class="text-yellow-300">Please select two different birth charts to create a synastry comparison.</p>
+      </div>
+    <% end %>
+
+    <script>
+      function handleSynastryChange() {
+        const chart1Id = document.getElementById('birth_chart_1_select').value;
+        const chart2Id = document.getElementById('birth_chart_2_select').value;
+        
+        if (chart1Id && chart2Id) {
+          const url = new URL(window.location);
+          url.searchParams.set('birth_chart_1_id', chart1Id);
+          url.searchParams.set('birth_chart_2_id', chart2Id);
+          Turbo.visit(url.toString());
+        }
+      }
+    </script>
+
+  <% else %>
+    <%# Empty State %>
+    <div class="text-center py-16">
+      <div class="rounded-xl p-8 border border-indigo-800/30 max-w-2xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-300 mb-4">No Birth Charts Available</h2>
+        <p class="text-gray-400 mb-6">You need at least 2 birth charts to create synastry comparisons.</p>
+        <%= link_to new_app_birth_chart_path, class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-lg transition duration-200" do %>
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          Create Your First Birth Chart
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

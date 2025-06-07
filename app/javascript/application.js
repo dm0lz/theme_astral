@@ -5,6 +5,7 @@ import "./controllers"
 import "./landing"
 import "./birth_chart"
 import "./transits_chart"
+import "./synastries_chart"
 
 import "trix"
 import "@rails/actiontext"
