@@ -5,13 +5,33 @@ class Ai::Astro::ChatMessagesService
 
   def call
     client = OpenAI::Client.new(access_token: Rails.application.credentials.deep_seek_api_key, uri_base: "https://api.deepseek.com")
-		response = client.chat(
+    response = ""
+		client.chat(
 			parameters: {
 				model: "deepseek-reasoner",
 				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
+        stream: proc do |chunk, _bytesize|
+          delta = chunk.dig("choices", 0, "delta", "content")
+          next unless delta
+          response += delta
+          Turbo::StreamsChannel.broadcast_append_to(
+            "streaming_channel_#{@chat_message.user_id}",
+            target: "chunks_container",
+            partial: "app/chat_messages/chunk",
+            locals: { chunk: delta }
+          )
+          sleep 0.05
+        end
 			}
 		)
-		response["choices"][0]["message"]["content"]
+		# response["choices"][0]["message"]["content"]
+    chat_message = ChatMessage.create!(user_id: @chat_message.user_id, body: response, author: "assistant")
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "streaming_channel_#{@chat_message.user_id}",
+      target: "temp_message",
+      partial: "app/chat_messages/chat_message",
+      locals: { chat_message: chat_message }
+    )
   end
 
   private
