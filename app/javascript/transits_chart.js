@@ -44,15 +44,6 @@ function initBirthChart() {
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw solid background for the center area
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.fillStyle = '#0A0A20'; // Tailwind's bg-gray-900
-    ctx.fill();
-    ctx.restore();
-
     // Draw zodiac wheel with elemental background colors for middle wheel
     const zodiacData = [
       { symbol: '♈', name: 'Aries', element: 'fire' },
