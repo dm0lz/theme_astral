@@ -76,8 +76,7 @@ class App::VoiceNotesController < App::ApplicationController
         parameters: {
           model: "whisper-1",
           file: File.open(temp_file.path, 'rb'),
-          # Remove language parameter to let Whisper auto-detect
-          # This can improve compatibility with various audio formats
+          language: "fr"
         }
       )
 
