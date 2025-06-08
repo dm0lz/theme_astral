@@ -45,20 +45,73 @@ class App::SolarRevolutionsController < App::ApplicationController
   private
   
   def calculate_solar_revolution_date(birth_chart, year)
+    # Get the natal Sun position
+    natal_positions = SwissEphemerisService.new(birth_chart).call
+    natal_sun = natal_positions[:planets].find { |p| p[:planet] == 'Sun' }
+    return nil unless natal_sun
+    
+    natal_sun_longitude = natal_sun[:longitude]
+    
     # Find the approximate date when Sun returns to natal position in the given year
     birth_date = birth_chart.birth
     natal_month = birth_date.month
     natal_day = birth_date.day
     
-    # Start with the birthday in the requested year
-    solar_return_date = DateTime.new(year, natal_month, natal_day, 12, 0, 0)
+    # Start with the birthday in the requested year as initial guess
+    approximate_date = begin
+      DateTime.new(year, natal_month, natal_day, 12, 0, 0)
+    rescue ArgumentError
+      # Handle leap year issues (Feb 29)
+      DateTime.new(year, natal_month, 28, 12, 0, 0)
+    end
     
-    # For simplicity, we'll use the birthday. In a real implementation, 
-    # you'd calculate the exact moment the Sun returns to its natal degree
-    solar_return_date
-  rescue ArgumentError
-    # Handle leap year issues (Feb 29)
-    DateTime.new(year, natal_month, 28, 12, 0, 0)
+    # Search for the exact moment using binary search approach
+    # Solar year is approximately 365.25 days, so Sun moves ~0.986°/day
+    search_window = 2 # Search within 2 days of approximate date
+    
+    best_date = approximate_date
+    best_difference = Float::INFINITY
+    
+    # Check dates within the search window (in 1-hour increments for precision)
+    (-search_window * 24..search_window * 24).each do |hour_offset|
+      test_date = approximate_date + (hour_offset / 24.0)
+      
+      # Create temporary chart for this test date
+      temp_chart = BirthChart.new(
+        birth: test_date,
+        latitude: birth_chart.latitude,
+        longitude: birth_chart.longitude
+      )
+      
+      begin
+        # Get Sun position for this test date
+        test_positions = SwissEphemerisService.new(temp_chart).call
+        test_sun = test_positions[:planets].find { |p| p[:planet] == 'Sun' }
+        next unless test_sun
+        
+        test_sun_longitude = test_sun[:longitude]
+        
+        # Calculate the angular difference (accounting for 360° wrap)
+        raw_diff = (test_sun_longitude - natal_sun_longitude).abs
+        angular_diff = raw_diff > 180 ? 360 - raw_diff : raw_diff
+        
+        # Update best match if this is closer
+        if angular_diff < best_difference
+          best_difference = angular_diff
+          best_date = test_date
+        end
+        
+        # If we're within 0.01° (about 36 arc seconds), that's precise enough
+        break if angular_diff < 0.01
+        
+      rescue => e
+        Rails.logger.warn "Error calculating solar revolution for #{test_date}: #{e.message}"
+        next
+      end
+    end
+    
+    Rails.logger.info "Solar Revolution #{year}: Best match at #{best_date} with #{best_difference.round(3)}° difference"
+    best_date
   end
   
   def create_solar_revolution_chart(birth_chart, solar_revolution_date)
