@@ -542,6 +542,63 @@ class App::VoiceNotesController < App::ApplicationController
         end
         
         Rails.logger.info "=== END FFMPEG AUDIO PROPERTIES ANALYSIS ==="
+        
+        # Audio content silence detection for iPad debugging
+        Rails.logger.info "=== AUDIO CONTENT SILENCE ANALYSIS ==="
+        
+        begin
+          # Use FFmpeg to analyze audio levels in the converted WAV file
+          audio_stats = `ffprobe -f wav -show_entries frame=pkt_pts_time:frame_tags=lavfi.astats.Overall.RMS_level,lavfi.astats.Overall.Peak_level -of csv=p=0 -f lavfi "amovie=#{temp_file.path},astats" 2>/dev/null | head -10`
+          
+          if $?.success? && !audio_stats.empty?
+            Rails.logger.info "  Audio level analysis (first 10 frames):"
+            Rails.logger.info "#{audio_stats}"
+          else
+            # Simpler approach - check for audio content using volume detection
+            volume_detect = `ffmpeg -i "#{temp_file.path}" -af "volumedetect" -f null /dev/null 2>&1 | grep -E "(mean_volume|max_volume)"`
+            
+            if !volume_detect.empty?
+              Rails.logger.info "  Audio volume analysis:"
+              volume_lines = volume_detect.split("\n")
+              volume_lines.each do |line|
+                if line.include?("mean_volume")
+                  mean_vol = line.match(/-?\d+\.?\d*/)&.to_s&.to_f
+                  if mean_vol && mean_vol < -50
+                    Rails.logger.error "    🚨 AUDIO TOO QUIET: Mean volume #{mean_vol} dB (< -50 dB indicates very quiet/silent audio)"
+                  elsif mean_vol && mean_vol < -30
+                    Rails.logger.warn "    ⚠️ Low audio: Mean volume #{mean_vol} dB (may be too quiet for transcription)"
+                  else
+                    Rails.logger.info "    ✅ Audio level: Mean volume #{mean_vol} dB (sufficient for transcription)"
+                  end
+                elsif line.include?("max_volume")
+                  max_vol = line.match(/-?\d+\.?\d*/)&.to_s&.to_f
+                  Rails.logger.info "    Max volume: #{max_vol} dB"
+                end
+              end
+            end
+          end
+          
+          # Check for audio silence using ffmpeg silence detection
+          silence_detect = `ffmpeg -i "#{temp_file.path}" -af silencedetect=noise=-30dB:duration=0.5 -f null /dev/null 2>&1 | grep -c "silence_"`
+          
+          if $?.success?
+            silence_count = silence_detect.strip.to_i
+            Rails.logger.info "  Silence segments detected: #{silence_count}"
+            
+            if silence_count > 10
+              Rails.logger.error "    🚨 MOSTLY SILENT: #{silence_count} silence segments detected - audio likely unusable"
+            elsif silence_count > 5
+              Rails.logger.warn "    ⚠️ High silence: #{silence_count} segments - audio may be poor quality"
+            else
+              Rails.logger.info "    ✅ Low silence: Audio appears to contain speech content"
+            end
+          end
+          
+        rescue => e
+          Rails.logger.warn "  Audio content analysis failed: #{e.message}"
+        end
+        
+        Rails.logger.info "=== END AUDIO CONTENT SILENCE ANALYSIS ==="
       else
         # For all other formats, write directly
         temp_file.write(audio_file.read)
@@ -729,6 +786,17 @@ class App::VoiceNotesController < App::ApplicationController
         Rails.logger.info "    - Contains generic phrases: #{transcription.match?(/thank you for watching|thanks for watching/i) ? '⚠️ YES' : '✅ NO'}"
         Rails.logger.info "    - Repetitive content: #{transcription.split.uniq.length < transcription.split.length * 0.7 ? '⚠️ YES' : '✅ NO'}"
         Rails.logger.info "    - Reasonable length: #{transcription.length > 5 && transcription.length < 1000 ? '✅ YES' : '⚠️ NO'}"
+        
+        # Critical check: Whisper returning our prompt indicates silent/unusable audio
+        prompt_returned = transcription.downcase.include?("transcribe exactly what is spoken")
+        Rails.logger.info "    - Returns our prompt: #{prompt_returned ? '🚨 YES - SILENT AUDIO DETECTED' : '✅ NO'}"
+        
+        if prompt_returned
+          Rails.logger.error "🚨 CRITICAL: Whisper returned our prompt text instead of transcribing audio!"
+          Rails.logger.error "This indicates the audio file contains silence or is unusable for transcription."
+          Rails.logger.error "iPad MediaRecorder likely produced silent/very quiet audio despite valid file structure."
+        end
+        
         Rails.logger.info "=== END WHISPER API RESPONSE ==="
         
         Rails.logger.info "Transcription successful: #{transcription[0..100]}..."
