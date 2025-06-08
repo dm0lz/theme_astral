@@ -39,13 +39,15 @@ class App::VoiceNotesController < App::ApplicationController
         # Don't reject - iOS sometimes sends generic content types
       end
 
-      # For iOS MP4/M4A files, we need to use a more compatible extension
-      # Whisper prefers certain formats over others
+      # Keep native formats for better Whisper compatibility
+      # Whisper API supports MP4, M4A, WAV, MP3 directly
       file_extension = case audio_file.content_type
-                      when 'audio/mp4', 'audio/m4a'
-                        '.mp3'  # Convert iOS MP4 to MP3 extension for better Whisper compatibility
+                      when 'audio/mp4'
+                        '.mp4'  # Keep iPad's native MP4 format - Whisper supports it directly
+                      when 'audio/m4a'
+                        '.m4a'  # Keep iPhone's native M4A format
                       when 'audio/aac'
-                        '.mp3'  # Convert AAC to MP3 extension as well
+                        '.aac'  # Keep AAC format
                       when 'audio/wav'
                         '.wav'
                       when 'audio/mp3', 'audio/mpeg'
@@ -57,7 +59,7 @@ class App::VoiceNotesController < App::ApplicationController
                         '.mp3'
                       end
 
-      Rails.logger.info "Using file extension: #{file_extension}"
+      Rails.logger.info "Using native file extension: #{file_extension} (keeping original format)"
 
       temp_file = Tempfile.new(['voice_note', file_extension])
       temp_file.binmode
@@ -86,7 +88,7 @@ class App::VoiceNotesController < App::ApplicationController
         Rails.logger.info "iPad SPECIFIC PROCESSING:"
         Rails.logger.info "  - Original MIME type: #{audio_file.content_type}"
         Rails.logger.info "  - File size: #{audio_file.size} bytes"
-        Rails.logger.info "  - File extension will be: #{file_extension}"
+        Rails.logger.info "  - Native file extension: #{file_extension} (no conversion - preserving original format)"
         
         # Check for potential iPad-specific issues
         if audio_file.size < 1000
