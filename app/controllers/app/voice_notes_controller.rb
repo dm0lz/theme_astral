@@ -9,6 +9,20 @@ class App::VoiceNotesController < App::ApplicationController
 
       audio_file = params[:audio]
       
+      # Detect device type FIRST - needed for file processing decisions
+      user_agent = request.user_agent.to_s
+      device_type = params[:device_type] # from frontend
+      frontend_is_ios = params[:is_ios] == 'true'
+      
+      # Prefer frontend detection as it's more accurate
+      is_ipad = device_type == 'ipad' || user_agent.include?('iPad')
+      is_iphone = device_type == 'iphone' || user_agent.include?('iPhone')
+      is_ios = frontend_is_ios || is_ipad || is_iphone
+      
+      Rails.logger.info "Device detection: iPad=#{is_ipad}, iPhone=#{is_iphone}, iOS=#{is_ios}"
+      Rails.logger.info "Frontend device type: #{device_type}, iOS: #{frontend_is_ios}"
+      Rails.logger.info "User agent: #{user_agent}"
+      
       # Validate file size (max 25MB for Whisper API)
       max_size = 25.megabytes
       if audio_file.size > max_size
@@ -20,10 +34,12 @@ class App::VoiceNotesController < App::ApplicationController
       Rails.logger.info "Received audio file: #{audio_file.original_filename}"
       Rails.logger.info "Content type: #{audio_file.content_type}"
       Rails.logger.info "File size: #{audio_file.size} bytes"
+      Rails.logger.info "Audio info: MIME=#{params[:mime_type]}, Size=#{params[:file_size]} bytes"
 
-      # Validate content type - support iOS formats
+      # Validate content type - support iOS formats and WebM variants
       allowed_types = [
         'audio/webm', 
+        'audio/webm;codecs=opus',    # Chrome WebM with Opus codec
         'audio/wav', 
         'audio/mp3', 
         'audio/m4a',     # iOS format
@@ -56,6 +72,8 @@ class App::VoiceNotesController < App::ApplicationController
                         '.wav'
                       when 'audio/mp3', 'audio/mpeg'
                         '.mp3'
+                      when 'audio/webm', 'audio/webm;codecs=opus'
+                        '.webm'
                       when 'audio/ogg'
                         '.ogg'
                       else
@@ -111,21 +129,6 @@ class App::VoiceNotesController < App::ApplicationController
 
       Rails.logger.info "Created temporary file: #{temp_file.path} (#{File.size(temp_file.path)} bytes)"
 
-      # Detect device type from both user agent and frontend data
-      user_agent = request.user_agent.to_s
-      device_type = params[:device_type] # from frontend
-      frontend_is_ios = params[:is_ios] == 'true'
-      
-      # Prefer frontend detection as it's more accurate
-      is_ipad = device_type == 'ipad' || user_agent.include?('iPad')
-      is_iphone = device_type == 'iphone' || user_agent.include?('iPhone')
-      is_ios = frontend_is_ios || is_ipad || is_iphone
-      
-      Rails.logger.info "Device detection: iPad=#{is_ipad}, iPhone=#{is_iphone}, iOS=#{is_ios}"
-      Rails.logger.info "Frontend device type: #{device_type}, iOS: #{frontend_is_ios}"
-      Rails.logger.info "User agent: #{user_agent}"
-      Rails.logger.info "Audio info: MIME=#{params[:mime_type]}, Size=#{params[:file_size]} bytes"
-      
       # iPad-specific validation and logging
       if is_ipad
         Rails.logger.info "iPad SPECIFIC PROCESSING:"
