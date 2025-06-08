@@ -7,13 +7,37 @@ class VoiceRecorder {
     this.maxDuration = 120000; // 2 minutes max
     this.recordingTimer = null;
     this.recordingStartTime = null;
-    this.isIOS = this.detectIOS();
+    this.deviceInfo = this.detectDevice();
   }
 
-  // Detect iOS devices
-  detectIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Enhanced device detection
+  detectDevice() {
+    const userAgent = navigator.userAgent;
+    const platform = navigator.platform;
+    
+    // Detect iPad specifically (including iPad Pro running iPadOS 13+ that reports as Mac)
+    const isIPad = /iPad/.test(userAgent) || 
+                   (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    // Detect iPhone
+    const isIPhone = /iPhone/.test(userAgent);
+    
+    // Detect iPod
+    const isIPod = /iPod/.test(userAgent);
+    
+    // General iOS detection
+    const isIOS = isIPad || isIPhone || isIPod;
+    
+    console.log('Device detection:', { isIPad, isIPhone, isIPod, isIOS, userAgent, platform });
+    
+    return {
+      isIPad,
+      isIPhone, 
+      isIPod,
+      isIOS,
+      userAgent,
+      platform
+    };
   }
 
   async initialize() {
@@ -24,33 +48,63 @@ class VoiceRecorder {
       }
 
       // iOS-specific checks
-      if (this.isIOS) {
+      if (this.deviceInfo.isIOS) {
         // Safari iOS requires user interaction before requesting permissions
         if (!this.stream) {
-          console.log('iOS detected - requesting microphone permission');
+          console.log(`${this.deviceInfo.isIPad ? 'iPad' : 'iOS'} detected - requesting microphone permission`);
         }
       }
 
-      // Request microphone permission with iOS-optimized settings
-      const constraints = {
-        audio: {
+      // iPad-optimized audio constraints for better transcription quality
+      let audioConstraints;
+      
+      if (this.deviceInfo.isIPad) {
+        // iPad-specific settings optimized for Whisper API
+        audioConstraints = {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: this.isIOS ? 48000 : 44100, // iOS prefers 48kHz
+          autoGainControl: true,
+          sampleRate: 44100, // More standard rate for iPad
+          sampleSize: 16,
+          channelCount: 1,
+          // iPad-specific additional constraints
+          googEchoCancellation: true,
+          googNoiseSuppression: true,
+          googAutoGainControl: true
+        };
+      } else if (this.deviceInfo.isIPhone) {
+        // iPhone-specific settings (keep existing behavior)
+        audioConstraints = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 48000,
           sampleSize: 16,
           channelCount: 1
-        }
-      };
+        };
+      } else {
+        // Desktop/other devices
+        audioConstraints = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100,
+          sampleSize: 16,
+          channelCount: 1
+        };
+      }
 
+      console.log('Audio constraints for', this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'other device', ':', audioConstraints);
+
+      const constraints = { audio: audioConstraints };
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       return true;
     } catch (error) {
       console.error('Error initializing voice recorder:', error);
       
-      // Provide iOS-specific error messages
-      if (this.isIOS && error.name === 'NotAllowedError') {
-        throw new Error('Microphone permission denied. Please enable microphone access in Safari settings.');
-      } else if (this.isIOS && error.name === 'NotSupportedError') {
+      // Provide device-specific error messages
+      if (this.deviceInfo.isIOS && error.name === 'NotAllowedError') {
+        const device = this.deviceInfo.isIPad ? 'iPad' : 'iPhone';
+        throw new Error(`Microphone permission denied. Please enable microphone access in Safari settings on your ${device}.`);
+      } else if (this.deviceInfo.isIOS && error.name === 'NotSupportedError') {
         throw new Error('Audio recording not supported. Please use Safari browser on iOS.');
       }
       
@@ -68,20 +122,43 @@ class VoiceRecorder {
 
       this.audioChunks = [];
       
-      // iOS-compatible MIME types (fallback chain)
-      const mimeTypes = [
-        'audio/mp4',                    // Preferred for iOS Safari
-        'audio/webm;codecs=opus',       // Chrome/Firefox
-        'audio/webm',                   // General WebM
-        'audio/wav',                    // Universal fallback
-        'audio/mp3'                     // Another fallback
-      ];
+      // Device-specific MIME types for optimal transcription quality
+      let mimeTypes;
+      
+      if (this.deviceInfo.isIPad) {
+        // iPad-optimized MIME types for better Whisper compatibility
+        mimeTypes = [
+          'audio/wav',                    // WAV is most reliable for iPad transcription
+          'audio/mp4',                    // Fallback for iPad Safari
+          'audio/webm;codecs=opus',       // If Chrome is used on iPad
+          'audio/webm',                   // General WebM
+          'audio/mp3'                     // Last resort
+        ];
+      } else if (this.deviceInfo.isIPhone) {
+        // iPhone-optimized MIME types (keep existing priority)
+        mimeTypes = [
+          'audio/mp4',                    // Preferred for iPhone Safari
+          'audio/webm;codecs=opus',       // Chrome/Firefox
+          'audio/webm',                   // General WebM
+          'audio/wav',                    // Universal fallback
+          'audio/mp3'                     // Another fallback
+        ];
+      } else {
+        // Desktop browsers
+        mimeTypes = [
+          'audio/webm;codecs=opus',       // Best quality for desktop
+          'audio/webm',                   // General WebM
+          'audio/wav',                    // High quality
+          'audio/mp4',                    // Compatibility
+          'audio/mp3'                     // Fallback
+        ];
+      }
       
       let selectedMimeType = null;
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           selectedMimeType = mimeType;
-          console.log(`Selected MIME type: ${mimeType}`);
+          console.log(`Selected MIME type for ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop'}: ${mimeType}`);
           break;
         }
       }
@@ -110,8 +187,17 @@ class VoiceRecorder {
         this.handleRecordingStop();
       };
 
-      // iOS may need a shorter timeslice for better compatibility
-      const timeslice = this.isIOS ? 1000 : undefined;
+      // iPad may need different timeslice for better audio quality
+      let timeslice;
+      if (this.deviceInfo.isIPad) {
+        timeslice = 500; // Shorter intervals for iPad to ensure better audio capture
+      } else if (this.deviceInfo.isIPhone) {
+        timeslice = 1000; // Keep existing iPhone behavior
+      } else {
+        timeslice = undefined; // Desktop default
+      }
+      
+      console.log(`Using timeslice: ${timeslice}ms for ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop'}`);
       this.mediaRecorder.start(timeslice);
       
       this.isRecording = true;
@@ -169,7 +255,7 @@ class VoiceRecorder {
     let mimeType = this.actualMimeType || 'audio/mp4'; // Default to mp4 for iOS
     
     // iOS Safari sometimes reports weird MIME types, normalize them
-    if (this.isIOS && (!mimeType || mimeType === 'unknown')) {
+    if (this.deviceInfo.isIOS && (!mimeType || mimeType === 'unknown')) {
       mimeType = 'audio/mp4';
     }
     
@@ -204,6 +290,15 @@ class VoiceRecorder {
       
       console.log(`Uploading as: ${fileName} (${audioBlob.type})`);
       formData.append('audio', audioBlob, fileName);
+      
+      // Send device information for server-side optimization
+      formData.append('device_type', this.deviceInfo.isIPad ? 'ipad' : this.deviceInfo.isIPhone ? 'iphone' : 'other');
+      formData.append('is_ios', this.deviceInfo.isIOS.toString());
+      formData.append('user_agent', this.deviceInfo.userAgent);
+      formData.append('mime_type', audioBlob.type);
+      formData.append('file_size', audioBlob.size.toString());
+      
+      console.log(`Device info sent: ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'other'} (iOS: ${this.deviceInfo.isIOS})`);
 
       // Get CSRF token
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -417,7 +512,7 @@ document.addEventListener('turbo:load', () => {
         let errorMessage = error.message || 'Error accessing microphone';
         
         // iOS-specific error handling
-        if (recorder.isIOS) {
+        if (recorder.deviceInfo.isIOS) {
           if (error.message.includes('permission')) {
             errorMessage = 'Please allow microphone access in Safari settings: Settings > Safari > Microphone';
           } else if (error.message.includes('not supported')) {
