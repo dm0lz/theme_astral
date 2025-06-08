@@ -70,33 +70,39 @@ class VoiceRecorder {
       
       // iOS-compatible MIME types (fallback chain)
       const mimeTypes = [
-        'audio/mp4',           // Preferred for iOS
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/wav'
+        'audio/mp4',                    // Preferred for iOS Safari
+        'audio/webm;codecs=opus',       // Chrome/Firefox
+        'audio/webm',                   // General WebM
+        'audio/wav',                    // Universal fallback
+        'audio/mp3'                     // Another fallback
       ];
       
       let selectedMimeType = null;
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           selectedMimeType = mimeType;
+          console.log(`Selected MIME type: ${mimeType}`);
           break;
         }
       }
       
       if (!selectedMimeType) {
         // Last resort - let the browser choose
+        console.log('No supported MIME type found, using browser default');
         selectedMimeType = undefined;
       }
       
-      console.log(`Using MIME type: ${selectedMimeType || 'browser default'}`);
-      
       const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
       this.mediaRecorder = new MediaRecorder(this.stream, options);
+      
+      // Store the actual MIME type being used
+      this.actualMimeType = this.mediaRecorder.mimeType || selectedMimeType || 'unknown';
+      console.log(`MediaRecorder initialized with: ${this.actualMimeType}`);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.audioChunks.push(event.data);
+          console.log(`Audio chunk received: ${event.data.size} bytes`);
         }
       };
 
@@ -144,17 +150,23 @@ class VoiceRecorder {
   }
 
   handleRecordingStop() {
-    // Determine the correct MIME type for the blob
-    let mimeType = 'audio/webm;codecs=opus'; // Default
+    // Use the actual MIME type from MediaRecorder, with fallbacks
+    let mimeType = this.actualMimeType || 'audio/mp4'; // Default to mp4 for iOS
     
-    if (this.isIOS) {
-      mimeType = 'audio/mp4'; // iOS-preferred format
-    } else if (this.mediaRecorder && this.mediaRecorder.mimeType) {
-      mimeType = this.mediaRecorder.mimeType;
+    // iOS Safari sometimes reports weird MIME types, normalize them
+    if (this.isIOS && (!mimeType || mimeType === 'unknown')) {
+      mimeType = 'audio/mp4';
     }
     
     const audioBlob = new Blob(this.audioChunks, { type: mimeType });
-    console.log(`Created blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
+    console.log(`Created blob: ${mimeType}, size: ${audioBlob.size} bytes, chunks: ${this.audioChunks.length}`);
+    
+    // Validate blob size
+    if (audioBlob.size === 0) {
+      console.error('Audio blob is empty!');
+      this.onTranscriptionError('Recording failed - no audio data captured');
+      return;
+    }
     
     this.transcribeAudio(audioBlob);
   }
@@ -164,13 +176,18 @@ class VoiceRecorder {
       const formData = new FormData();
       
       // Use appropriate file extension based on the blob type
-      let fileName = 'recording.webm';
-      if (audioBlob.type.includes('mp4')) {
-        fileName = 'recording.mp4';
+      let fileName = 'recording.mp4'; // Default for iOS
+      if (audioBlob.type.includes('webm')) {
+        fileName = 'recording.webm';
       } else if (audioBlob.type.includes('wav')) {
         fileName = 'recording.wav';
+      } else if (audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg')) {
+        fileName = 'recording.mp3';
+      } else if (audioBlob.type.includes('ogg')) {
+        fileName = 'recording.ogg';
       }
       
+      console.log(`Uploading as: ${fileName} (${audioBlob.type})`);
       formData.append('audio', audioBlob, fileName);
 
       // Get CSRF token
@@ -184,11 +201,17 @@ class VoiceRecorder {
         body: formData
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
+        console.log('Transcription successful:', result.transcription);
         this.onTranscriptionComplete(result.transcription);
       } else {
+        console.error('Transcription failed:', result.error);
         this.onTranscriptionError(result.error || 'Failed to transcribe audio');
       }
     } catch (error) {
