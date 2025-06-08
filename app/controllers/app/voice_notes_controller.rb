@@ -114,7 +114,9 @@ class App::VoiceNotesController < App::ApplicationController
       if is_ipad
         # iPad tends to have audio quality issues, use lower temperature for more consistent results
         whisper_params[:temperature] = 0.1  # Very low for maximum consistency on iPad
-        Rails.logger.info "Using very low temperature (0.1) for iPad audio quality issues"
+        # Add language hint to help with poor iPad audio quality (without forcing specific language)
+        whisper_params[:prompt] = "Transcription may be in French, English, or other European languages."
+        Rails.logger.info "Using very low temperature (0.1) and language hint for iPad audio quality issues"
       elsif is_ios
         # Other iOS devices get moderate temperature adjustment
         whisper_params[:temperature] = 0.2  # Lower temperature for more consistent results
