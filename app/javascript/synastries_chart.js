@@ -331,7 +331,7 @@ function initSynastryChart() {
       'Mars': '♂',
       'Jupiter': '♃',
       'Saturn': '♄',
-      'Uranus': '⛢',
+      'Uranus': '♅',
       'Neptune': '♆',
       'Pluto': '♇'
     };

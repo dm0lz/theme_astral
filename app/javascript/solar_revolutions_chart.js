@@ -337,7 +337,7 @@ function initSolarRevolutionChart() {
       'Mars': '♂',
       'Jupiter': '♃',
       'Saturn': '♄',
-      'Uranus': '⛢',
+      'Uranus': '♅',
       'Neptune': '♆',
       'Pluto': '♇'
     };

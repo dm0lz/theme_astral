@@ -255,7 +255,7 @@ function initBirthChart() {
       'Mars': '♂',
       'Jupiter': '♃',
       'Saturn': '♄',
-      'Uranus': '⛢',
+      'Uranus': '♅',
       'Neptune': '♆',
       'Pluto': '♇'
     };
