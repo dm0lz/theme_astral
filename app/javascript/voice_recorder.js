@@ -47,6 +47,23 @@ class VoiceRecorder {
         throw new Error('Your browser does not support audio recording');
       }
 
+      // iPad-specific MediaRecorder support check
+      if (this.deviceInfo.isIPad) {
+        if (typeof MediaRecorder === 'undefined') {
+          throw new Error('iPad Safari version does not support audio recording. Please update Safari to the latest version.');
+        }
+        
+        // Check if MediaRecorder supports any audio format on iPad
+        const basicFormats = ['audio/webm', 'audio/wav', 'audio/mp4', 'audio/mpeg'];
+        const supported = basicFormats.some(format => MediaRecorder.isTypeSupported(format));
+        
+        if (!supported) {
+          console.warn('iPad MediaRecorder has limited format support, will try with default settings');
+        }
+        
+        console.log('iPad MediaRecorder support check passed');
+      }
+
       // iOS-specific checks
       if (this.deviceInfo.isIOS) {
         // Safari iOS requires user interaction before requesting permissions
@@ -59,18 +76,16 @@ class VoiceRecorder {
       let audioConstraints;
       
       if (this.deviceInfo.isIPad) {
-        // iPad-specific settings optimized for Whisper API
+        // iPad-specific settings optimized for Whisper API with maximum compatibility
         audioConstraints = {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100, // More standard rate for iPad
+          sampleRate: { ideal: 44100, min: 16000, max: 48000 }, // Flexible sample rate for iPad
           sampleSize: 16,
           channelCount: 1,
-          // iPad-specific additional constraints
-          googEchoCancellation: true,
-          googNoiseSuppression: true,
-          googAutoGainControl: true
+          // Reduced iPad-specific constraints for better compatibility
+          latency: { ideal: 0.1 }
         };
       } else if (this.deviceInfo.isIPhone) {
         // iPhone-specific settings (keep existing behavior)
@@ -96,6 +111,16 @@ class VoiceRecorder {
 
       const constraints = { audio: audioConstraints };
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Log actual stream settings for debugging iPad issues
+      if (this.deviceInfo.isIPad && this.stream) {
+        const audioTrack = this.stream.getAudioTracks()[0];
+        if (audioTrack) {
+          const settings = audioTrack.getSettings();
+          console.log('iPad audio stream settings:', settings);
+        }
+      }
+      
       return true;
     } catch (error) {
       console.error('Error initializing voice recorder:', error);
@@ -106,6 +131,8 @@ class VoiceRecorder {
         throw new Error(`Microphone permission denied. Please enable microphone access in Safari settings on your ${device}.`);
       } else if (this.deviceInfo.isIOS && error.name === 'NotSupportedError') {
         throw new Error('Audio recording not supported. Please use Safari browser on iOS.');
+      } else if (this.deviceInfo.isIPad && error.message.includes('MediaRecorder')) {
+        throw new Error('iPad Safari audio recording not supported. Please update to latest Safari version or try a different browser.');
       }
       
       throw error;
@@ -127,12 +154,13 @@ class VoiceRecorder {
       
       if (this.deviceInfo.isIPad) {
         // iPad-optimized MIME types for better Whisper compatibility
+        // iPad Safari has very limited MediaRecorder support
         mimeTypes = [
-          'audio/wav',                    // WAV is most reliable for iPad transcription
-          'audio/mp4',                    // Fallback for iPad Safari
-          'audio/webm;codecs=opus',       // If Chrome is used on iPad
-          'audio/webm',                   // General WebM
-          'audio/mp3'                     // Last resort
+          '', // Empty string to use browser default first (most compatible for iPad)
+          'audio/wav',                    // WAV if supported
+          'audio/mp4',                    // Safari fallback
+          'audio/webm',                   // If Chrome is used on iPad
+          'audio/mpeg'                    // Last resort
         ];
       } else if (this.deviceInfo.isIPhone) {
         // iPhone-optimized MIME types (keep existing priority)
@@ -156,25 +184,48 @@ class VoiceRecorder {
       
       let selectedMimeType = null;
       for (const mimeType of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mimeType)) {
-          selectedMimeType = mimeType;
-          console.log(`Selected MIME type for ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop'}: ${mimeType}`);
+        // For iPad, try browser default first (empty string)
+        if (mimeType === '' || MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType || undefined; // Convert empty string to undefined
+          const deviceName = this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop';
+          console.log(`Selected MIME type for ${deviceName}: ${mimeType || 'browser default'}`);
           break;
         }
       }
       
-      if (!selectedMimeType) {
+      if (selectedMimeType === null && this.deviceInfo.isIPad) {
+        // iPad fallback: try without any MIME type specification
+        console.log('iPad: No supported MIME type found, using browser default');
+        selectedMimeType = undefined;
+      } else if (selectedMimeType === null) {
         // Last resort - let the browser choose
         console.log('No supported MIME type found, using browser default');
         selectedMimeType = undefined;
       }
       
-      const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
-      this.mediaRecorder = new MediaRecorder(this.stream, options);
-      
-      // Store the actual MIME type being used
-      this.actualMimeType = this.mediaRecorder.mimeType || selectedMimeType || 'unknown';
-      console.log(`MediaRecorder initialized with: ${this.actualMimeType}`);
+      try {
+        const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+        this.mediaRecorder = new MediaRecorder(this.stream, options);
+        
+        // Store the actual MIME type being used
+        this.actualMimeType = this.mediaRecorder.mimeType || selectedMimeType || 'unknown';
+        console.log(`MediaRecorder initialized with: ${this.actualMimeType}`);
+      } catch (error) {
+        if (this.deviceInfo.isIPad) {
+          console.log('iPad MediaRecorder creation failed with options, trying without options:', error);
+          // iPad fallback: create MediaRecorder without any options
+          try {
+            this.mediaRecorder = new MediaRecorder(this.stream);
+            this.actualMimeType = this.mediaRecorder.mimeType || 'unknown';
+            console.log(`iPad MediaRecorder fallback successful: ${this.actualMimeType}`);
+          } catch (fallbackError) {
+            console.error('iPad MediaRecorder fallback failed:', fallbackError);
+            throw new Error('iPad audio recording not supported by this Safari version');
+          }
+        } else {
+          throw error;
+        }
+      }
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -251,12 +302,20 @@ class VoiceRecorder {
   }
 
   handleRecordingStop() {
+    console.log(`Recording stopped. Audio chunks: ${this.audioChunks.length}`);
+    
+    // Log chunk details for iPad debugging
+    if (this.deviceInfo.isIPad) {
+      console.log('iPad audio chunks details:', this.audioChunks.map((chunk, i) => `chunk ${i}: ${chunk.size} bytes, type: ${chunk.type}`));
+    }
+    
     // Use the actual MIME type from MediaRecorder, with fallbacks
     let mimeType = this.actualMimeType || 'audio/mp4'; // Default to mp4 for iOS
     
     // iOS Safari sometimes reports weird MIME types, normalize them
     if (this.deviceInfo.isIOS && (!mimeType || mimeType === 'unknown')) {
       mimeType = 'audio/mp4';
+      console.log('iOS: Using fallback MIME type audio/mp4');
     }
     
     const audioBlob = new Blob(this.audioChunks, { type: mimeType });
@@ -265,8 +324,18 @@ class VoiceRecorder {
     // Validate blob size
     if (audioBlob.size === 0) {
       console.error('Audio blob is empty!');
-      this.onTranscriptionError('Recording failed - no audio data captured');
+      if (this.deviceInfo.isIPad) {
+        console.error('iPad specific: Empty blob issue. Chunks length:', this.audioChunks.length);
+        this.onTranscriptionError('Recording failed on iPad - no audio data captured. Please try recording a longer message or check microphone permissions.');
+      } else {
+        this.onTranscriptionError('Recording failed - no audio data captured');
+      }
       return;
+    }
+    
+    // Additional iPad-specific validation
+    if (this.deviceInfo.isIPad && audioBlob.size < 1000) {
+      console.warn(`iPad: Very small audio blob (${audioBlob.size} bytes) - may indicate recording issues`);
     }
     
     this.transcribeAudio(audioBlob);

@@ -80,6 +80,23 @@ class App::VoiceNotesController < App::ApplicationController
       Rails.logger.info "Frontend device type: #{device_type}, iOS: #{frontend_is_ios}"
       Rails.logger.info "User agent: #{user_agent}"
       Rails.logger.info "Audio info: MIME=#{params[:mime_type]}, Size=#{params[:file_size]} bytes"
+      
+      # iPad-specific validation and logging
+      if is_ipad
+        Rails.logger.info "iPad SPECIFIC PROCESSING:"
+        Rails.logger.info "  - Original MIME type: #{audio_file.content_type}"
+        Rails.logger.info "  - File size: #{audio_file.size} bytes"
+        Rails.logger.info "  - File extension will be: #{file_extension}"
+        
+        # Check for potential iPad-specific issues
+        if audio_file.size < 1000
+          Rails.logger.warn "iPad: Very small audio file (#{audio_file.size} bytes) - may indicate recording failure"
+        end
+        
+        if audio_file.content_type.blank? || audio_file.content_type == 'application/octet-stream'
+          Rails.logger.warn "iPad: Generic or missing content type - iPad Safari MediaRecorder limitation"
+        end
+      end
 
       # Initialize OpenAI client
       client = OpenAI::Client.new(access_token: Rails.application.credentials.openai_api_key)
@@ -132,24 +149,41 @@ class App::VoiceNotesController < App::ApplicationController
 
     rescue OpenAI::Error => e
       Rails.logger.error "OpenAI API error: #{e.class} - #{e.message}"
+      Rails.logger.error "iPad processing: #{is_ipad}" if defined?(is_ipad) && is_ipad
       
       # More specific error messages for different OpenAI errors
       error_message = case e.message
                       when /Invalid file format/i
-                        "Audio format not supported. Please try recording again."
+                        if defined?(is_ipad) && is_ipad
+                          "iPad audio format not supported. Try recording a longer message or using a different device."
+                        else
+                          "Audio format not supported. Please try recording again."
+                        end
                       when /File too large/i
                         "Audio file too large. Please record a shorter message."
                       when /rate limit/i
                         "Service temporarily busy. Please try again in a moment."
                       else
-                        "Transcription service temporarily unavailable. Please try again."
+                        if defined?(is_ipad) && is_ipad
+                          "iPad transcription temporarily unavailable. This may be due to audio format limitations on iPad Safari. Please try again or use a different device."
+                        else
+                          "Transcription service temporarily unavailable. Please try again."
+                        end
                       end
                       
       render json: { success: false, error: error_message }
     rescue => e
       Rails.logger.error "Voice transcription error: #{e.class} - #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      render json: { success: false, error: "An error occurred while processing your voice note. Please try again." }
+      Rails.logger.error "iPad processing: #{is_ipad}" if defined?(is_ipad) && is_ipad
+      
+      error_message = if defined?(is_ipad) && is_ipad
+                        "An error occurred while processing iPad audio. iPad Safari has known limitations with audio recording. Please try recording again or use Chrome browser."
+                      else
+                        "An error occurred while processing your voice note. Please try again."
+                      end
+      
+      render json: { success: false, error: error_message }
     ensure
       # Ensure temporary file is cleaned up even if there's an error
       if temp_file
