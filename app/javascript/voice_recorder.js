@@ -76,14 +76,17 @@ class VoiceRecorder {
       let audioConstraints;
       
       if (this.deviceInfo.isIPad) {
-        // iPad-specific settings optimized for Whisper API with maximum compatibility
-        // Use minimal constraints to avoid iPad Safari issues
+        // iPad-specific settings - try enabling processing to improve speech clarity
         audioConstraints = {
-          echoCancellation: false, // Disable to avoid iPad distortion
-          noiseSuppression: false, // Disable to preserve speech clarity
-          autoGainControl: false,  // Disable to avoid volume fluctuations
-          sampleRate: { ideal: 48000, min: 22050 }, // Higher quality for better language detection
-          channelCount: 1
+          echoCancellation: true,  // Re-enable to reduce background noise
+          noiseSuppression: true,  // Re-enable to improve speech clarity
+          autoGainControl: true,   // Re-enable to normalize volume levels
+          sampleRate: { ideal: 48000, min: 44100 }, // Higher quality mandatory
+          sampleSize: 16,
+          channelCount: 1,
+          // Additional iPad-specific constraints for speech clarity
+          volume: { ideal: 1.0 },
+          latency: { ideal: 0.01 } // Very low latency for better real-time processing
         };
       } else if (this.deviceInfo.isIPhone) {
         // iPhone-specific settings (keep existing behavior)
@@ -338,18 +341,20 @@ class VoiceRecorder {
     
     // iPad-specific audio quality check
     if (this.deviceInfo.isIPad) {
-      // Check if recording duration was reasonable
+      // Check if recording duration was reasonable - iPad needs longer recordings for better quality
       const recordingDuration = Date.now() - this.recordingStartTime;
-      if (recordingDuration < 1000) {
-        console.warn(`iPad: Very short recording (${recordingDuration}ms) - may cause transcription issues`);
-        this.onTranscriptionError('Recording too short on iPad. Please record for at least 2-3 seconds for better accuracy.');
+      if (recordingDuration < 2000) {
+        console.warn(`iPad: Recording too short (${recordingDuration}ms) - need at least 2 seconds for quality`);
+        this.onTranscriptionError('Recording too short on iPad. Please speak clearly for at least 2-3 seconds for better accuracy.');
         return;
       }
       
       // Check audio blob size relative to duration
-      const expectedMinSize = Math.max(1000, recordingDuration * 10); // ~10 bytes per ms minimum
+      const expectedMinSize = Math.max(2000, recordingDuration * 15); // ~15 bytes per ms minimum for iPad
       if (audioBlob.size < expectedMinSize) {
         console.warn(`iPad: Audio blob too small for duration. Size: ${audioBlob.size}, Duration: ${recordingDuration}ms`);
+        this.onTranscriptionError('Audio quality too low on iPad. Please speak louder and closer to the microphone.');
+        return;
       }
     }
     

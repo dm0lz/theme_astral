@@ -39,11 +39,15 @@ class App::VoiceNotesController < App::ApplicationController
         # Don't reject - iOS sometimes sends generic content types
       end
 
-      # Keep native formats for better Whisper compatibility
-      # Whisper API supports MP4, M4A, WAV, MP3 directly
+      # Keep native formats for better Whisper compatibility, with iPad exception
+      # iPad MediaRecorder produces MP4 with problematic codecs - convert to WAV
       file_extension = case audio_file.content_type
                       when 'audio/mp4'
-                        '.mp4'  # Keep iPad's native MP4 format - Whisper supports it directly
+                        if is_ipad
+                          '.wav'  # Convert iPad MP4 to WAV for better Whisper compatibility
+                        else
+                          '.mp4'  # Keep non-iPad MP4 as-is
+                        end
                       when 'audio/m4a'
                         '.m4a'  # Keep iPhone's native M4A format
                       when 'audio/aac'
@@ -59,11 +63,50 @@ class App::VoiceNotesController < App::ApplicationController
                         '.mp3'
                       end
 
-      Rails.logger.info "Using native file extension: #{file_extension} (keeping original format)"
+      Rails.logger.info "Using file extension: #{file_extension} #{is_ipad && audio_file.content_type == 'audio/mp4' ? '(iPad MP4 -> WAV conversion)' : '(native format)'}"
 
       temp_file = Tempfile.new(['voice_note', file_extension])
       temp_file.binmode
-      temp_file.write(audio_file.read)
+      
+      # Handle iPad MP4 format conversion using FFmpeg
+      if is_ipad && audio_file.content_type == 'audio/mp4'
+        Rails.logger.info "Converting iPad MP4 to WAV using FFmpeg for better Whisper compatibility"
+        
+        # Check if FFmpeg is available
+        unless system('which ffmpeg > /dev/null 2>&1')
+          Rails.logger.error "FFmpeg not found - required for iPad MP4 conversion"
+          render json: { success: false, error: "Audio conversion tools not available. iPad MP4 format requires server-side conversion." }
+          return
+        end
+        
+        # Create temporary MP4 file first
+        mp4_temp_file = Tempfile.new(['voice_note_original', '.mp4'])
+        mp4_temp_file.binmode
+        mp4_temp_file.write(audio_file.read)
+        mp4_temp_file.rewind
+        
+        # Convert MP4 to WAV using FFmpeg with optimized settings for speech
+        ffmpeg_command = "ffmpeg -y -i #{mp4_temp_file.path} -ar 16000 -ac 1 -sample_fmt s16 -f wav #{temp_file.path} 2>/dev/null"
+        Rails.logger.info "Running FFmpeg command: #{ffmpeg_command}"
+        
+        system_result = system(ffmpeg_command)
+        
+        # Clean up the original MP4 temp file
+        mp4_temp_file.close
+        mp4_temp_file.unlink
+        
+        unless system_result
+          Rails.logger.error "FFmpeg conversion failed for iPad MP4"
+          render json: { success: false, error: "Audio format conversion failed. iPad Safari MP4 format is not compatible with our transcription service." }
+          return
+        end
+        
+        Rails.logger.info "Successfully converted iPad MP4 to WAV: #{File.size(temp_file.path)} bytes"
+      else
+        # For all other formats, write directly
+        temp_file.write(audio_file.read)
+      end
+      
       temp_file.rewind
 
       Rails.logger.info "Created temporary file: #{temp_file.path} (#{File.size(temp_file.path)} bytes)"
@@ -115,10 +158,10 @@ class App::VoiceNotesController < App::ApplicationController
       # Add general quality improvements for iPad without forcing language
       if is_ipad
         # iPad tends to have audio quality issues, use lower temperature for more consistent results
-        whisper_params[:temperature] = 0.1  # Very low for maximum consistency on iPad
-        # Add language hint to help with poor iPad audio quality (without forcing specific language)
-        whisper_params[:prompt] = "Transcription may be in French, English, or other European languages."
-        Rails.logger.info "Using very low temperature (0.1) and language hint for iPad audio quality issues"
+        whisper_params[:temperature] = 0.0  # Absolutely lowest for maximum consistency on iPad
+        # Add much stronger language hint for iPad poor audio quality
+        whisper_params[:prompt] = "French vocabulary words: couleurs (bleu, vert, rouge, jaune, orange, violet), nombres, objets. Audio from iPad may have quality issues."
+        Rails.logger.info "Using zero temperature (0.0) and strong French language hint for iPad audio quality issues"
       elsif is_ios
         # Other iOS devices get moderate temperature adjustment
         whisper_params[:temperature] = 0.2  # Lower temperature for more consistent results
@@ -189,7 +232,7 @@ class App::VoiceNotesController < App::ApplicationController
       
       render json: { success: false, error: error_message }
     ensure
-      # Ensure temporary file is cleaned up even if there's an error
+      # Ensure temporary files are cleaned up even if there's an error
       if temp_file
         begin
           temp_file.close unless temp_file.closed?
@@ -197,6 +240,17 @@ class App::VoiceNotesController < App::ApplicationController
           Rails.logger.info "Temporary file cleaned up successfully"
         rescue => cleanup_error
           Rails.logger.error "Error cleaning up temp file: #{cleanup_error.message}"
+        end
+      end
+      
+      # Clean up MP4 temp file if it exists (iPad conversion)
+      if defined?(mp4_temp_file) && mp4_temp_file
+        begin
+          mp4_temp_file.close unless mp4_temp_file.closed?
+          mp4_temp_file.unlink if File.exist?(mp4_temp_file.path)
+          Rails.logger.info "MP4 temporary file cleaned up successfully"
+        rescue => cleanup_error
+          Rails.logger.error "Error cleaning up MP4 temp file: #{cleanup_error.message}"
         end
       end
     end
