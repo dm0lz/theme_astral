@@ -17,8 +17,11 @@
     <div id="voice-recorder-form" class="hidden">
       <div class="flex items-center justify-between p-4 bg-[#0f172a]/80 border border-indigo-700/50 rounded-lg backdrop-blur-sm">
         <!-- Voice Recording Button -->
-        <button type="button" id="voice-record-btn" 
-                class="flex items-center justify-center w-12 h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50">
+        <button 
+          type="button" 
+          id="voice-record-btn"
+          class="flex items-center justify-center w-12 h-12 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg touch-manipulation select-none"
+        >
           <!-- Record Icon -->
           <svg class="record-icon w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
@@ -57,7 +60,7 @@
       <div class="flex flex-col justify-end mb-2 space-y-2">
         <!-- Voice Note Toggle Button -->
         <button type="button" id="voice-toggle-btn" 
-                class="flex items-center justify-center p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400/50" 
+                class="flex items-center justify-center p-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 touch-manipulation select-none" 
                 title="Toggle voice recording">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>

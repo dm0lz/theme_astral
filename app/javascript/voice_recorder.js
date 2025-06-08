@@ -7,6 +7,13 @@ class VoiceRecorder {
     this.maxDuration = 120000; // 2 minutes max
     this.recordingTimer = null;
     this.recordingStartTime = null;
+    this.isIOS = this.detectIOS();
+  }
+
+  // Detect iOS devices
+  detectIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   }
 
   async initialize() {
@@ -16,18 +23,37 @@ class VoiceRecorder {
         throw new Error('Your browser does not support audio recording');
       }
 
-      // Request microphone permission
-      this.stream = await navigator.mediaDevices.getUserMedia({ 
+      // iOS-specific checks
+      if (this.isIOS) {
+        // Safari iOS requires user interaction before requesting permissions
+        if (!this.stream) {
+          console.log('iOS detected - requesting microphone permission');
+        }
+      }
+
+      // Request microphone permission with iOS-optimized settings
+      const constraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 44100
-        } 
-      });
+          sampleRate: this.isIOS ? 48000 : 44100, // iOS prefers 48kHz
+          sampleSize: 16,
+          channelCount: 1
+        }
+      };
 
+      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       return true;
     } catch (error) {
       console.error('Error initializing voice recorder:', error);
+      
+      // Provide iOS-specific error messages
+      if (this.isIOS && error.name === 'NotAllowedError') {
+        throw new Error('Microphone permission denied. Please enable microphone access in Safari settings.');
+      } else if (this.isIOS && error.name === 'NotSupportedError') {
+        throw new Error('Audio recording not supported. Please use Safari browser on iOS.');
+      }
+      
       throw error;
     }
   }
@@ -41,9 +67,32 @@ class VoiceRecorder {
       }
 
       this.audioChunks = [];
-      this.mediaRecorder = new MediaRecorder(this.stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      
+      // iOS-compatible MIME types (fallback chain)
+      const mimeTypes = [
+        'audio/mp4',           // Preferred for iOS
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/wav'
+      ];
+      
+      let selectedMimeType = null;
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          break;
+        }
+      }
+      
+      if (!selectedMimeType) {
+        // Last resort - let the browser choose
+        selectedMimeType = undefined;
+      }
+      
+      console.log(`Using MIME type: ${selectedMimeType || 'browser default'}`);
+      
+      const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+      this.mediaRecorder = new MediaRecorder(this.stream, options);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -55,7 +104,10 @@ class VoiceRecorder {
         this.handleRecordingStop();
       };
 
-      this.mediaRecorder.start();
+      // iOS may need a shorter timeslice for better compatibility
+      const timeslice = this.isIOS ? 1000 : undefined;
+      this.mediaRecorder.start(timeslice);
+      
       this.isRecording = true;
       this.recordingStartTime = Date.now();
 
@@ -80,21 +132,46 @@ class VoiceRecorder {
   stopRecording() {
     if (!this.isRecording || !this.mediaRecorder) return;
 
-    this.mediaRecorder.stop();
-    this.isRecording = false;
-    this.stopTimer();
-    this.updateUI('processing');
+    try {
+      this.mediaRecorder.stop();
+      this.isRecording = false;
+      this.stopTimer();
+      this.updateUI('processing');
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      this.updateUI('ready');
+    }
   }
 
   handleRecordingStop() {
-    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm;codecs=opus' });
+    // Determine the correct MIME type for the blob
+    let mimeType = 'audio/webm;codecs=opus'; // Default
+    
+    if (this.isIOS) {
+      mimeType = 'audio/mp4'; // iOS-preferred format
+    } else if (this.mediaRecorder && this.mediaRecorder.mimeType) {
+      mimeType = this.mediaRecorder.mimeType;
+    }
+    
+    const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+    console.log(`Created blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
+    
     this.transcribeAudio(audioBlob);
   }
 
   async transcribeAudio(audioBlob) {
     try {
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+      
+      // Use appropriate file extension based on the blob type
+      let fileName = 'recording.webm';
+      if (audioBlob.type.includes('mp4')) {
+        fileName = 'recording.mp4';
+      } else if (audioBlob.type.includes('wav')) {
+        fileName = 'recording.wav';
+      }
+      
+      formData.append('audio', audioBlob, fileName);
 
       // Get CSRF token
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -287,10 +364,52 @@ document.addEventListener('turbo:load', () => {
     showNotification(error, 'error');
   };
 
+  // Voice recording button handler
+  const voiceButton = document.getElementById('voice-record-btn');
+  if (voiceButton) {
+    // Add both click and touch event handlers for iOS compatibility
+    const handleRecordingToggle = async (event) => {
+      event.preventDefault(); // Prevent default touch behavior
+      
+      try {
+        if (recorder.isRecording) {
+          recorder.stopRecording();
+        } else {
+          await recorder.startRecording();
+        }
+      } catch (error) {
+        console.error('Voice recording error:', error);
+        let errorMessage = error.message || 'Error accessing microphone';
+        
+        // iOS-specific error handling
+        if (recorder.isIOS) {
+          if (error.message.includes('permission')) {
+            errorMessage = 'Please allow microphone access in Safari settings: Settings > Safari > Microphone';
+          } else if (error.message.includes('not supported')) {
+            errorMessage = 'Please use Safari browser for voice recording on iOS devices';
+          }
+        }
+        
+        showNotification(errorMessage, 'error');
+      }
+    };
+    
+    // Add multiple event listeners for better iOS compatibility
+    voiceButton.addEventListener('click', handleRecordingToggle);
+    voiceButton.addEventListener('touchend', handleRecordingToggle);
+    
+    // Prevent double-firing on iOS
+    voiceButton.addEventListener('touchstart', (event) => {
+      event.preventDefault();
+    });
+  }
+
   // Voice toggle button handler (show/hide voice recorder)
   const voiceToggleBtn = document.getElementById('voice-toggle-btn');
   if (voiceToggleBtn) {
-    voiceToggleBtn.addEventListener('click', () => {
+    const handleToggle = (event) => {
+      event.preventDefault();
+      
       const isHidden = voiceRecorderForm.classList.contains('hidden');
       if (isHidden) {
         voiceRecorderForm.classList.remove('hidden');
@@ -305,23 +424,15 @@ document.addEventListener('turbo:load', () => {
           recorder.stopRecording();
         }
       }
-    });
-  }
-
-  // Voice recording button handler
-  const voiceButton = document.getElementById('voice-record-btn');
-  if (voiceButton) {
-    voiceButton.addEventListener('click', async () => {
-      try {
-        if (recorder.isRecording) {
-          recorder.stopRecording();
-        } else {
-          await recorder.startRecording();
-        }
-      } catch (error) {
-        console.error('Voice recording error:', error);
-        showNotification(error.message || 'Error accessing microphone', 'error');
-      }
+    };
+    
+    // Add both click and touch events for iOS
+    voiceToggleBtn.addEventListener('click', handleToggle);
+    voiceToggleBtn.addEventListener('touchend', handleToggle);
+    
+    // Prevent double-firing on iOS
+    voiceToggleBtn.addEventListener('touchstart', (event) => {
+      event.preventDefault();
     });
   }
 

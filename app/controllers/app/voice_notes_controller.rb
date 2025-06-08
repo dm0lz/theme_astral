@@ -1,67 +1,95 @@
 class App::VoiceNotesController < App::ApplicationController
   def transcribe
-    unless params[:audio].present?
-      render json: { error: 'No audio file provided' }, status: :bad_request
-      return
-    end
-
     begin
-      # Check if OpenAI is configured
-      unless Rails.application.credentials.openai_api_key
-        render json: { error: 'OpenAI API key not configured' }, status: :service_unavailable
+      # Check if audio file is present
+      unless params[:audio].present?
+        render json: { success: false, error: "No audio file provided" }
         return
       end
 
-      # Initialize OpenAI client (uses global configuration)
-      client = OpenAI::Client.new(access_token: Rails.application.credentials.openai_api_key)
-
-      # Prepare the audio file
       audio_file = params[:audio]
       
-      # Create a temporary file to work with the audio data
-      temp_file = Tempfile.new(['voice_note', '.webm'])
+      # Validate file size (max 25MB for Whisper API)
+      max_size = 25.megabytes
+      if audio_file.size > max_size
+        render json: { success: false, error: "Audio file too large. Maximum size is 25MB." }
+        return
+      end
+
+      # Validate content type - support iOS formats
+      allowed_types = [
+        'audio/webm', 
+        'audio/wav', 
+        'audio/mp3', 
+        'audio/m4a',     # iOS format
+        'audio/mp4',     # iOS format
+        'audio/aac',     # iOS format
+        'application/octet-stream' # fallback for mobile uploads
+      ]
+      
+      unless allowed_types.include?(audio_file.content_type)
+        Rails.logger.warn "Unsupported audio format: #{audio_file.content_type}"
+        # Don't reject - iOS sometimes sends generic content types
+      end
+
+      # Create a temporary file with appropriate extension
+      file_extension = case audio_file.content_type
+                      when 'audio/mp4', 'audio/m4a'
+                        '.m4a'
+                      when 'audio/aac'
+                        '.aac'
+                      when 'audio/wav'
+                        '.wav'
+                      when 'audio/mp3'
+                        '.mp3'
+                      else
+                        # Default to webm, but Whisper can handle many formats
+                        '.webm'
+                      end
+
+      temp_file = Tempfile.new(['voice_note', file_extension])
       temp_file.binmode
       temp_file.write(audio_file.read)
       temp_file.rewind
+
+      Rails.logger.info "Processing audio file: #{audio_file.original_filename} (#{audio_file.content_type}, #{audio_file.size} bytes)"
+
+      # Initialize OpenAI client
+      client = OpenAI::Client.new(access_token: Rails.application.credentials.openai_api_key)
 
       # Make the transcription request
       response = client.audio.transcribe(
         parameters: {
           model: "whisper-1",
           file: File.open(temp_file.path, 'rb'),
-          # language: "en" # Optional: remove to auto-detect language
+          language: "en" # Optional: remove to auto-detect language
         }
       )
 
-      # Clean up temporary file
-      temp_file.close
-      temp_file.unlink
-
-      if response && response["text"]
+      transcription = response.dig("text")
+      
+      if transcription.present?
+        Rails.logger.info "Transcription successful: #{transcription[0..100]}..."
         render json: { 
-          transcription: response["text"],
-          success: true 
+          success: true, 
+          transcription: transcription.strip,
+          audio_info: {
+            format: audio_file.content_type,
+            size: audio_file.size,
+            duration_estimate: "#{(audio_file.size / 16000.0).round(1)}s" # rough estimate
+          }
         }
       else
-        Rails.logger.error "Whisper API unexpected response: #{response.inspect}"
-        render json: { 
-          error: 'Failed to transcribe audio. Please try again.',
-          success: false 
-        }, status: :unprocessable_entity
+        render json: { success: false, error: "Transcription returned empty result" }
       end
-      
+
     rescue OpenAI::Error => e
       Rails.logger.error "OpenAI API error: #{e.message}"
-      render json: { 
-        error: 'OpenAI service error. Please try again later.',
-        success: false 
-      }, status: :unprocessable_entity
-    rescue StandardError => e
+      render json: { success: false, error: "Transcription service temporarily unavailable. Please try again." }
+    rescue => e
       Rails.logger.error "Voice transcription error: #{e.message}"
-      render json: { 
-        error: 'An error occurred while processing your voice note. Please try again.',
-        success: false 
-      }, status: :internal_server_error
+      Rails.logger.error e.backtrace.join("\n")
+      render json: { success: false, error: "An error occurred while processing your voice note. Please try again." }
     ensure
       # Ensure temporary file is cleaned up even if there's an error
       if temp_file
