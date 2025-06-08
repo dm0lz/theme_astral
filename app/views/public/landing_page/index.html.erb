@@ -4,19 +4,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <!-- Hero Section -->
-<section id="accueil" class="relative min-h-screen flex flex-col px-4 pt-24">
+<section id="accueil" class="relative min-h-screen flex flex-col px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24">
   
-  <div class="container mx-auto max-w-7xl relative z-10 mb-12">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-      <div class="order-2 sm:order-1">
-        <div class="text-center sm:text-left">
-          <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-6 py-2 border border-indigo-500/20 mb-6">
+  <div class="container mx-auto max-w-7xl relative z-10 mb-8 sm:mb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+      <div class="order-2 lg:order-1">
+        <div class="text-center lg:text-left">
+          <div class="inline-flex items-center bg-indigo-900/50 backdrop-blur-sm rounded-full px-4 sm:px-6 py-2 border border-indigo-500/20 mb-4 sm:mb-6">
             <div class="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
-            <p class="text-indigo-200">Consultations disponibles</p>
+            <p class="text-indigo-200 text-sm sm:text-base">Consultations disponibles</p>
           </div>
         </div>
         
-        <h1 class="text-center sm:text-left text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight mb-4">
+        <h1 class="text-center lg:text-left text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight mb-4 sm:mb-6">
           <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
             Découvrez les Mystères
           </span>
@@ -25,47 +25,45 @@
           </span>
         </h1>
         
-        <p class="text-center sm:text-left text-lg text-purple-100/90 mb-6 max-w-xl leading-relaxed">
+        <p class="text-center lg:text-left text-base sm:text-lg text-purple-100/90 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed px-4 sm:px-0">
           Plongez dans une lecture astrologique approfondie qui révèle les secrets de votre carte natale.
         </p>
         
-        <div class="flex flex-col sm:flex-row gap-4 mb-12">
-          <%= link_to "Voir mon Thème", app_birth_charts_path, class: "text-center bg-gradient-to-r from-amber-400 to-amber-600 px-8 py-4 rounded-full text-indigo-950 font-medium text-lg hover:shadow-lg hover:shadow-amber-500/20 transition-all" %>
-          <%= link_to "Explorer les Services", "#services", class: "text-center border border-purple-400/30 bg-purple-900/20 backdrop-blur-sm px-8 py-4 rounded-full text-purple-100 font-medium text-lg hover:bg-purple-800/30 transition-all group" %>
+        <div class="flex flex-col sm:flex-row gap-4 mb-8 sm:mb-12 px-4 sm:px-0">
+          <%= link_to "Voir mon Thème", app_birth_charts_path, class: "text-center bg-gradient-to-r from-amber-400 to-amber-600 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-indigo-950 font-medium text-base sm:text-lg hover:shadow-lg hover:shadow-amber-500/20 transition-all transform hover:scale-105" %>
+          <%= link_to "Explorer les Services", "#services", class: "text-center border border-purple-400/30 bg-purple-900/20 backdrop-blur-sm px-6 sm:px-8 py-3 sm:py-4 rounded-full text-purple-100 font-medium text-base sm:text-lg hover:bg-purple-800/30 transition-all group" %>
         </div>
       </div>
       
-      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
-      
-      <div class="relative lg:h-[600px] flex items-center justify-center order-1 sm:order-2">
-        <canvas id="birthChart" class="relative z-10 transition-transform duration-1000 hover:scale-105"></canvas>
+      <div class="relative h-64 sm:h-80 md:h-96 lg:h-[600px] flex items-center justify-center order-1 lg:order-2">
+        <canvas id="birthChart" class="relative z-10 transition-transform duration-1000 hover:scale-105 max-w-full max-h-full"></canvas>
       </div>
     </div>
   </div>
   
   <!-- Services section -->
-  <div class="w-full border-t border-purple-500/20 py-16" id="services">
-    <div class="container mx-auto max-w-7xl">
-      <div class="text-center mb-12">
-        <h2 class="text-2xl md:text-3xl font-serif font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
+  <div class="w-full border-t border-purple-500/20 py-12 sm:py-16" id="services">
+    <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-8 sm:mb-12">
+        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
           Nos Services Astrologiques
         </h2>
-        <p class="text-purple-100/80 max-w-2xl mx-auto">
+        <p class="text-purple-100/80 max-w-2xl mx-auto text-sm sm:text-base px-4 sm:px-0">
           Explorez notre gamme complète de consultations astrologiques personnalisées.
         </p>
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <!-- Service Card 1 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème Natal
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Une analyse approfondie de votre carte du ciel au moment de votre naissance, révélant vos potentiels innés, vos talents et défis.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -73,15 +71,15 @@
         </div>
 
         <!-- Service Card 2 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème des Transits
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Comprendre comment les mouvements planétaires actuels influencent votre vie et les opportunités ou défis qu'ils apportent.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -89,15 +87,15 @@
         </div>
 
         <!-- Service Card 3 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème Progressé
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Explorez l'évolution de votre personnalité et les changements intérieurs qui se produisent avec le temps.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -105,15 +103,15 @@
         </div>
 
         <!-- Service Card 4 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Révolution Solaire
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Prévisions pour votre année personnelle, depuis votre anniversaire jusqu'au suivant, révélant les thèmes clés à venir.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -121,15 +119,15 @@
         </div>
 
         <!-- Service Card 5 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème de Synastrie
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Analyse de la compatibilité entre deux personnes, identifiant les forces et les défis dans votre relation.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -137,15 +135,15 @@
         </div>
 
         <!-- Service Card 6 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème Composite
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Exploration de l'énergie unique créée par votre relation, révélant sa mission et son potentiel.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -153,15 +151,15 @@
         </div>
 
         <!-- Service Card 7 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème Karmique
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Découvrez les leçons de vies antérieures, votre mission spirituelle et les schémas karmiques à résoudre.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -169,15 +167,15 @@
         </div>
 
         <!-- Service Card 8 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Thème de naissance d'un enfant
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Une analyse spécialisée pour comprendre le potentiel, les talents et les défis de votre enfant dès sa naissance.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>
@@ -185,15 +183,15 @@
         </div>
 
         <!-- Service Card 9 -->
-        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group">
+        <div class="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-500/20 hover:border-purple-400/30 transition-all group hover:transform hover:scale-105">
           <div class="flex flex-col h-full">
-            <h3 class="text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
+            <h3 class="text-lg sm:text-xl font-serif font-semibold text-amber-200 group-hover:text-amber-300 transition-colors mb-3">
               Astro géographie
             </h3>
-            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4">
+            <p class="text-purple-100/70 leading-relaxed flex-grow mb-4 text-sm sm:text-base">
               Découvrez les lieux propices à votre épanouissement personnel, professionnel et relationnel à travers l'analyse des lignes planétaires.
             </p>
-            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto">
+            <a href="#contact" class="inline-flex items-center text-amber-300 hover:text-amber-400 font-medium transition-colors mt-auto text-sm sm:text-base">
               En savoir plus
               <span class="inline-block transition-transform group-hover:translate-x-1 ml-2">→</span>
             </a>

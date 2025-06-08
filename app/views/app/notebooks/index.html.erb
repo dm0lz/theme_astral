@@ -1,6 +1,6 @@
 <%# Flash messages %>
 <% if notice %>
-  <div class="max-w-7xl mx-auto px-4">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
       <%= notice %>
     </div>
@@ -9,15 +9,15 @@
 
 <% content_for :title, "Notebooks" %>
 
-<div class="max-w-7xl mx-auto px-4">
-  <div class="flex items-center justify-between mb-8">
-    <h1 class="text-3xl font-serif font-bold">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+    <h1 class="text-2xl sm:text-3xl font-serif font-bold">
       <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
         📚 Notebooks
       </span>
     </h1>
-    <%= link_to new_app_notebook_path, class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" do %>
-      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <%= link_to new_app_notebook_path, class: "inline-flex items-center justify-center px-4 sm:px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-sm sm:text-base" do %>
+      <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
       </svg>
       New Notebook
@@ -25,7 +25,8 @@
   </div>
 
   <% if @notebooks.any? %>
-    <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
+    <!-- Desktop Table View -->
+    <div class="hidden md:block bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
@@ -74,20 +75,83 @@
         </table>
       </div>
     </div>
+
+    <!-- Mobile Card View -->
+    <div class="md:hidden space-y-4">
+      <% @notebooks.each do |notebook| %>
+        <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 p-4 sm:p-6">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1 min-w-0">
+              <h3 class="text-lg font-semibold text-white mb-1 truncate">
+                <%= notebook.title.presence || "Untitled Notebook" %>
+              </h3>
+              <% if notebook.respond_to?(:created_at) && notebook.created_at %>
+                <p class="text-xs text-indigo-200/60">
+                  <%= notebook.created_at.strftime("%b %d, %Y") %> • <%= time_ago_in_words(notebook.created_at) %> ago
+                </p>
+              <% end %>
+            </div>
+            <div class="flex items-center space-x-1 ml-2">
+              <%= link_to app_notebook_path(notebook), class: "p-2 text-indigo-300 hover:text-amber-400 hover:bg-indigo-800/50 rounded-lg transition-all touch-target" do %>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+              <% end %>
+              <%= link_to edit_app_notebook_path(notebook), class: "p-2 text-indigo-300 hover:text-amber-400 hover:bg-indigo-800/50 rounded-lg transition-all touch-target" do %>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+              <% end %>
+              <%= button_to app_notebook_path(notebook), method: :delete, form: { data: { turbo_confirm: "Are you sure you want to delete this notebook?" }, class: "inline-flex" }, class: "mb-3 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-all touch-target" do %>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              <% end %>
+            </div>
+          </div>
+          
+          <% if notebook.description.present? %>
+            <div class="mb-3">
+              <p class="text-sm text-indigo-200/80 leading-relaxed">
+                <%= truncate(notebook.description.to_plain_text, length: 120) %>
+              </p>
+            </div>
+          <% end %>
+          
+          <!-- Mobile action buttons -->
+          <div class="flex space-x-2 pt-3 border-t border-indigo-800/30">
+            <%= link_to app_notebook_path(notebook), class: "flex-1 inline-flex items-center justify-center px-3 py-2 bg-indigo-600/50 hover:bg-indigo-600/70 text-white text-sm font-medium rounded-lg transition-all touch-target" do %>
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+              </svg>
+              View
+            <% end %>
+            <%= link_to edit_app_notebook_path(notebook), class: "flex-1 inline-flex items-center justify-center px-3 py-2 bg-amber-600/50 hover:bg-amber-600/70 text-white text-sm font-medium rounded-lg transition-all touch-target" do %>
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+              </svg>
+              Edit
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
   <% else %>
     <!-- Empty State -->
-    <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 p-16">
+    <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 p-8 sm:p-16">
       <div class="text-center">
         <div class="mb-4">
-          <svg class="w-24 h-24 mx-auto text-indigo-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-16 h-16 sm:w-24 sm:h-24 mx-auto text-indigo-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
           </svg>
         </div>
-        <h3 class="text-xl font-semibold text-white mb-2">No Notebooks Yet</h3>
-        <p class="text-indigo-200/60 mb-6">Create your first notebook to start organizing your thoughts.</p>
+        <h3 class="text-lg sm:text-xl font-semibold text-white mb-2">No Notebooks Yet</h3>
+        <p class="text-indigo-200/60 mb-6 text-sm sm:text-base">Create your first notebook to start organizing your thoughts.</p>
         <%= link_to new_app_notebook_path, 
-            class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" do %>
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            class: "inline-flex items-center px-4 sm:px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-sm sm:text-base" do %>
+          <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
           Create Your First Notebook

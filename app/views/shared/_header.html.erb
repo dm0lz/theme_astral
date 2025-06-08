@@ -9,21 +9,40 @@
       </div>
       
       <!-- Desktop Navigation -->
-      <nav class="hidden md:flex space-x-8">
-        <%= link_to "Accueil", root_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-        <%= link_to "Services", "#{root_path}#services", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %> 
-        <%= link_to "À Propos", "#{root_path}#a-propos", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-        <%= link_to "Témoignages", "#{root_path}#temoignages", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-        <%= link_to "Contact", "#{root_path}#contact", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
-        <%= link_to "Se Connecter", app_root_path, class: "bg-gradient-to-r from-amber-400 to-amber-600 px-4 py-2 rounded-full text-indigo-950 font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all" %>
+      <nav class="hidden lg:flex space-x-6">
+        <%= link_to "Accueil", root_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-3 py-2" %>
+        <%= link_to "Services", "#{root_path}#services", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-3 py-2" %> 
+        <%= link_to "À Propos", "#{root_path}#a-propos", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-3 py-2" %>
+        <%= link_to "Témoignages", "#{root_path}#temoignages", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-3 py-2" %>
+        <%= link_to "Contact", "#{root_path}#contact", class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-3 py-2" %>
+        <%= link_to "Se Connecter", app_root_path, class: "bg-gradient-to-r from-amber-400 to-amber-600 px-4 py-2 rounded-full text-indigo-950 font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all transform hover:scale-105" %>
       </nav>
       
       <!-- Mobile menu button -->
-      <button class="md:hidden text-white">
-        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <button id="mobile-menu-btn" class="lg:hidden flex items-center justify-center w-10 h-10 text-white hover:bg-indigo-800/50 rounded-lg transition-colors">
+        <svg id="hamburger-icon" class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-16 6h16"></path>
         </svg>
+        <svg id="close-icon" class="h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
       </button>
+    </div>
+    
+    <!-- Mobile Navigation Menu -->
+    <div id="mobile-menu" class="lg:hidden hidden border-t border-indigo-700/50 mt-4 pt-4 pb-6">
+      <nav class="space-y-2">
+        <%= link_to "Accueil", root_path, class: "block text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors font-medium px-4 py-3 rounded-lg" %>
+        <%= link_to "Services", "#{root_path}#services", class: "block text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors font-medium px-4 py-3 rounded-lg" %>
+        <%= link_to "À Propos", "#{root_path}#a-propos", class: "block text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors font-medium px-4 py-3 rounded-lg" %>
+        <%= link_to "Témoignages", "#{root_path}#temoignages", class: "block text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors font-medium px-4 py-3 rounded-lg" %>
+        <%= link_to "Contact", "#{root_path}#contact", class: "block text-white/80 hover:text-amber-300 hover:bg-indigo-800/50 transition-colors font-medium px-4 py-3 rounded-lg" %>
+        
+        <!-- Mobile Login Button -->
+        <div class="pt-4 border-t border-indigo-700/50">
+          <%= link_to "Se Connecter", app_root_path, class: "w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-amber-400 to-amber-600 text-indigo-950 rounded-lg hover:shadow-lg hover:shadow-amber-500/20 transition-all font-medium" %>
+        </div>
+      </nav>
     </div>
   </div>
 </header>

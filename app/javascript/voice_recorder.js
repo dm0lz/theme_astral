@@ -62,9 +62,9 @@ class VoiceRecorder {
     if (this.isRecording) return;
 
     try {
-      if (!this.stream) {
-        await this.initialize();
-      }
+      // Always re-initialize the stream for each recording session
+      // This ensures fresh microphone access after previous recording was stopped
+      await this.initialize();
 
       this.audioChunks = [];
       
@@ -143,9 +143,24 @@ class VoiceRecorder {
       this.isRecording = false;
       this.stopTimer();
       this.updateUI('processing');
+      
+      // Stop the microphone stream immediately to remove browser recording indicator
+      this.stopStream();
     } catch (error) {
       console.error('Error stopping recording:', error);
+      this.stopStream(); // Ensure stream is stopped even on error
       this.updateUI('ready');
+    }
+  }
+
+  // New method to stop the microphone stream
+  stopStream() {
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('Stopped microphone track:', track.kind);
+      });
+      this.stream = null;
     }
   }
 
@@ -302,10 +317,7 @@ class VoiceRecorder {
   }
 
   cleanup() {
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop());
-      this.stream = null;
-    }
+    this.stopStream();
     
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer);
@@ -442,10 +454,12 @@ document.addEventListener('turbo:load', () => {
         voiceRecorderForm.classList.add('hidden');
         voiceToggleBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
         voiceToggleBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-        // Stop recording if it's active
+        // Stop recording if it's active and cleanup microphone
         if (recorder.isRecording) {
           recorder.stopRecording();
         }
+        // Ensure microphone is fully released
+        recorder.stopStream();
       }
     };
     
@@ -469,16 +483,24 @@ document.addEventListener('turbo:load', () => {
 function showNotification(message, type = 'info') {
   // Create notification element
   const notification = document.createElement('div');
-  notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 transform translate-x-full ${
-    type === 'success' ? 'bg-green-600 text-white' : 
-    type === 'error' ? 'bg-red-600 text-white' : 
-    'bg-blue-600 text-white'
+  notification.className = `fixed top-24 left-4 right-4 sm:top-24 sm:left-auto sm:right-4 sm:max-w-sm z-[60] p-3 sm:p-4 rounded-lg shadow-xl transition-all duration-300 transform translate-y-[-100px] opacity-0 ${
+    type === 'success' ? 'bg-green-600 text-white border border-green-500/50' : 
+    type === 'error' ? 'bg-red-600 text-white border border-red-500/50' : 
+    'bg-blue-600 text-white border border-blue-500/50'
   }`;
   
   notification.innerHTML = `
-    <div class="flex items-center">
-      <div class="flex-1">${message}</div>
-      <button class="ml-2 text-white/80 hover:text-white" onclick="this.parentElement.parentElement.remove()">
+    <div class="flex items-start space-x-2">
+      <div class="flex-shrink-0 mt-0.5">
+        ${type === 'success' ? 
+          '<svg class="w-4 h-4 text-green-200" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' :
+          type === 'error' ? 
+          '<svg class="w-4 h-4 text-red-200" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>' :
+          '<svg class="w-4 h-4 text-blue-200" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>'
+        }
+      </div>
+      <div class="flex-1 text-sm sm:text-base">${message}</div>
+      <button class="flex-shrink-0 ml-2 text-white/80 hover:text-white transition-colors" onclick="this.closest('.fixed').remove()">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -488,14 +510,16 @@ function showNotification(message, type = 'info') {
 
   document.body.appendChild(notification);
 
-  // Animate in
+  // Animate in with both opacity and transform
   setTimeout(() => {
-    notification.style.transform = 'translateX(0)';
+    notification.style.transform = 'translateY(0)';
+    notification.style.opacity = '1';
   }, 100);
 
   // Auto remove after 5 seconds
   setTimeout(() => {
-    notification.style.transform = 'translateX(100%)';
+    notification.style.transform = 'translateY(-100px)';
+    notification.style.opacity = '0';
     setTimeout(() => {
       if (notification.parentElement) {
         notification.remove();

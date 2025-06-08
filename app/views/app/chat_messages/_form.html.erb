@@ -1,13 +1,13 @@
 <div id="chat_form">
-  <%= form_with(model: [:app, chat_message], local: true, class: "space-y-4") do |form| %>
+  <%= form_with(model: [:app, chat_message], local: true, class: "space-y-3 sm:space-y-4") do |form| %>
     <% if chat_message.errors.any? %>
-      <div class="p-4 rounded-lg bg-red-500/20 border border-red-500/50">
-        <h3 class="text-red-300 font-medium mb-2">
+      <div class="p-3 sm:p-4 rounded-lg bg-red-500/20 border border-red-500/50">
+        <h3 class="text-red-300 font-medium mb-2 text-sm sm:text-base">
           <%= pluralize(chat_message.errors.count, "error") %> prohibited this message from being saved:
         </h3>
         <ul class="list-disc list-inside space-y-1">
           <% chat_message.errors.each do |error| %>
-            <li class="text-red-200 text-sm"><%= error.full_message %></li>
+            <li class="text-red-200 text-xs sm:text-sm"><%= error.full_message %></li>
           <% end %>
         </ul>
       </div>
@@ -15,60 +15,60 @@
 
     <!-- Voice Recording UI -->
     <div id="voice-recorder-form" class="hidden">
-      <div class="flex items-center justify-between p-4 bg-[#0f172a]/80 border border-indigo-700/50 rounded-lg backdrop-blur-sm">
+      <div class="flex items-center justify-between p-3 sm:p-4 bg-[#0f172a]/80 border border-indigo-700/50 rounded-lg backdrop-blur-sm">
         <!-- Voice Recording Button -->
         <button 
           type="button" 
           id="voice-record-btn"
-          class="flex items-center justify-center w-12 h-12 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg touch-manipulation select-none"
+          class="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg touch-manipulation select-none"
         >
           <!-- Record Icon -->
-          <svg class="record-icon w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <svg class="record-icon w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
           </svg>
           <!-- Stop Icon (hidden by default) -->
-          <svg class="stop-icon w-6 h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
+          <svg class="stop-icon w-5 h-5 sm:w-6 sm:h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
             <path d="M6 6h12v12H6z"/>
           </svg>
         </button>
         
         <!-- Status Text and Timer -->
-        <div class="flex items-center space-x-4">
-          <span id="voice-status" class="text-sm text-gray-300">Tap to record a voice note</span>
+        <div class="flex items-center space-x-2 sm:space-x-4">
+          <span id="voice-status" class="text-xs sm:text-sm text-gray-300">Tap to record a voice note</span>
           <div id="recording-indicator" class="hidden flex items-center space-x-2">
             <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <span id="recording-timer" class="text-sm text-red-400 font-mono">0:00</span>
+            <span id="recording-timer" class="text-xs sm:text-sm text-red-400 font-mono">0:00</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="flex space-x-4">
+    <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
       <div class="flex-1">
         <%= form.text_area :body, 
             id: "chat_message_body",
             placeholder: "Type your message here...",
             rows: 3,
-            class: "w-full px-4 py-3 bg-[#0f172a] border border-indigo-700/50 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition duration-200 resize-none #{'border-red-500/50 focus:ring-red-500/50 focus:border-red-500/50' if chat_message.errors[:body].any?}" %>
+            class: "w-full px-3 sm:px-4 py-2 sm:py-3 bg-[#0f172a] border border-indigo-700/50 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition duration-200 resize-none text-sm sm:text-base #{'border-red-500/50 focus:ring-red-500/50 focus:border-red-500/50' if chat_message.errors[:body].any?}" %>
         <% if chat_message.errors[:body].any? %>
-          <p class="mt-1 text-sm text-red-400">
+          <p class="mt-1 text-xs sm:text-sm text-red-400">
             <%= chat_message.errors[:body].first %>
           </p>
         <% end %>
       </div>
       
-      <div class="flex flex-col justify-end mb-2 space-y-2">
+      <div class="flex flex-row sm:flex-col justify-end space-x-2 sm:space-x-0 sm:space-y-2 sm:mb-2">
         <!-- Voice Note Toggle Button -->
         <button type="button" id="voice-toggle-btn" 
                 class="flex items-center justify-center p-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 touch-manipulation select-none" 
                 title="Toggle voice recording">
-          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
           </svg>
         </button>
         
         <%= form.submit "Send",
-            class: "px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 h-fit" %>
+            class: "flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 h-fit text-sm sm:text-base" %>
       </div>
     </div>
 

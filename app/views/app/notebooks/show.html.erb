@@ -1,6 +1,6 @@
 <%# Flash messages %>
 <% if notice %>
-  <div class="max-w-5xl mx-auto px-4">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-6 p-4 rounded-lg bg-green-500/20 border border-green-500/50 text-green-300">
       <%= notice %>
     </div>
@@ -9,36 +9,38 @@
 
 <% content_for :title, @notebook.title.presence || "Notebook" %>
 
-<div class="max-w-5xl mx-auto px-4 mb-12">
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 sm:mb-12">
   <%# Notebook Details %>
-  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8">
-    <div class="flex items-center justify-between mb-8">
-      <h1 class="text-3xl font-serif font-bold">
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-4 sm:p-8 shadow-xl border border-indigo-800/30 mb-6 sm:mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+      <h1 class="text-xl sm:text-2xl lg:text-3xl font-serif font-bold">
         <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">
           📚 Notebook Details
         </span>
       </h1>
-      <div class="flex items-center space-x-4">
-        <%= link_to edit_app_notebook_path(@notebook), class: "inline-flex items-center px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800/50 text-indigo-200 rounded-lg transition duration-200" do %>
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <%= link_to edit_app_notebook_path(@notebook), class: "inline-flex items-center px-3 sm:px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800/50 text-indigo-200 rounded-lg transition duration-200 text-sm sm:text-base touch-target" do %>
+          <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
           </svg>
-          Edit
+          <span class="hidden sm:inline">Edit</span>
+          <span class="sm:hidden">Edit</span>
         <% end %>
-        <%= button_to app_notebook_path(@notebook), method: :delete, class: "inline-flex items-center px-4 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-200 rounded-lg transition duration-200", form: { data: { turbo_confirm: "Are you sure you want to delete this notebook?" } } do %>
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <%= button_to app_notebook_path(@notebook), method: :delete, class: "inline-flex items-center px-3 sm:px-4 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-200 rounded-lg transition duration-200 text-sm sm:text-base touch-target", form: { data: { turbo_confirm: "Are you sure you want to delete this notebook?" } } do %>
+          <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
           </svg>
-          Delete
+          <span class="hidden sm:inline">Delete</span>
+          <span class="sm:hidden">Del</span>
         <% end %>
       </div>
     </div>
 
     <%= render @notebook %>
 
-    <div class="mt-8 pt-6 border-t border-indigo-800/30">
-      <%= link_to app_notebooks_path, class: "inline-flex items-center text-indigo-300 hover:text-amber-400 transition duration-200" do %>
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-indigo-800/30">
+      <%= link_to app_notebooks_path, class: "inline-flex items-center text-indigo-300 hover:text-amber-400 transition duration-200 text-sm sm:text-base" do %>
+        <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
         </svg>
         Back to Notebooks
@@ -47,64 +49,64 @@
   </div>
 
   <%# Add New Note Section %>
-  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8" id="voice-recorder-form">
-    <div class="mb-6">
-      <h2 class="text-xl font-serif font-bold text-white mb-2">📝 Add New Note</h2>
-      <p class="text-indigo-200/80 text-sm">Write your thoughts and ideas for this notebook, or record a voice note.</p>
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-4 sm:p-8 shadow-xl border border-indigo-800/30 mb-6 sm:mb-8" id="voice-recorder-form">
+    <div class="mb-4 sm:mb-6">
+      <h2 class="text-lg sm:text-xl font-serif font-bold text-white mb-2">📝 Add New Note</h2>
+      <p class="text-indigo-200/80 text-xs sm:text-sm">Write your thoughts and ideas for this notebook, or record a voice note.</p>
     </div>
 
-    <%= form_with(model: [@notebook, @new_note], url: app_notebook_notes_path(@notebook), class: "space-y-4") do |form| %>
+    <%= form_with(model: [@notebook, @new_note], url: app_notebook_notes_path(@notebook), class: "space-y-3 sm:space-y-4") do |form| %>
       <%# Voice Recording Interface %>
-      <div class="bg-indigo-950/30 rounded-lg p-4 border border-indigo-800/30 mb-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center space-x-3">
-            <div class="flex items-center space-x-2">
-              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="bg-indigo-950/30 rounded-lg p-3 sm:p-4 border border-indigo-800/30 mb-3 sm:mb-4">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <div class="flex items-center space-x-2 sm:space-x-3">
+            <div class="flex items-center space-x-1 sm:space-x-2">
+              <svg class="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
               </svg>
-              <span class="text-white font-medium">Voice Note</span>
+              <span class="text-white font-medium text-sm sm:text-base">Voice Note</span>
             </div>
             
             <%# Recording Timer (hidden by default) %>
-            <div id="recording-timer" class="hidden bg-red-600/20 text-red-300 px-2 py-1 rounded text-sm font-mono">
+            <div id="recording-timer" class="hidden bg-red-600/20 text-red-300 px-2 py-1 rounded text-xs font-mono">
               0:00
             </div>
           </div>
 
           <%# Recording Indicator %>
-          <div id="recording-indicator" class="hidden flex items-center space-x-2">
-            <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-            <span class="text-red-300 text-sm font-medium">REC</span>
+          <div id="recording-indicator" class="hidden flex items-center space-x-1 sm:space-x-2">
+            <div class="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span class="text-red-300 text-xs sm:text-sm font-medium">REC</span>
           </div>
         </div>
 
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3 sm:space-x-4">
           <%# Voice Record Button %>
           <button 
             type="button" 
             id="voice-record-btn"
-            class="flex items-center justify-center w-12 h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg"
+            class="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg touch-target"
           >
-            <svg class="record-icon w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="record-icon w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
             </svg>
-            <svg class="stop-icon w-6 h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
+            <svg class="stop-icon w-5 h-5 sm:w-6 sm:h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
               <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
             </svg>
           </button>
 
           <%# Voice Status Text %>
-          <div class="flex-1">
-            <p id="voice-status" class="text-indigo-200 text-sm">
+          <div class="flex-1 min-w-0">
+            <p id="voice-status" class="text-indigo-200 text-xs sm:text-sm">
               Tap to record a voice note
             </p>
-            <p class="text-indigo-400 text-xs mt-1">
+            <p class="text-indigo-400 text-xs mt-1 hidden sm:block">
               Your voice will be transcribed and added to the note below
             </p>
           </div>
 
-          <%# Voice Instructions (mobile-friendly) %>
-          <div class="hidden sm:block">
+          <%# Voice Instructions (desktop only) %>
+          <div class="hidden lg:block">
             <div class="text-xs text-indigo-400 bg-indigo-950/50 rounded px-3 py-2">
               <div class="font-medium mb-1">Tips:</div>
               <div>• Speak clearly and slowly</div>
@@ -115,14 +117,14 @@
         </div>
 
         <%# Mobile Instructions %>
-        <div class="sm:hidden mt-3 p-3 bg-indigo-950/50 rounded-lg">
+        <div class="lg:hidden mt-3 p-2 sm:p-3 bg-indigo-950/50 rounded-lg">
           <div class="text-xs text-indigo-400">
             <div class="font-medium mb-1">Voice Recording Tips:</div>
             <div class="space-y-1">
               <div>• Speak clearly and slowly</div>
               <div>• Maximum recording time: 2 minutes</div>
               <div>• Works best in quiet environments</div>
-              <div>• Your voice will be automatically transcribed</div>
+              <div class="sm:hidden">• Your voice will be automatically transcribed</div>
             </div>
           </div>
         </div>
@@ -131,18 +133,18 @@
       <%# Text Area for Note Content %>
       <div>
         <%= form.rich_text_area :body, 
-            class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical min-h-[120px]",
+            class: "w-full px-3 sm:px-4 py-2 sm:py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical min-h-[100px] sm:min-h-[120px] text-sm sm:text-base",
             placeholder: "Write your note here, or use the voice recording above to transcribe your thoughts...",
             id: "note_body" %>
       </div>
       <%= form.hidden_field :user_id, value: Current.user.id %>
 
-      <div class="flex justify-between items-center">
-        <div class="text-xs text-indigo-400">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+        <div class="text-xs text-indigo-400 order-2 sm:order-1">
           💡 Voice notes are transcribed using AI and may require editing for accuracy
         </div>
         <%= form.submit "Add Note", 
-            class: "px-6 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>
+            class: "order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-6 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-sm sm:text-base touch-target" %>
       </div>
     <% end %>
   </div>
@@ -150,16 +152,16 @@
   <%# Notes List %>
   <% if @notes.any? %>
     <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
-      <div class="p-6 border-b border-indigo-800/30">
+      <div class="p-4 sm:p-6 border-b border-indigo-800/30">
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-serif font-bold text-white">📄 Notes (<%= @notes.count %>)</h2>
-          <div class="text-sm text-indigo-200/60">
+          <h2 class="text-lg sm:text-xl font-serif font-bold text-white">📄 Notes (<%= @notes.count %>)</h2>
+          <div class="text-xs sm:text-sm text-indigo-200/60">
             Most recent first
           </div>
         </div>
       </div>
       
-      <div class="p-6 space-y-4">
+      <div class="p-4 sm:p-6 space-y-3 sm:space-y-4">
         <% @notes.each do |note| %>
           <%= render note %>
         <% end %>
@@ -167,15 +169,15 @@
     </div>
   <% else %>
     <!-- Empty Notes State -->
-    <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 p-16">
+    <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 p-8 sm:p-16">
       <div class="text-center">
         <div class="mb-4">
-          <svg class="w-16 h-16 mx-auto text-indigo-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-indigo-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
         </div>
-        <h3 class="text-lg font-semibold text-white mb-2">No Notes Yet</h3>
-        <p class="text-indigo-200/60 mb-6">Start writing your first note in this notebook using the form above.</p>
+        <h3 class="text-base sm:text-lg font-semibold text-white mb-2">No Notes Yet</h3>
+        <p class="text-indigo-200/60 mb-6 text-sm sm:text-base">Start writing your first note in this notebook using the form above.</p>
       </div>
     </div>
   <% end %>

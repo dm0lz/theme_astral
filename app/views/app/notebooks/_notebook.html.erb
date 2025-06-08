@@ -1,41 +1,42 @@
-<div id="<%= dom_id notebook %>" class="space-y-6">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div id="<%= dom_id notebook %>" class="space-y-4 sm:space-y-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
     <div>
-      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Title</h3>
-      <p class="text-white">
+      <h3 class="text-xs sm:text-sm font-medium text-indigo-200/80 mb-1">Title</h3>
+      <p class="text-white text-sm sm:text-base">
         <%= notebook.title.presence || "Untitled Notebook" %>
       </p>
     </div>
 
     <div>
-      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">User ID</h3>
-      <p class="text-white">
+      <h3 class="text-xs sm:text-sm font-medium text-indigo-200/80 mb-1">User ID</h3>
+      <p class="text-white text-sm sm:text-base">
         <%= notebook.user_id %>
       </p>
     </div>
 
-    <div class="md:col-span-2">
-      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Description</h3>
+    <div class="sm:col-span-2">
+      <h3 class="text-xs sm:text-sm font-medium text-indigo-200/80 mb-1">Description</h3>
       <% if notebook.description.present? %>
-        <p class="text-white leading-relaxed">
+        <div class="text-white leading-relaxed text-sm sm:text-base">
           <%= notebook.description %>
-        </p>
+        </div>
       <% else %>
-        <p class="text-indigo-200/60 italic">No description provided</p>
+        <p class="text-indigo-200/60 italic text-sm sm:text-base">No description provided</p>
       <% end %>
     </div>
 
     <% if notebook.respond_to?(:created_at) && notebook.created_at %>
       <div>
-        <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Created</h3>
-        <p class="text-white">
-          <%= notebook.created_at.strftime("%B %d, %Y at %I:%M %p") %>
+        <h3 class="text-xs sm:text-sm font-medium text-indigo-200/80 mb-1">Created</h3>
+        <p class="text-white text-sm sm:text-base">
+          <span class="sm:hidden"><%= notebook.created_at.strftime("%b %d, %Y") %></span>
+          <span class="hidden sm:inline"><%= notebook.created_at.strftime("%B %d, %Y at %I:%M %p") %></span>
         </p>
       </div>
 
       <div>
-        <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Last Updated</h3>
-        <p class="text-white">
+        <h3 class="text-xs sm:text-sm font-medium text-indigo-200/80 mb-1">Last Updated</h3>
+        <p class="text-white text-sm sm:text-base">
           <%= time_ago_in_words(notebook.created_at) %> ago
         </p>
       </div>
