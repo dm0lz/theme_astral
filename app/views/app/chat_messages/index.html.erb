@@ -14,10 +14,15 @@
         💬 Chat
       </span>
     </h1>
-    <%= button_to "Clear Chat", clear_app_chat_messages_path, 
+    <%= button_to clear_app_chat_messages_path, 
         method: :delete, 
-        class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-400/50",
-        data: { turbo_confirm: "Are you sure you want to clear all chat messages?" } %>
+        class: "inline-flex items-center px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/50 border border-slate-500/30",
+        data: { turbo_confirm: "Are you sure you want to clear all chat messages?" } do %>
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+      </svg>
+      Clear Chat
+    <% end %>
   </div>
 </div>
 
@@ -26,10 +31,10 @@
     <div id="chat_messages" class="flex-1 flex flex-col-reverse overflow-y-auto p-6 space-y-4 bg-transparent">
       <% @chat_messages.each do |chat_message| %>
         <%= render partial: "app/chat_messages/chat_message", locals: { chat_message: chat_message } %>
-      <% end %>
+      <% end %> 
     </div>
     <div class="border-t border-indigo-800/30 bg-[#050510]/95 p-6">
-      <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
+    <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
     </div>
   </div>
 </div>

@@ -9,7 +9,7 @@
 
 <% content_for :title, @notebook.title.presence || "Notebook" %>
 
-<div class="max-w-5xl mx-auto px-4">
+<div class="max-w-5xl mx-auto px-4 mb-12">
   <%# Notebook Details %>
   <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8">
     <div class="flex items-center justify-between mb-8">
@@ -47,21 +47,100 @@
   </div>
 
   <%# Add New Note Section %>
-  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8">
+  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl p-8 shadow-xl border border-indigo-800/30 mb-8" id="voice-recorder-form">
     <div class="mb-6">
       <h2 class="text-xl font-serif font-bold text-white mb-2">📝 Add New Note</h2>
-      <p class="text-indigo-200/80 text-sm">Write your thoughts and ideas for this notebook.</p>
+      <p class="text-indigo-200/80 text-sm">Write your thoughts and ideas for this notebook, or record a voice note.</p>
     </div>
 
     <%= form_with(model: [@notebook, @new_note], url: app_notebook_notes_path(@notebook), class: "space-y-4") do |form| %>
+      <%# Voice Recording Interface %>
+      <div class="bg-indigo-950/30 rounded-lg p-4 border border-indigo-800/30 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2">
+              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+              </svg>
+              <span class="text-white font-medium">Voice Note</span>
+            </div>
+            
+            <%# Recording Timer (hidden by default) %>
+            <div id="recording-timer" class="hidden bg-red-600/20 text-red-300 px-2 py-1 rounded text-sm font-mono">
+              0:00
+            </div>
+          </div>
+
+          <%# Recording Indicator %>
+          <div id="recording-indicator" class="hidden flex items-center space-x-2">
+            <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span class="text-red-300 text-sm font-medium">REC</span>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <%# Voice Record Button %>
+          <button 
+            type="button" 
+            id="voice-record-btn"
+            class="flex items-center justify-center w-12 h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-lg"
+          >
+            <svg class="record-icon w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+            </svg>
+            <svg class="stop-icon w-6 h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
+            </svg>
+          </button>
+
+          <%# Voice Status Text %>
+          <div class="flex-1">
+            <p id="voice-status" class="text-indigo-200 text-sm">
+              Tap to record a voice note
+            </p>
+            <p class="text-indigo-400 text-xs mt-1">
+              Your voice will be transcribed and added to the note below
+            </p>
+          </div>
+
+          <%# Voice Instructions (mobile-friendly) %>
+          <div class="hidden sm:block">
+            <div class="text-xs text-indigo-400 bg-indigo-950/50 rounded px-3 py-2">
+              <div class="font-medium mb-1">Tips:</div>
+              <div>• Speak clearly and slowly</div>
+              <div>• Maximum 2 minutes</div>
+              <div>• Works best in quiet environments</div>
+            </div>
+          </div>
+        </div>
+
+        <%# Mobile Instructions %>
+        <div class="sm:hidden mt-3 p-3 bg-indigo-950/50 rounded-lg">
+          <div class="text-xs text-indigo-400">
+            <div class="font-medium mb-1">Voice Recording Tips:</div>
+            <div class="space-y-1">
+              <div>• Speak clearly and slowly</div>
+              <div>• Maximum recording time: 2 minutes</div>
+              <div>• Works best in quiet environments</div>
+              <div>• Your voice will be automatically transcribed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Text Area for Note Content %>
       <div>
         <%= form.rich_text_area :body, 
-            class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical",
-            placeholder: "Write your note here..." %>
+            class: "w-full px-4 py-3 bg-indigo-950/80 border border-indigo-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-white placeholder-indigo-400 resize-vertical min-h-[120px]",
+            placeholder: "Write your note here, or use the voice recording above to transcribe your thoughts...",
+            id: "note_body" %>
       </div>
       <%= form.hidden_field :user_id, value: Current.user.id %>
 
-      <div class="flex justify-end">
+      <div class="flex justify-between items-center">
+        <div class="text-xs text-indigo-400">
+          💡 Voice notes are transcribed using AI and may require editing for accuracy
+        </div>
         <%= form.submit "Add Note", 
             class: "px-6 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50" %>
       </div>

@@ -13,6 +13,10 @@ Rails.application.routes.draw do
     end
     resources :notes
     resources :transits, only: [:index]
+    
+    # Voice transcription endpoint
+    post 'voice_notes/transcribe', to: 'voice_notes#transcribe'
+    
     root "birth_charts#index"
   end
   resource :session
