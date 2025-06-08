@@ -7,37 +7,6 @@ class VoiceRecorder {
     this.maxDuration = 120000; // 2 minutes max
     this.recordingTimer = null;
     this.recordingStartTime = null;
-    this.deviceInfo = this.detectDevice();
-  }
-
-  // Enhanced device detection
-  detectDevice() {
-    const userAgent = navigator.userAgent;
-    const platform = navigator.platform;
-    
-    // Detect iPad specifically (including iPad Pro running iPadOS 13+ that reports as Mac)
-    const isIPad = /iPad/.test(userAgent) || 
-                   (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    
-    // Detect iPhone
-    const isIPhone = /iPhone/.test(userAgent);
-    
-    // Detect iPod
-    const isIPod = /iPod/.test(userAgent);
-    
-    // General iOS detection
-    const isIOS = isIPad || isIPhone || isIPod;
-    
-    console.log('Device detection:', { isIPad, isIPhone, isIPod, isIOS, userAgent, platform });
-    
-    return {
-      isIPad,
-      isIPhone, 
-      isIPod,
-      isIOS,
-      userAgent,
-      platform
-    };
   }
 
   async initialize() {
@@ -47,94 +16,25 @@ class VoiceRecorder {
         throw new Error('Your browser does not support audio recording');
       }
 
-      // iPad-specific MediaRecorder support check
-      if (this.deviceInfo.isIPad) {
-        if (typeof MediaRecorder === 'undefined') {
-          throw new Error('iPad Safari version does not support audio recording. Please update Safari to the latest version.');
-        }
-        
-        // Check if MediaRecorder supports any audio format on iPad
-        const basicFormats = ['audio/webm', 'audio/wav', 'audio/mp4', 'audio/mpeg'];
-        const supported = basicFormats.some(format => MediaRecorder.isTypeSupported(format));
-        
-        if (!supported) {
-          console.warn('iPad MediaRecorder has limited format support, will try with default settings');
-        }
-        
-        console.log('iPad MediaRecorder support check passed');
-      }
-
-      // iOS-specific checks
-      if (this.deviceInfo.isIOS) {
-        // Safari iOS requires user interaction before requesting permissions
-        if (!this.stream) {
-          console.log(`${this.deviceInfo.isIPad ? 'iPad' : 'iOS'} detected - requesting microphone permission`);
-        }
-      }
-
-      // iPad-optimized audio constraints for better transcription quality
-      let audioConstraints;
-      
-      if (this.deviceInfo.isIPad) {
-        // iPad-specific settings - force highest quality to improve source audio
-        audioConstraints = {
-          echoCancellation: false,  // Disable to preserve natural speech
-          noiseSuppression: false,  // Disable to preserve speech clarity
-          autoGainControl: false,   // Disable to prevent audio processing artifacts
-          sampleRate: { exact: 48000 }, // Force high sample rate
-          sampleSize: { exact: 16 },    // Force 16-bit depth
-          channelCount: { exact: 1 },   // Force mono
-          // Force higher quality settings for iPad
-          volume: { exact: 1.0 },
-          latency: { max: 0.1 }
-        };
-        console.log('iPad: Using raw audio capture (no processing) for better source quality');
-      } else if (this.deviceInfo.isIPhone) {
-        // iPhone-specific settings (keep existing behavior)
-        audioConstraints = {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 48000,
-          sampleSize: 16,
-          channelCount: 1
-        };
-      } else {
-        // Desktop/other devices
-        audioConstraints = {
+      const constraints = { 
+        audio: {
           echoCancellation: true,
           noiseSuppression: true,
           sampleRate: 44100,
           sampleSize: 16,
           channelCount: 1
-        };
-      }
-
-      console.log('Audio constraints for', this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'other device', ':', audioConstraints);
-
-      const constraints = { audio: audioConstraints };
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Log actual stream settings for debugging iPad issues
-      if (this.deviceInfo.isIPad && this.stream) {
-        const audioTrack = this.stream.getAudioTracks()[0];
-        if (audioTrack) {
-          const settings = audioTrack.getSettings();
-          console.log('iPad audio stream settings:', settings);
         }
-      }
+      };
       
+      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       return true;
     } catch (error) {
       console.error('Error initializing voice recorder:', error);
       
-      // Provide device-specific error messages
-      if (this.deviceInfo.isIOS && error.name === 'NotAllowedError') {
-        const device = this.deviceInfo.isIPad ? 'iPad' : 'iPhone';
-        throw new Error(`Microphone permission denied. Please enable microphone access in Safari settings on your ${device}.`);
-      } else if (this.deviceInfo.isIOS && error.name === 'NotSupportedError') {
-        throw new Error('Audio recording not supported. Please use Safari browser on iOS.');
-      } else if (this.deviceInfo.isIPad && error.message.includes('MediaRecorder')) {
-        throw new Error('iPad Safari audio recording not supported. Please update to latest Safari version or try a different browser.');
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
+      } else if (error.name === 'NotSupportedError') {
+        throw new Error('Audio recording not supported. Please use a compatible browser.');
       }
       
       throw error;
@@ -146,105 +46,33 @@ class VoiceRecorder {
 
     try {
       // Always re-initialize the stream for each recording session
-      // This ensures fresh microphone access after previous recording was stopped
       await this.initialize();
 
       this.audioChunks = [];
       
-      // Device-specific MIME types for optimal transcription quality
-      let mimeTypes;
-      
-      if (this.deviceInfo.isIPad) {
-        // iPad-optimized MIME types - try WAV first to avoid poor quality MP4
-        // iPad MediaRecorder produces extremely poor quality MP4 files
-        mimeTypes = [
-          'audio/wav',                    // Try WAV first for better quality
-          'audio/webm',                   // Chrome WebM if available
-          'audio/webm;codecs=opus',       // Chrome WebM with Opus
-          '', // Empty string to use browser default (usually MP4 - last resort)
-          'audio/mp4',                    // Safari fallback (known poor quality)
-          'audio/mpeg'                    // Last resort
-        ];
-      } else if (this.deviceInfo.isIPhone) {
-        // iPhone-optimized MIME types (keep existing priority)
-        mimeTypes = [
-          'audio/mp4',                    // Preferred for iPhone Safari
-          'audio/webm;codecs=opus',       // Chrome/Firefox
-          'audio/webm',                   // General WebM
-          'audio/wav',                    // Universal fallback
-          'audio/mp3'                     // Another fallback
-        ];
-      } else {
-        // Desktop browsers
-        mimeTypes = [
-          'audio/webm;codecs=opus',       // Best quality for desktop
-          'audio/webm',                   // General WebM
-          'audio/wav',                    // High quality
-          'audio/mp4',                    // Compatibility
-          'audio/mp3'                     // Fallback
-        ];
-      }
+      // Try different MIME types in order of preference
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/wav',
+        'audio/mp3'
+      ];
       
       let selectedMimeType = null;
       for (const mimeType of mimeTypes) {
-        // For iPad, try browser default first (empty string)
-        if (mimeType === '' || MediaRecorder.isTypeSupported(mimeType)) {
-          selectedMimeType = mimeType || undefined; // Convert empty string to undefined
-          const deviceName = this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop';
-          console.log(`Selected MIME type for ${deviceName}: ${mimeType || 'browser default'}`);
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
           break;
         }
       }
       
-      if (selectedMimeType === null && this.deviceInfo.isIPad) {
-        // iPad fallback: try without any MIME type specification
-        console.log('iPad: No supported MIME type found, using browser default');
-        selectedMimeType = undefined;
-      } else if (selectedMimeType === null) {
-        // Last resort - let the browser choose
-        console.log('No supported MIME type found, using browser default');
-        selectedMimeType = undefined;
-      }
-      
-      try {
-        const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
-        this.mediaRecorder = new MediaRecorder(this.stream, options);
-        
-        // Store the actual MIME type being used
-        this.actualMimeType = this.mediaRecorder.mimeType || selectedMimeType || 'unknown';
-        this.requestedMimeType = selectedMimeType;
-        this.fallbackUsed = false;
-        this.creationErrors = [];
-        
-        console.log(`MediaRecorder initialized with: ${this.actualMimeType}`);
-      } catch (error) {
-        this.creationErrors = [error.message];
-        
-        if (this.deviceInfo.isIPad) {
-          console.log('iPad MediaRecorder creation failed with options, trying without options:', error);
-          // iPad fallback: create MediaRecorder without any options
-          try {
-            this.mediaRecorder = new MediaRecorder(this.stream);
-            this.actualMimeType = this.mediaRecorder.mimeType || 'unknown';
-            this.requestedMimeType = selectedMimeType;
-            this.fallbackUsed = true;
-            this.creationErrors.push('Fallback to no options used');
-            
-            console.log(`iPad MediaRecorder fallback successful: ${this.actualMimeType}`);
-          } catch (fallbackError) {
-            this.creationErrors.push(fallbackError.message);
-            console.error('iPad MediaRecorder fallback failed:', fallbackError);
-            throw new Error('iPad audio recording not supported by this Safari version');
-          }
-        } else {
-          throw error;
-        }
-      }
+      const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+      this.mediaRecorder = new MediaRecorder(this.stream, options);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.audioChunks.push(event.data);
-          console.log(`Audio chunk received: ${event.data.size} bytes`);
         }
       };
 
@@ -252,19 +80,7 @@ class VoiceRecorder {
         this.handleRecordingStop();
       };
 
-      // iPad may need different timeslice for better audio quality
-      let timeslice;
-      if (this.deviceInfo.isIPad) {
-        timeslice = 2000; // Longer intervals for iPad to capture better quality audio chunks
-      } else if (this.deviceInfo.isIPhone) {
-        timeslice = 1000; // Keep existing iPhone behavior
-      } else {
-        timeslice = undefined; // Desktop default
-      }
-      
-      console.log(`Using timeslice: ${timeslice}ms for ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop'}`);
-      this.timesliceUsed = timeslice;
-      this.mediaRecorder.start(timeslice);
+      this.mediaRecorder.start(1000); // 1 second timeslice
       
       this.isRecording = true;
       this.recordingStartTime = Date.now();
@@ -296,80 +112,34 @@ class VoiceRecorder {
       this.stopTimer();
       this.updateUI('processing');
       
-      // Stop the microphone stream immediately to remove browser recording indicator
+      // Stop the microphone stream immediately
       this.stopStream();
     } catch (error) {
       console.error('Error stopping recording:', error);
-      this.stopStream(); // Ensure stream is stopped even on error
+      this.stopStream();
       this.updateUI('ready');
     }
   }
 
-  // New method to stop the microphone stream
   stopStream() {
     if (this.stream) {
       this.stream.getTracks().forEach(track => {
         track.stop();
-        console.log('Stopped microphone track:', track.kind);
       });
       this.stream = null;
     }
   }
 
   handleRecordingStop() {
-    console.log(`Recording stopped. Audio chunks: ${this.audioChunks.length}`);
-    
-    // Log chunk details for iPad debugging
-    if (this.deviceInfo.isIPad) {
-      console.log('iPad audio chunks details:', this.audioChunks.map((chunk, i) => `chunk ${i}: ${chunk.size} bytes, type: ${chunk.type}`));
-    }
-    
-    // Use the actual MIME type from MediaRecorder, with fallbacks
-    let mimeType = this.actualMimeType || 'audio/mp4'; // Default to mp4 for iOS
-    
-    // iOS Safari sometimes reports weird MIME types, normalize them
-    if (this.deviceInfo.isIOS && (!mimeType || mimeType === 'unknown')) {
-      mimeType = 'audio/mp4';
-      console.log('iOS: Using fallback MIME type audio/mp4');
-    }
-    
-    const audioBlob = new Blob(this.audioChunks, { type: mimeType });
-    console.log(`Created blob: ${mimeType}, size: ${audioBlob.size} bytes, chunks: ${this.audioChunks.length}`);
+    const audioBlob = new Blob(this.audioChunks, { 
+      type: this.mediaRecorder.mimeType || 'audio/webm' 
+    });
     
     // Validate blob size
     if (audioBlob.size === 0) {
       console.error('Audio blob is empty!');
-      if (this.deviceInfo.isIPad) {
-        console.error('iPad specific: Empty blob issue. Chunks length:', this.audioChunks.length);
-        this.onTranscriptionError('Recording failed on iPad - no audio data captured. Please try recording a longer message or check microphone permissions.');
-      } else {
-        this.onTranscriptionError('Recording failed - no audio data captured');
-      }
+      this.onTranscriptionError('Recording failed - no audio data captured');
       return;
-    }
-    
-    // Additional iPad-specific validation
-    if (this.deviceInfo.isIPad && audioBlob.size < 1000) {
-      console.warn(`iPad: Very small audio blob (${audioBlob.size} bytes) - may indicate recording issues`);
-    }
-    
-    // iPad-specific audio quality check
-    if (this.deviceInfo.isIPad) {
-      // Check if recording duration was reasonable - iPad needs longer recordings for better quality
-      const recordingDuration = Date.now() - this.recordingStartTime;
-      if (recordingDuration < 2000) {
-        console.warn(`iPad: Recording too short (${recordingDuration}ms) - need at least 2 seconds for quality`);
-        this.onTranscriptionError('Recording too short on iPad. Please speak clearly for at least 2-3 seconds for better accuracy.');
-        return;
-      }
-      
-      // Check audio blob size relative to duration
-      const expectedMinSize = Math.max(2000, recordingDuration * 15); // ~15 bytes per ms minimum for iPad
-      if (audioBlob.size < expectedMinSize) {
-        console.warn(`iPad: Audio blob too small for duration. Size: ${audioBlob.size}, Duration: ${recordingDuration}ms`);
-        this.onTranscriptionError('Audio quality too low on iPad. Please speak louder and closer to the microphone.');
-        return;
-      }
     }
     
     this.transcribeAudio(audioBlob);
@@ -380,9 +150,9 @@ class VoiceRecorder {
       const formData = new FormData();
       
       // Use appropriate file extension based on the blob type
-      let fileName = 'recording.mp4'; // Default for iOS
-      if (audioBlob.type.includes('webm')) {
-        fileName = 'recording.webm';
+      let fileName = 'recording.webm'; // Default
+      if (audioBlob.type.includes('mp4')) {
+        fileName = 'recording.mp4';
       } else if (audioBlob.type.includes('wav')) {
         fileName = 'recording.wav';
       } else if (audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg')) {
@@ -391,100 +161,7 @@ class VoiceRecorder {
         fileName = 'recording.ogg';
       }
       
-      console.log(`Uploading as: ${fileName} (${audioBlob.type})`);
       formData.append('audio', audioBlob, fileName);
-      
-      // Check what formats this device/browser actually supports
-      const supportedFormats = {};
-      const testFormats = ['audio/wav', 'audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/mpeg', 'audio/ogg'];
-      testFormats.forEach(format => {
-        supportedFormats[format] = MediaRecorder.isTypeSupported(format);
-      });
-      
-      // Gather comprehensive MediaRecorder production details
-      const recordingDetails = {
-        // Recording timing
-        startTime: this.recordingStartTime,
-        endTime: Date.now(),
-        duration: Date.now() - this.recordingStartTime,
-        
-        // MediaRecorder configuration
-        selectedMimeType: this.actualMimeType,
-        requestedMimeType: this.requestedMimeType || 'none',
-        mediaRecorderState: this.mediaRecorder ? this.mediaRecorder.state : 'unknown',
-        audioBitsPerSecond: this.mediaRecorder ? this.mediaRecorder.audioBitsPerSecond : null,
-        videoBitsPerSecond: this.mediaRecorder ? this.mediaRecorder.videoBitsPerSecond : null,
-        
-        // Audio chunks information
-        totalChunks: this.audioChunks.length,
-        chunkSizes: this.audioChunks.map(chunk => chunk.size),
-        totalChunkSize: this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0),
-        averageChunkSize: this.audioChunks.length > 0 ? Math.round(this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0) / this.audioChunks.length) : 0,
-        
-        // Final blob information
-        finalBlobSize: audioBlob.size,
-        finalBlobType: audioBlob.type,
-        sizeMismatch: audioBlob.size !== this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0),
-        
-        // Browser and device context
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        maxTouchPoints: navigator.maxTouchPoints || 0,
-        
-        // MediaRecorder creation details
-        timesliceUsed: this.timesliceUsed || null,
-        creationErrors: this.creationErrors || [],
-        fallbackUsed: this.fallbackUsed || false
-      };
-      
-      // Get audio stream properties if available
-      if (this.stream) {
-        const audioTrack = this.stream.getAudioTracks()[0];
-        if (audioTrack) {
-          const settings = audioTrack.getSettings();
-          recordingDetails.audioStreamSettings = {
-            sampleRate: settings.sampleRate,
-            channelCount: settings.channelCount,
-            echoCancellation: settings.echoCancellation,
-            noiseSuppression: settings.noiseSuppression,
-            autoGainControl: settings.autoGainControl,
-            deviceId: settings.deviceId,
-            groupId: settings.groupId,
-            latency: settings.latency,
-            volume: settings.volume
-          };
-          
-          // Get capabilities if available
-          try {
-            const capabilities = audioTrack.getCapabilities();
-            recordingDetails.audioStreamCapabilities = capabilities;
-          } catch (e) {
-            recordingDetails.audioStreamCapabilities = { error: e.message };
-          }
-          
-          // Get constraints if available
-          try {
-            const constraints = audioTrack.getConstraints();
-            recordingDetails.audioStreamConstraints = constraints;
-          } catch (e) {
-            recordingDetails.audioStreamConstraints = { error: e.message };
-          }
-        }
-      }
-      
-      // Send device information for server-side optimization
-      formData.append('device_type', this.deviceInfo.isIPad ? 'ipad' : this.deviceInfo.isIPhone ? 'iphone' : 'other');
-      formData.append('is_ios', this.deviceInfo.isIOS.toString());
-      formData.append('user_agent', this.deviceInfo.userAgent);
-      formData.append('mime_type', audioBlob.type);
-      formData.append('file_size', audioBlob.size.toString());
-      formData.append('supported_formats', JSON.stringify(supportedFormats));
-      formData.append('actual_recorder_mime', this.actualMimeType || 'unknown');
-      formData.append('recording_details', JSON.stringify(recordingDetails));
-      
-      console.log(`Device info sent: ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'other'} (iOS: ${this.deviceInfo.isIOS})`);
-      console.log('Supported formats:', supportedFormats);
-      console.log('Recording details:', recordingDetails);
 
       // Get CSRF token
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -504,10 +181,8 @@ class VoiceRecorder {
       const result = await response.json();
 
       if (result.success) {
-        console.log('Transcription successful:', result.transcription);
         this.onTranscriptionComplete(result.transcription);
       } else {
-        console.error('Transcription failed:', result.error);
         this.onTranscriptionError(result.error || 'Failed to transcribe audio');
       }
     } catch (error) {
@@ -608,7 +283,6 @@ class VoiceRecorder {
 
 // Initialize voice recorder when DOM is loaded
 document.addEventListener('turbo:load', () => {
-  // Check for both notebook and chat contexts
   const voiceRecorderForm = document.getElementById('voice-recorder-form');
   if (!voiceRecorderForm) return;
 
@@ -630,10 +304,7 @@ document.addEventListener('turbo:load', () => {
     if (trixEditor) {
       const editor = trixEditor.editor;
       if (editor) {
-        // Insert text at current cursor position
         editor.insertString(text);
-        
-        // Focus the editor to maintain cursor position
         trixEditor.focus();
       }
     }
@@ -646,16 +317,13 @@ document.addEventListener('turbo:load', () => {
       const endPos = textArea.selectionEnd;
       const currentContent = textArea.value;
       
-      // Insert text at cursor position
       const newContent = currentContent.substring(0, startPos) + text + currentContent.substring(endPos);
       textArea.value = newContent;
       
-      // Set cursor position after inserted text
       const newCursorPos = startPos + text.length;
       textArea.focus();
       textArea.setSelectionRange(newCursorPos, newCursorPos);
       
-      // Scroll to cursor if needed
       if (textArea.scrollTop !== undefined) {
         textArea.scrollTop = textArea.scrollHeight;
       }
@@ -664,7 +332,6 @@ document.addEventListener('turbo:load', () => {
 
   // Override transcription callbacks
   recorder.onTranscriptionComplete = (transcription) => {
-    // Insert into the appropriate editor
     if (trixEditor) {
       insertIntoTrixEditor(transcription);
     } else if (textArea) {
@@ -683,9 +350,8 @@ document.addEventListener('turbo:load', () => {
   // Voice recording button handler
   const voiceButton = document.getElementById('voice-record-btn');
   if (voiceButton) {
-    // Add both click and touch event handlers for iOS compatibility
     const handleRecordingToggle = async (event) => {
-      event.preventDefault(); // Prevent default touch behavior
+      event.preventDefault();
       
       try {
         if (recorder.isRecording) {
@@ -695,32 +361,19 @@ document.addEventListener('turbo:load', () => {
         }
       } catch (error) {
         console.error('Voice recording error:', error);
-        let errorMessage = error.message || 'Error accessing microphone';
-        
-        // iOS-specific error handling
-        if (recorder.deviceInfo.isIOS) {
-          if (error.message.includes('permission')) {
-            errorMessage = 'Please allow microphone access in Safari settings: Settings > Safari > Microphone';
-          } else if (error.message.includes('not supported')) {
-            errorMessage = 'Please use Safari browser for voice recording on iOS devices';
-          }
-        }
-        
-        showNotification(errorMessage, 'error');
+        showNotification(error.message || 'Error accessing microphone', 'error');
       }
     };
     
-    // Add multiple event listeners for better iOS compatibility
     voiceButton.addEventListener('click', handleRecordingToggle);
     voiceButton.addEventListener('touchend', handleRecordingToggle);
     
-    // Prevent double-firing on iOS
     voiceButton.addEventListener('touchstart', (event) => {
       event.preventDefault();
     });
   }
 
-  // Voice toggle button handler (show/hide voice recorder)
+  // Voice toggle button handler
   const voiceToggleBtn = document.getElementById('voice-toggle-btn');
   if (voiceToggleBtn) {
     const handleToggle = (event) => {
@@ -735,20 +388,16 @@ document.addEventListener('turbo:load', () => {
         voiceRecorderForm.classList.add('hidden');
         voiceToggleBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
         voiceToggleBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-        // Stop recording if it's active and cleanup microphone
         if (recorder.isRecording) {
           recorder.stopRecording();
         }
-        // Ensure microphone is fully released
         recorder.stopStream();
       }
     };
     
-    // Add both click and touch events for iOS
     voiceToggleBtn.addEventListener('click', handleToggle);
     voiceToggleBtn.addEventListener('touchend', handleToggle);
     
-    // Prevent double-firing on iOS
     voiceToggleBtn.addEventListener('touchstart', (event) => {
       event.preventDefault();
     });
@@ -762,7 +411,6 @@ document.addEventListener('turbo:load', () => {
 
 // Utility function for notifications
 function showNotification(message, type = 'info') {
-  // Create notification element
   const notification = document.createElement('div');
   notification.className = `fixed top-24 left-4 right-4 sm:top-24 sm:left-auto sm:right-4 sm:max-w-sm z-[60] p-3 sm:p-4 rounded-lg shadow-xl transition-all duration-300 transform translate-y-[-100px] opacity-0 ${
     type === 'success' ? 'bg-green-600 text-white border border-green-500/50' : 
@@ -791,13 +439,11 @@ function showNotification(message, type = 'info') {
 
   document.body.appendChild(notification);
 
-  // Animate in with both opacity and transform
   setTimeout(() => {
     notification.style.transform = 'translateY(0)';
     notification.style.opacity = '1';
   }, 100);
 
-  // Auto remove after 5 seconds
   setTimeout(() => {
     notification.style.transform = 'translateY(-100px)';
     notification.style.opacity = '0';
