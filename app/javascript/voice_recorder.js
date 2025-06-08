@@ -76,18 +76,19 @@ class VoiceRecorder {
       let audioConstraints;
       
       if (this.deviceInfo.isIPad) {
-        // iPad-specific settings - try enabling processing to improve speech clarity
+        // iPad-specific settings - force highest quality to improve source audio
         audioConstraints = {
-          echoCancellation: true,  // Re-enable to reduce background noise
-          noiseSuppression: true,  // Re-enable to improve speech clarity
-          autoGainControl: true,   // Re-enable to normalize volume levels
-          sampleRate: { ideal: 48000, min: 44100 }, // Higher quality mandatory
-          sampleSize: 16,
-          channelCount: 1,
-          // Additional iPad-specific constraints for speech clarity
-          volume: { ideal: 1.0 },
-          latency: { ideal: 0.01 } // Very low latency for better real-time processing
+          echoCancellation: false,  // Disable to preserve natural speech
+          noiseSuppression: false,  // Disable to preserve speech clarity
+          autoGainControl: false,   // Disable to prevent audio processing artifacts
+          sampleRate: { exact: 48000 }, // Force high sample rate
+          sampleSize: { exact: 16 },    // Force 16-bit depth
+          channelCount: { exact: 1 },   // Force mono
+          // Force higher quality settings for iPad
+          volume: { exact: 1.0 },
+          latency: { max: 0.1 }
         };
+        console.log('iPad: Using raw audio capture (no processing) for better source quality');
       } else if (this.deviceInfo.isIPhone) {
         // iPhone-specific settings (keep existing behavior)
         audioConstraints = {
@@ -154,13 +155,14 @@ class VoiceRecorder {
       let mimeTypes;
       
       if (this.deviceInfo.isIPad) {
-        // iPad-optimized MIME types for better Whisper compatibility
-        // iPad Safari has very limited MediaRecorder support
+        // iPad-optimized MIME types - try WAV first to avoid poor quality MP4
+        // iPad MediaRecorder produces extremely poor quality MP4 files
         mimeTypes = [
-          '', // Empty string to use browser default first (most compatible for iPad)
-          'audio/wav',                    // WAV if supported
-          'audio/mp4',                    // Safari fallback
-          'audio/webm',                   // If Chrome is used on iPad
+          'audio/wav',                    // Try WAV first for better quality
+          'audio/webm',                   // Chrome WebM if available
+          'audio/webm;codecs=opus',       // Chrome WebM with Opus
+          '', // Empty string to use browser default (usually MP4 - last resort)
+          'audio/mp4',                    // Safari fallback (known poor quality)
           'audio/mpeg'                    // Last resort
         ];
       } else if (this.deviceInfo.isIPhone) {
@@ -210,16 +212,27 @@ class VoiceRecorder {
         
         // Store the actual MIME type being used
         this.actualMimeType = this.mediaRecorder.mimeType || selectedMimeType || 'unknown';
+        this.requestedMimeType = selectedMimeType;
+        this.fallbackUsed = false;
+        this.creationErrors = [];
+        
         console.log(`MediaRecorder initialized with: ${this.actualMimeType}`);
       } catch (error) {
+        this.creationErrors = [error.message];
+        
         if (this.deviceInfo.isIPad) {
           console.log('iPad MediaRecorder creation failed with options, trying without options:', error);
           // iPad fallback: create MediaRecorder without any options
           try {
             this.mediaRecorder = new MediaRecorder(this.stream);
             this.actualMimeType = this.mediaRecorder.mimeType || 'unknown';
+            this.requestedMimeType = selectedMimeType;
+            this.fallbackUsed = true;
+            this.creationErrors.push('Fallback to no options used');
+            
             console.log(`iPad MediaRecorder fallback successful: ${this.actualMimeType}`);
           } catch (fallbackError) {
+            this.creationErrors.push(fallbackError.message);
             console.error('iPad MediaRecorder fallback failed:', fallbackError);
             throw new Error('iPad audio recording not supported by this Safari version');
           }
@@ -250,6 +263,7 @@ class VoiceRecorder {
       }
       
       console.log(`Using timeslice: ${timeslice}ms for ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'desktop'}`);
+      this.timesliceUsed = timeslice;
       this.mediaRecorder.start(timeslice);
       
       this.isRecording = true;
@@ -380,14 +394,97 @@ class VoiceRecorder {
       console.log(`Uploading as: ${fileName} (${audioBlob.type})`);
       formData.append('audio', audioBlob, fileName);
       
+      // Check what formats this device/browser actually supports
+      const supportedFormats = {};
+      const testFormats = ['audio/wav', 'audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/mpeg', 'audio/ogg'];
+      testFormats.forEach(format => {
+        supportedFormats[format] = MediaRecorder.isTypeSupported(format);
+      });
+      
+      // Gather comprehensive MediaRecorder production details
+      const recordingDetails = {
+        // Recording timing
+        startTime: this.recordingStartTime,
+        endTime: Date.now(),
+        duration: Date.now() - this.recordingStartTime,
+        
+        // MediaRecorder configuration
+        selectedMimeType: this.actualMimeType,
+        requestedMimeType: this.requestedMimeType || 'none',
+        mediaRecorderState: this.mediaRecorder ? this.mediaRecorder.state : 'unknown',
+        audioBitsPerSecond: this.mediaRecorder ? this.mediaRecorder.audioBitsPerSecond : null,
+        videoBitsPerSecond: this.mediaRecorder ? this.mediaRecorder.videoBitsPerSecond : null,
+        
+        // Audio chunks information
+        totalChunks: this.audioChunks.length,
+        chunkSizes: this.audioChunks.map(chunk => chunk.size),
+        totalChunkSize: this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0),
+        averageChunkSize: this.audioChunks.length > 0 ? Math.round(this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0) / this.audioChunks.length) : 0,
+        
+        // Final blob information
+        finalBlobSize: audioBlob.size,
+        finalBlobType: audioBlob.type,
+        sizeMismatch: audioBlob.size !== this.audioChunks.reduce((sum, chunk) => sum + chunk.size, 0),
+        
+        // Browser and device context
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        maxTouchPoints: navigator.maxTouchPoints || 0,
+        
+        // MediaRecorder creation details
+        timesliceUsed: this.timesliceUsed || null,
+        creationErrors: this.creationErrors || [],
+        fallbackUsed: this.fallbackUsed || false
+      };
+      
+      // Get audio stream properties if available
+      if (this.stream) {
+        const audioTrack = this.stream.getAudioTracks()[0];
+        if (audioTrack) {
+          const settings = audioTrack.getSettings();
+          recordingDetails.audioStreamSettings = {
+            sampleRate: settings.sampleRate,
+            channelCount: settings.channelCount,
+            echoCancellation: settings.echoCancellation,
+            noiseSuppression: settings.noiseSuppression,
+            autoGainControl: settings.autoGainControl,
+            deviceId: settings.deviceId,
+            groupId: settings.groupId,
+            latency: settings.latency,
+            volume: settings.volume
+          };
+          
+          // Get capabilities if available
+          try {
+            const capabilities = audioTrack.getCapabilities();
+            recordingDetails.audioStreamCapabilities = capabilities;
+          } catch (e) {
+            recordingDetails.audioStreamCapabilities = { error: e.message };
+          }
+          
+          // Get constraints if available
+          try {
+            const constraints = audioTrack.getConstraints();
+            recordingDetails.audioStreamConstraints = constraints;
+          } catch (e) {
+            recordingDetails.audioStreamConstraints = { error: e.message };
+          }
+        }
+      }
+      
       // Send device information for server-side optimization
       formData.append('device_type', this.deviceInfo.isIPad ? 'ipad' : this.deviceInfo.isIPhone ? 'iphone' : 'other');
       formData.append('is_ios', this.deviceInfo.isIOS.toString());
       formData.append('user_agent', this.deviceInfo.userAgent);
       formData.append('mime_type', audioBlob.type);
       formData.append('file_size', audioBlob.size.toString());
+      formData.append('supported_formats', JSON.stringify(supportedFormats));
+      formData.append('actual_recorder_mime', this.actualMimeType || 'unknown');
+      formData.append('recording_details', JSON.stringify(recordingDetails));
       
       console.log(`Device info sent: ${this.deviceInfo.isIPad ? 'iPad' : this.deviceInfo.isIPhone ? 'iPhone' : 'other'} (iOS: ${this.deviceInfo.isIOS})`);
+      console.log('Supported formats:', supportedFormats);
+      console.log('Recording details:', recordingDetails);
 
       // Get CSRF token
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
