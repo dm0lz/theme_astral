@@ -9,14 +9,13 @@
         
         <!-- Desktop Navigation -->
         <nav class="hidden lg:flex ml-16 space-x-4">
-          <%= link_to "Accueil", root_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
           <%= link_to "Chat", app_chat_messages_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
           <%= link_to "Notebooks", app_notebooks_path, class: "text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2" %>
 
           <!-- Birth Chart Dropdown -->
           <div class="relative inline-block" data-dropdown>
             <button type="button" class="text-white/80 hover:text-amber-300 transition-colors font-medium px-4 py-2 flex items-center" data-dropdown-toggle>
-              Birth Chart
+              Birth Charts
               <svg class="w-4 h-4 ml-1 transition-transform duration-200" data-dropdown-arrow fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
               </svg>
