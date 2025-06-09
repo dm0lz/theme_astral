@@ -140,6 +140,23 @@ export default class extends Controller {
   }
 
   dispatchTTS(text, messageId) {
+    // Unlock iOS audio autoplay on first user interaction
+    if (!window.__audioUnlocked) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext
+        if (AudioCtx) {
+          const ctx = new AudioCtx()
+          ctx.resume().finally(() => {
+            window.__audioUnlocked = true
+          })
+        } else {
+          window.__audioUnlocked = true
+        }
+      } catch (e) {
+        window.__audioUnlocked = true
+      }
+    }
+    
     window.dispatchEvent(new CustomEvent('tts:add', { 
       detail: { 
         text: text, 
