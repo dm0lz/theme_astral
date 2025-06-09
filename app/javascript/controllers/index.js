@@ -12,3 +12,9 @@ application.register("scroll-into-view", ScrollIntoViewController)
 
 import TtsController from "./tts_controller"
 application.register("tts", TtsController)
+
+import GlobalTtsController from "./global_tts_controller"
+application.register("global-tts", GlobalTtsController)
+
+import TtsToggleController from "./tts_toggle_controller"
+application.register("tts-toggle", TtsToggleController)

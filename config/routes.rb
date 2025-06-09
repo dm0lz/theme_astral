@@ -40,4 +40,6 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   get "/:id" => "public/seo_pages#show"
   root "public/landing_page#index"
+
+  post "tts/speak", to: "tts#speak"
 end

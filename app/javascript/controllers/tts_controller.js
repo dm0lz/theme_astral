@@ -1,5 +1,23 @@
 import { Controller } from "@hotwired/stimulus"
 
+// Global state shared across controller instances
+window._ttsState = window._ttsState || {
+  spoken: new Set(),
+  queued: new Set(),
+  queue: [],
+  currentAudio: null,
+  speaking: false
+}
+
+// helper functions
+const fingerprint = (s) => {
+  return s
+    .toLowerCase()
+    .replace(/\s+/g," ")            // collapse whitespace
+    .replace(/[\.\!\?]+$/, "")    // drop ending punctuation
+    .trim();
+}
+
 export default class extends Controller {
   static targets = ["chunks"]
   static values = {
@@ -7,145 +25,98 @@ export default class extends Controller {
     text:     { type: String,  default: "" }
   }
 
-  connect () {
-    this.synth            = window.speechSynthesis
-    this.voice            = this.synth.getVoices().find(v => v.lang === navigator.language) || this.synth.getVoices()[0]
-    this.isCurrentlySpeaking = false
-    this.spokenSentences   = new Set()
+  connect() {
     this.addStreamingToggleButton()
+    
+    // Register button with global state manager
+    const button = this.hasChunksTarget ? this.toggleBtn : this.element
+    if (button && window.GlobalTTSManager) {
+      window.GlobalTTSManager.registerButton(button)
+    }
 
     // When the controller is tied to a streaming message (has chunks target)
     if (this.hasChunksTarget) {
       this.observeChunks()
-    } else {
-      // For a normal message button: if TTS engine is currently speaking, reflect stop state
-      if (window.speechSynthesis.speaking) {
-        this.setButtonToStop(this.element)
-      }
     }
   }
 
-  disconnect () {
+  disconnect() {
     if (this.observer) this.observer.disconnect()
-    if (!this.isCurrentlySpeaking) this.synth.cancel()
+    
+    // Unregister button from global state manager
+    const button = this.hasChunksTarget ? this.toggleBtn : this.element
+    if (button && window.GlobalTTSManager) {
+      window.GlobalTTSManager.unregisterButton(button)
+    }
   }
 
   /* ------------------------------------------------------------------
    * STREAMING SUPPORT (AI messages rendered progressively)
    * ----------------------------------------------------------------*/
-  observeChunks () {
-    this.observer = new MutationObserver(() => {
+  observeChunks() {
+    this.observer = new MutationObserver((mutations) => {
       if (!this.enabledValue) return
-      const text = this.chunksTarget.textContent || ""
-      const parts = text.split(/([.!?]+)/)
-      for (let i = 0; i < parts.length - 1; i += 2) {
-        const sentence = (parts[i] + parts[i + 1]).trim()
-        if (sentence && !this.spokenSentences.has(sentence)) {
-          this.spokenSentences.add(sentence)
-          this.speak(sentence)
-        }
-      }
+      mutations.forEach((m) => {
+        m.addedNodes.forEach((node) => {
+          let raw = (node.textContent || "").replace(/\s+/g," ").trim();
+          if (!raw) return;
+          if (!/[.!?]$/.test(raw)) return; // only complete sentence
+
+          // Dispatch to global controller
+          window.dispatchEvent(new CustomEvent('tts:add', { detail: raw }))
+        })
+      })
     })
     this.observer.observe(this.chunksTarget, { childList: true, subtree: true })
   }
 
   /* ------------------------------------------------------------------
-   * GENERIC SPEAK
-   * ----------------------------------------------------------------*/
-  speak (text) {
-    if (!this.enabledValue || !text) return
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.voice = this.voice
-
-    utter.onstart = () => {
-      this.isCurrentlySpeaking = true
-      // If we are in a streaming controller with a toggle button, switch it to stop icon once
-      if (this.toggleBtn && !this.toggleBtn.dataset.speaking) {
-        this.setButtonToStop(this.toggleBtn)
-      }
-    }
-    
-    utter.onend   = () => {
-      // Defer a little to allow the next queued utterance (if any) to start
-      setTimeout(() => {
-        if (!this.synth.speaking) {
-          this.isCurrentlySpeaking = false
-          if (this.toggleBtn) this.resetButton(this.toggleBtn)
-        }
-      }, 100)
-    }
-    utter.onerror = () => {
-      this.isCurrentlySpeaking = false
-      if (this.toggleBtn) this.resetButton(this.toggleBtn)
-    }
-
-    this.synth.speak(utter)
-  }
-
-  /* ------------------------------------------------------------------
    * MESSAGE-LEVEL BUTTON (non-streaming)
    * ----------------------------------------------------------------*/
-  speakMessage (e) {
-    const btn  = e.currentTarget
-
-    // If already reading this exact message → stop it
-    if (btn.dataset.speaking === "true") {
-      this.synth.cancel()
-      this.resetButton(btn)
-      return
-    }
-
+  speakMessage(e) {
+    const btn = e.currentTarget
     const text = this.textValue || btn.dataset.ttsTextValue
     if (!text) return
 
-    // Cancel whatever is playing and reset all TT buttons
-    this.synth.cancel()
-    document.querySelectorAll('[data-action*="tts#speakMessage"]').forEach(this.resetButton)
+    // If TTS is currently active -> stop
+    if (window.GlobalTTSManager && window.GlobalTTSManager.isActive) {
+      window.dispatchEvent(new CustomEvent("tts:stop"))
+      return
+    }
 
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.voice = this.voice
-
-    utter.onstart = () => this.setButtonToStop(btn)
-    utter.onend   = () => this.resetButton(btn)
-    utter.onerror = () => this.resetButton(btn)
-
-    this.synth.speak(utter)
+    // Dispatch to global controller
+    window.dispatchEvent(new CustomEvent("tts:add", { detail: text }))
   }
 
   /* ------------------------------------------------------------------
-   * BTN HELPERS
+   * STREAMING TOGGLE BUTTON (enable/disable TTS for AI stream)
    * ----------------------------------------------------------------*/
-  setButtonToStop = (btn) => {
-    btn.innerHTML        = "⏹️"
-    btn.style.color      = "#ef4444"
-    btn.dataset.speaking = "true"
-    btn.title            = "Stop reading"
-  }
-
-  resetButton = (btn) => {
-    btn.innerHTML        = "🔊"
-    btn.style.color      = ""
-    btn.dataset.speaking = "false"
-    btn.title            = "Read message aloud"
-  }
-
-  /* ------------------------------------------------------------------
-   * STREAMING TOGGLE BUTTON (a single toggle for live AI stream)
-   * ----------------------------------------------------------------*/
-  addStreamingToggleButton () {
+  addStreamingToggleButton() {
     if (!this.hasChunksTarget) return
     const container = this.element.querySelector('.flex.items-center.space-x-2:first-child')
     if (!container) return
 
-    const btn       = document.createElement('button')
-    btn.innerHTML   = "🔊"
-    btn.className   = 'text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10'
-    btn.onclick     = () => {
+    const btn = document.createElement('button')
+    btn.innerHTML = `
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M5 9v6h4l5 5V4L9 9H5z"></path>
+        <path d="M15 9.5a3.5 3.5 0 010 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        <path d="M17.5 7a6 6 0 010 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+      </svg>`
+    btn.className = 'text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10'
+    btn.onclick = () => {
       this.enabledValue = !this.enabledValue
-      btn.style.color   = this.enabledValue ? '#22c55e' : ''
-      if (!this.enabledValue) this.synth.cancel()
+      btn.style.color = this.enabledValue ? '#22c55e' : ''
+      if (!this.enabledValue) {
+        window.dispatchEvent(new CustomEvent("tts:stop"))
+      }
     }
     container.appendChild(btn)
     this.toggleBtn = btn
+    
+    // Register this button immediately
+    if (window.GlobalTTSManager) {
+      window.GlobalTTSManager.registerButton(btn)
+    }
   }
 }
