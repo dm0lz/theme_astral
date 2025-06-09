@@ -23,11 +23,19 @@ window.GlobalTTSManager = {
       this.activeMessageId = messageId
     }
     
-    // Apply correct state to this button
-    if (this.isActive && messageId === this.activeMessageId) {
+    // Determine enabled flag lazily
+    let enabled
+    if (window.__ttsEnabled === undefined) {
+      enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'false')
+      window.__ttsEnabled = enabled
+    } else {
+      enabled = window.__ttsEnabled
+    }
+    button.classList.toggle('hidden', !enabled);
+    if (enabled && this.isActive && messageId === this.activeMessageId) {
       this.setStopState(button)
     } else {
-      this.setSpeakerState(button)
+      if (enabled) this.setSpeakerState(button)
     }
   },
   
@@ -92,6 +100,10 @@ window.GlobalTTSManager = {
   
   updateAllButtons() {
     this.allButtons.forEach((messageId, button) => {
+      // visibility
+      button.classList.toggle('hidden', !window.__ttsEnabled);
+
+      if (!window.__ttsEnabled) return;
       if (this.isActive && messageId === this.activeMessageId) {
         this.setStopState(button)
       } else {
@@ -166,7 +178,8 @@ export default class extends Controller {
     this.prefetched = new Map()
     this.prefetchQueue = new Set()
     this.currentMessageId = null // Track which message initiated current session
-    this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
+    this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'false')
+    window.__ttsEnabled = this.enabled
   }
 
   setupEventListeners() {
@@ -174,6 +187,7 @@ export default class extends Controller {
     window.addEventListener('tts:add', (e) => this.enqueue(e.detail.text, e.detail.messageId))
     window.addEventListener('tts:stop', () => this.stop())
     window.addEventListener('beforeunload', () => this.cleanup())
+    window.addEventListener('tts:enabled',e=>{window.__ttsEnabled=e.detail;window.GlobalTTSManager.updateAllButtons();});
   }
 
   initializeStreamingObserver() {
@@ -367,6 +381,7 @@ export default class extends Controller {
   toggle() {
     this.enabled = !this.enabled
     localStorage.setItem('ttsEnabled', JSON.stringify(this.enabled))
+    window.dispatchEvent(new CustomEvent('tts:enabled',{detail:this.enabled}))
     
     if (!this.enabled) {
       this.stop()
