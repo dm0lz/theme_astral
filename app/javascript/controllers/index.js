@@ -18,3 +18,6 @@ application.register("global-tts", GlobalTtsController)
 
 import TtsToggleController from "./tts_toggle_controller"
 application.register("tts-toggle", TtsToggleController)
+
+import LoadingController from "./loading_controller"
+application.register("loading", LoadingController)

@@ -72,8 +72,14 @@ window.GlobalTTSManager = {
     this.activeMessageId = messageId
     this.isActive = true
     
-    // Update all buttons: active ones to stop state, others to speaker state
-    this.updateAllButtons()
+    // set loading spinner on active button
+    const btn = this.getButtonByMessageId(messageId)
+    if (btn) this.showLoading(btn)
+    
+    // reset others
+    this.allButtons.forEach((msg, button) => {
+      if (msg !== messageId) this.setSpeakerState(button)
+    })
   },
   
   clearActiveMessage() {
@@ -112,6 +118,23 @@ window.GlobalTTSManager = {
       </svg>`
     button.dataset.speaking = "false"
     button.title = "Read message aloud"
+  },
+  
+  getButtonByMessageId(id) {
+    for (const [btn, msg] of this.allButtons.entries()) {
+      if (msg === id) return btn
+    }
+    return null
+  },
+  
+  showLoading(button) {
+    button.innerHTML = `
+      <svg class="w-4 h-4 animate-spin" fill="none" stroke="#f59e0b" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle>
+        <path class="opacity-75" d="M4 12a8 8 0 018-8" stroke-width="4" stroke-linecap="round"></path>
+      </svg>`
+    button.dataset.speaking = "loading"
+    button.title = "Loading audio"
   }
 }
 
@@ -270,7 +293,10 @@ export default class extends Controller {
       
       audio.onended = cleanup
       audio.onerror = cleanup
-      audio.play().catch(cleanup)
+      audio.play().then(()=>{
+        const btn=window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId);
+        if(btn) window.GlobalTTSManager.setStopState(btn);
+      }).catch(cleanup)
     })
   }
 

@@ -39,14 +39,14 @@
 </div>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 sm:mb-12">
-  <div class="bg-[#050510]/95 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
+  <div class="bg-indigo-950/30 backdrop-blur-xl rounded-xl shadow-xl border border-indigo-800/30 overflow-hidden">
     <div class="flex flex-col h-[calc(100vh-160px)] sm:h-[calc(100vh-200px)]">
       <div id="chat_messages" class="flex-1 flex flex-col-reverse overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-4 bg-transparent">
         <% @chat_messages.each do |chat_message| %>
           <%= render partial: "app/chat_messages/chat_message", locals: { chat_message: chat_message } %>
         <% end %> 
       </div>
-      <div class="border-t border-indigo-800/30 bg-[#050510]/95 p-4 sm:p-6">
+      <div class="border-t border-indigo-800/30 bg-indigo-950/30 p-4 sm:p-6">
         <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
       </div>
     </div>
