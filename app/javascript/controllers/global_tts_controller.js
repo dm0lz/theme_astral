@@ -26,7 +26,7 @@ window.GlobalTTSManager = {
     // Determine enabled flag lazily
     let enabled
     if (window.__ttsEnabled === undefined) {
-      enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'false')
+      enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
       window.__ttsEnabled = enabled
     } else {
       enabled = window.__ttsEnabled
@@ -178,7 +178,7 @@ export default class extends Controller {
     this.prefetched = new Map()
     this.prefetchQueue = new Set()
     this.currentMessageId = null // Track which message initiated current session
-    this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'false')
+    this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
     window.__ttsEnabled = this.enabled
   }
 
