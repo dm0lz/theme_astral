@@ -149,9 +149,11 @@ export default class extends Controller {
           ctx.resume().finally(() => {
             window.__audioUnlocked = true
           })
-        } else {
-          window.__audioUnlocked = true
         }
+        // Play silent audio to unlock HTMLAudioElement autoplay on iOS
+        const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=' // very short silence
+        const silent = new Audio(silentSrc)
+        silent.play().catch(()=>{})
       } catch (e) {
         window.__audioUnlocked = true
       }
