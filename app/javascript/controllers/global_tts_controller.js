@@ -270,8 +270,8 @@ export default class extends Controller {
     try {
       if (!this.audio) {
         const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
-        const unlockAudio = new Audio(silentSrc)
-        unlockAudio.play().catch(()=>{})
+        this.audio = new Audio(silentSrc)
+        this.audio.play().catch(()=>{})
       }
     } catch(e){}
   }
