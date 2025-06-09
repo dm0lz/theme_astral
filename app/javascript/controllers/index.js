@@ -5,7 +5,10 @@
 import { application } from "./application"
 
 import HelloController from "./hello_controller"
-import ScrollIntoViewController from "./scroll_into_view_controller"
-
 application.register("hello", HelloController)
+
+import ScrollIntoViewController from "./scroll_into_view_controller"
 application.register("scroll-into-view", ScrollIntoViewController)
+
+import TtsController from "./tts_controller"
+application.register("tts", TtsController)

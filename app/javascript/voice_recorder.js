@@ -192,13 +192,15 @@ class VoiceRecorder {
   }
 
   onTranscriptionComplete(transcription) {
-    // This will be overridden by the form implementation
-    console.log('Transcription:', transcription);
+    const ok = insertTranscriptionText(transcription);
+    
+    this.updateUI('ready');
+    showNotification('Voice note transcribed successfully!', 'success');
   }
 
   onTranscriptionError(error) {
-    // This will be overridden by the form implementation
-    console.error('Transcription error:', error);
+    this.updateUI('ready');
+    showNotification(error, 'error');
   }
 
   startTimer() {
@@ -281,12 +283,49 @@ class VoiceRecorder {
   }
 }
 
-// Initialize voice recorder when DOM is loaded
-document.addEventListener('turbo:load', () => {
+// Helper functions moved outside so they fetch fresh elements each time
+function getCurrentTextTargets() {
+  return {
+    notebookTextArea: document.querySelector('#note_body'),
+    chatTextArea:     document.querySelector('#chat_message_body'),
+    trixEditor:       document.querySelector('trix-editor')
+  };
+}
+
+function insertTranscriptionText(text) {
+  const { notebookTextArea, chatTextArea, trixEditor } = getCurrentTextTargets();
+  const textArea = notebookTextArea || chatTextArea;
+
+  if (trixEditor) {
+    const editor = trixEditor.editor;
+    if (editor) {
+      editor.insertString(text);
+      trixEditor.focus();
+      return true;
+    }
+  }
+
+  if (textArea) {
+    const startPos = textArea.selectionStart || textArea.value.length;
+    const endPos   = textArea.selectionEnd   || textArea.value.length;
+    const content  = textArea.value;
+
+    textArea.value = content.slice(0, startPos) + text + content.slice(endPos);
+    const cursorPos = startPos + text.length;
+    textArea.focus();
+    textArea.setSelectionRange(cursorPos, cursorPos);
+    if (textArea.scrollTop !== undefined) textArea.scrollTop = textArea.scrollHeight;
+    return true;
+  }
+  return false;
+}
+
+function initVoiceRecorder() {
   const voiceRecorderForm = document.getElementById('voice-recorder-form');
   if (!voiceRecorderForm) return;
 
   const recorder = new VoiceRecorder();
+  window.voiceRecorderInstance = recorder;
   
   // Detect context: notebook, chat, or rich text editor
   const notebookTextArea = document.querySelector('#note_body');
@@ -332,11 +371,7 @@ document.addEventListener('turbo:load', () => {
 
   // Override transcription callbacks
   recorder.onTranscriptionComplete = (transcription) => {
-    if (trixEditor) {
-      insertIntoTrixEditor(transcription);
-    } else if (textArea) {
-      insertIntoTextArea(transcription);
-    }
+    const ok = insertTranscriptionText(transcription);
     
     recorder.updateUI('ready');
     showNotification('Voice note transcribed successfully!', 'success');
@@ -347,67 +382,16 @@ document.addEventListener('turbo:load', () => {
     showNotification(error, 'error');
   };
 
-  // Voice recording button handler
-  const voiceButton = document.getElementById('voice-record-btn');
-  if (voiceButton) {
-    const handleRecordingToggle = async (event) => {
-      event.preventDefault();
-      
-      try {
-        if (recorder.isRecording) {
-          recorder.stopRecording();
-        } else {
-          await recorder.startRecording();
-        }
-      } catch (error) {
-        console.error('Voice recording error:', error);
-        showNotification(error.message || 'Error accessing microphone', 'error');
-      }
-    };
-    
-    voiceButton.addEventListener('click', handleRecordingToggle);
-    voiceButton.addEventListener('touchend', handleRecordingToggle);
-    
-    voiceButton.addEventListener('touchstart', (event) => {
-      event.preventDefault();
-    });
-  }
-
-  // Voice toggle button handler
-  const voiceToggleBtn = document.getElementById('voice-toggle-btn');
-  if (voiceToggleBtn) {
-    const handleToggle = (event) => {
-      event.preventDefault();
-      
-      const isHidden = voiceRecorderForm.classList.contains('hidden');
-      if (isHidden) {
-        voiceRecorderForm.classList.remove('hidden');
-        voiceToggleBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
-        voiceToggleBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
-      } else {
-        voiceRecorderForm.classList.add('hidden');
-        voiceToggleBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
-        voiceToggleBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-        if (recorder.isRecording) {
-          recorder.stopRecording();
-        }
-        recorder.stopStream();
-      }
-    };
-    
-    voiceToggleBtn.addEventListener('click', handleToggle);
-    voiceToggleBtn.addEventListener('touchend', handleToggle);
-    
-    voiceToggleBtn.addEventListener('touchstart', (event) => {
-      event.preventDefault();
-    });
-  }
-
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     recorder.cleanup();
   });
-});
+}
+
+// Initialize on first load and on every subsequent Turbo render
+document.addEventListener('turbo:load', initVoiceRecorder);
+document.addEventListener('turbo:render', initVoiceRecorder);
+document.addEventListener('turbo:frame-render', initVoiceRecorder);
 
 // Utility function for notifications
 function showNotification(message, type = 'info') {
@@ -453,6 +437,69 @@ function showNotification(message, type = 'info') {
       }
     }, 300);
   }, 5000);
+}
+
+// Global delegation (attach once)
+if (!window.__voiceToggleDelegated) {
+  const toggleHandler = (event) => {
+    const btn = event.target.closest('#voice-toggle-btn');
+    if (!btn) return;
+    event.preventDefault();
+
+    // Locate the voice-recorder-form nearest to this button (works if multiple forms exist)
+    let recorderForm = btn.closest('form, #chat_form, #note_form, body').querySelector('#voice-recorder-form');
+    if (!recorderForm) {
+      // Fallback to first one in DOM
+      recorderForm = document.getElementById('voice-recorder-form');
+    }
+    if (!recorderForm) return;
+
+    const isHidden = recorderForm.classList.contains('hidden');
+    if (isHidden) {
+      recorderForm.classList.remove('hidden');
+      btn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+      btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+    } else {
+      recorderForm.classList.add('hidden');
+      btn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+      btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+      if (window.voiceRecorderInstance && window.voiceRecorderInstance.isRecording) {
+        window.voiceRecorderInstance.stopRecording();
+      }
+      if (window.voiceRecorderInstance) window.voiceRecorderInstance.stopStream();
+    }
+  };
+
+  document.addEventListener('click', toggleHandler, { passive: false });
+  document.addEventListener('touchend', toggleHandler, { passive: false });
+  window.__voiceToggleDelegated = true;
+}
+
+// Global delegation for recording button
+if (!window.__voiceRecordDelegated) {
+  const recordHandler = async (event) => {
+    const btn = event.target.closest('#voice-record-btn');
+    if (!btn) return;
+    event.preventDefault();
+
+    const recorder = window.voiceRecorderInstance;
+    if (!recorder) return;
+
+    try {
+      if (recorder.isRecording) {
+        recorder.stopRecording();
+      } else {
+        await recorder.startRecording();
+      }
+    } catch (error) {
+      console.error('Voice recording error:', error);
+      showNotification(error.message || 'Error accessing microphone', 'error');
+    }
+  };
+
+  document.addEventListener('click', recordHandler, { passive: false });
+  document.addEventListener('touchend', recordHandler, { passive: false });
+  window.__voiceRecordDelegated = true;
 }
 
 export default VoiceRecorder;

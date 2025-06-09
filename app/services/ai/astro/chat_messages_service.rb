@@ -6,14 +6,26 @@ class Ai::Astro::ChatMessagesService
   def call
     client = OpenAI::Client.new(access_token: Rails.application.credentials.deep_seek_api_key, uri_base: "https://api.deepseek.com")
     response = ""
+    buffer = ""
 		client.chat(
 			parameters: {
-				model: "deepseek-reasoner",
+				model: "deepseek-chat",
 				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
         stream: proc do |chunk, _bytesize|
           delta = chunk.dig("choices", 0, "delta", "content")
           next unless delta
           response += delta
+          buffer += delta
+          # if buffer contains a sentence ending, send it to the client
+          if buffer.match(/[.!?]\s*$/)
+            Turbo::StreamsChannel.broadcast_append_to(
+              "streaming_channel_#{@chat_message.user_id}",
+              target: "sentence_chunks_container",
+              partial: "app/chat_messages/sentence_chunk",
+              locals: { sentence: buffer }
+            )
+            buffer = ""
+          end
           Turbo::StreamsChannel.broadcast_append_to(
             "streaming_channel_#{@chat_message.user_id}",
             target: "chunks_container",
