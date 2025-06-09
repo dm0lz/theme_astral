@@ -265,6 +265,15 @@ export default class extends Controller {
     this.processing = true
     this.currentMessageId = messageId
     window.GlobalTTSManager.setActiveMessage(messageId)
+
+    // iOS autoplay workaround: start a silent audio right away within user gesture
+    try {
+      if (!this.audio) {
+        const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+        this.audio = new Audio(silentSrc)
+        this.audio.play().catch(()=>{})
+      }
+    } catch(e){}
   }
 
   async processQueue() {
