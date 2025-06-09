@@ -29,7 +29,7 @@
         
         <div class="flex items-center space-x-1 sm:space-x-2">
           <button 
-            onclick="copyToClipboard('<%= dom_id chat_message %>')"
+            onclick="copyToClipboard(this, '<%= dom_id chat_message %>')"
             class="text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10"
             title="Copy message"
           >
@@ -47,13 +47,12 @@
 </div>
 
 <script>
-function copyToClipboard(messageId) {
+function copyToClipboard(btn, messageId) {
   const messageElement = document.getElementById(messageId);
   const messageText = messageElement.querySelector('.whitespace-pre-line').textContent.trim();
   
   navigator.clipboard.writeText(messageText).then(function() {
-    // Show success feedback
-    const button = messageElement.querySelector('button');
+    const button = btn; // use the actual copy button
     const originalHTML = button.innerHTML;
     
     // Temporarily show checkmark
