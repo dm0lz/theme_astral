@@ -28,9 +28,6 @@
         </div>
         
         <div class="flex items-center space-x-1 sm:space-x-2">
-          <div class="text-xs text-white/70">
-            <%= chat_message.created_at.strftime('%H:%M') if chat_message.respond_to?(:created_at) && chat_message.created_at %>
-          </div>
           <button 
             onclick="copyToClipboard('<%= dom_id chat_message %>')"
             class="text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10"
@@ -40,6 +37,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
             </svg>
           </button>
+          <div class="text-xs text-white/70">
+            <%= chat_message.created_at.strftime('%H:%M') if chat_message.respond_to?(:created_at) && chat_message.created_at %>
+          </div>
         </div>
       </div>
     </div>

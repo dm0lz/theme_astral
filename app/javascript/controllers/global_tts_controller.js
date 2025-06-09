@@ -101,6 +101,7 @@ window.GlobalTTSManager = {
   },
   
   setStopState(button) {
+    button.disabled = false;
     button.innerHTML = `
       <svg class="w-4 h-4" fill="#ef4444" viewBox="0 0 24 24">
         <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
@@ -110,6 +111,7 @@ window.GlobalTTSManager = {
   },
   
   setSpeakerState(button) {
+    button.disabled = false;
     button.innerHTML = `
       <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
         <path d="M5 9v6h4l5 5V4L9 9H5z"></path>
@@ -128,6 +130,7 @@ window.GlobalTTSManager = {
   },
   
   showLoading(button) {
+    button.disabled = true;
     button.innerHTML = `
       <svg class="w-4 h-4 animate-spin" fill="none" stroke="#f59e0b" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle>
