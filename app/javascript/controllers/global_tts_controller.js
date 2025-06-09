@@ -270,8 +270,8 @@ export default class extends Controller {
     try {
       if (!this.audio) {
         const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
-        this.audio = new Audio(silentSrc)
-        this.audio.play().catch(()=>{})
+        const unlockAudio = new Audio(silentSrc)
+        unlockAudio.play().catch(()=>{})
       }
     } catch(e){}
   }
@@ -335,7 +335,12 @@ export default class extends Controller {
 
   createAudioElement(blob) {
     const url = URL.createObjectURL(blob)
-    this.audio = new Audio(url)
+    if (!this.audio) {
+      this.audio = new Audio()
+    } else {
+      this.audio.pause()
+    }
+    this.audio.src = url
     return this.audio
   }
 
