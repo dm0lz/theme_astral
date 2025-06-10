@@ -198,6 +198,13 @@ export default class extends Controller {
       this.ensureAllButtonsVisible()
     }, 100)
     
+    // Show iOS prompt proactively if on iOS and TTS is enabled
+    if (this.isIOS() && this.enabled && !window.__audioUnlocked) {
+      setTimeout(() => {
+        this.showIOSPrompt()
+      }, 500) // Small delay to ensure page is loaded
+    }
+    
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
       window.GlobalTTSControllerCount++
@@ -612,8 +619,6 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
-    console.log('🔓 Attempting iOS audio unlock...')
-    
     try {
       // Strategy 1: AudioContext unlock
       const AudioContext = window.AudioContext || window.webkitAudioContext
@@ -621,15 +626,13 @@ export default class extends Controller {
         try {
           if (!this.audioContext) {
             this.audioContext = new AudioContext()
-            console.log('📱 Created new AudioContext, state:', this.audioContext.state)
           }
           
           if (this.audioContext.state === 'suspended') {
             await this.audioContext.resume()
-            console.log('📱 AudioContext resumed, new state:', this.audioContext.state)
           }
         } catch (contextError) {
-          console.warn('⚠️ AudioContext unlock failed:', contextError)
+          // Silently handle AudioContext errors
         }
       }
       
@@ -670,12 +673,9 @@ export default class extends Controller {
       // Try each unlock method
       for (let i = 0; i < unlockAttempts.length; i++) {
         try {
-          console.log(`📱 Trying unlock method ${i + 1}...`)
           await unlockAttempts[i]()
-          console.log(`✅ Unlock method ${i + 1} succeeded`)
           break
         } catch (error) {
-          console.warn(`⚠️ Unlock method ${i + 1} failed:`, error)
           if (i === unlockAttempts.length - 1) {
             throw new Error('All unlock methods failed')
           }
@@ -683,14 +683,12 @@ export default class extends Controller {
       }
       
       window.__audioUnlocked = true
-      console.log('✅ iOS audio unlocked successfully')
       
       // Remove the iOS prompt if it exists
       this.hideIOSPrompt()
       
       // Process any pending iOS texts
       if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-        console.log(`📝 Processing ${this.pendingIOSTexts.length} pending TTS texts`)
         const pendingTexts = this.pendingIOSTexts
         this.pendingIOSTexts = []
         
@@ -702,58 +700,84 @@ export default class extends Controller {
       
       return true
     } catch (error) {
-      console.error('❌ iOS audio unlock failed completely:', error)
       return false
     }
   }
 
   isIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-           (navigator.userAgent.includes('Mac') && 'ontouchend' in document)
+    // Enhanced iOS detection for better reliability
+    const userAgent = navigator.userAgent.toLowerCase()
+    const isIOSDevice = /ipad|iphone|ipod/.test(userAgent)
+    const isMacWithTouch = userAgent.includes('mac') && 'ontouchend' in document
+    const isIOSWebKit = /webkit/.test(userAgent) && /mobile/.test(userAgent)
+    
+    return isIOSDevice || isMacWithTouch || isIOSWebKit
   }
 
   showIOSPrompt() {
+    // Prevent duplicate prompts
     if (document.getElementById('ios-audio-prompt')) {
+      return
+    }
+    
+    // Double check we're on iOS and audio isn't unlocked
+    if (!this.isIOS() || window.__audioUnlocked) {
       return
     }
     
     const prompt = document.createElement('div')
     prompt.id = 'ios-audio-prompt'
+    
+    // Enhanced styling for maximum visibility on iOS
     prompt.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #FF6B35;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      z-index: 999999;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-      cursor: pointer;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: rgba(0,0,0,0.2);
-      animation: slideDown 0.3s ease-out;
+      position: fixed !important;
+      top: 20px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      background: #FF6B35 !important;
+      color: white !important;
+      padding: 16px 24px !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+      z-index: 999999 !important;
+      font-family: -apple-system, system-ui, sans-serif !important;
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -webkit-tap-highlight-color: rgba(255,255,255,0.3) !important;
+      border: 2px solid rgba(255,255,255,0.3) !important;
+      min-width: 280px !important;
+      text-align: center !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      display: block !important;
     `
-    prompt.textContent = '🎵 Tap here to enable audio for speech'
+    
+    prompt.textContent = '🎵 Tap to Enable Audio'
     
     // Add CSS animation if not already present
     if (!document.getElementById('ios-audio-styles')) {
       const styles = document.createElement('style')
       styles.id = 'ios-audio-styles'
       styles.textContent = `
-        @keyframes slideDown {
-          from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
-          to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        @keyframes iosSlideDown {
+          from { 
+            transform: translateX(-50%) translateY(-100%) !important; 
+            opacity: 0 !important; 
+          }
+          to { 
+            transform: translateX(-50%) translateY(0) !important; 
+            opacity: 1 !important; 
+          }
         }
-        #ios-audio-prompt:hover {
-          background: #E55A2B !important;
+        #ios-audio-prompt {
+          animation: iosSlideDown 0.4s ease-out !important;
         }
         #ios-audio-prompt:active {
-          transform: translateX(-50%) scale(0.98) !important;
+          transform: translateX(-50%) scale(0.96) !important;
+          background: #E55A2B !important;
         }
       `
       document.head.appendChild(styles)
@@ -765,32 +789,38 @@ export default class extends Controller {
       e.stopPropagation()
       
       prompt.style.background = '#4CAF50'
-      prompt.textContent = '🔄 Unlocking audio...'
+      prompt.textContent = '🔄 Enabling Audio...'
       
       const unlocked = await this.unlockIOSAudio()
       if (unlocked) {
         prompt.style.background = '#4CAF50'
-        prompt.textContent = '✅ Audio enabled!'
+        prompt.textContent = '✅ Audio Ready!'
         setTimeout(() => {
           this.hideIOSPrompt()
-        }, 1000)
+        }, 1500)
       } else {
         prompt.style.background = '#FF6B35'
-        prompt.textContent = '❌ Please try again'
+        prompt.textContent = '❌ Try Again'
         setTimeout(() => {
-          prompt.textContent = '🎵 Tap here to enable audio for speech'
+          prompt.textContent = '🎵 Tap to Enable Audio'
+          prompt.style.background = '#FF6B35'
         }, 2000)
       }
     }
     
-    // Add multiple event types for better compatibility
-    prompt.addEventListener('click', unlockHandler)
-    prompt.addEventListener('touchend', unlockHandler)
+    // Add multiple event types for iOS compatibility
+    prompt.addEventListener('click', unlockHandler, { passive: false })
+    prompt.addEventListener('touchend', unlockHandler, { passive: false })
     prompt.addEventListener('touchstart', (e) => {
       e.preventDefault()
-    })
+      prompt.style.transform = 'translateX(-50%) scale(0.96)'
+    }, { passive: false })
     
+    // Ensure it's added to the body and visible
     document.body.appendChild(prompt)
+    
+    // Force a reflow to ensure it's rendered
+    prompt.offsetHeight
   }
 
   hideIOSPrompt() {
