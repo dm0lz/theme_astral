@@ -556,7 +556,12 @@ export default class extends Controller {
       }
       
       utterance.onerror = (event) => {
-        reject(new Error(`Speech synthesis failed: ${event.error}`))
+        // Handle "interrupted" error gracefully - this is expected when user stops speech
+        if (event.error === 'interrupted') {
+          resolve() // Treat interruption as successful completion
+        } else {
+          reject(new Error(`Speech synthesis failed: ${event.error}`))
+        }
       }
 
       speechSynthesis.speak(utterance)
@@ -707,7 +712,10 @@ export default class extends Controller {
       }
 
     } catch (error) {
-      console.error('TTS playback error:', error.message)
+      // Don't log "interrupted" errors as they are expected when user stops speech
+      if (!error.message.includes('interrupted')) {
+        console.error('TTS playbook error:', error.message)
+      }
       // Clear markers on error
       this.currentlyPlayingKey = null
       window.CurrentlyPlayingTTSKey = null
