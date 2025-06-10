@@ -308,13 +308,31 @@ export default class extends Controller {
       return
     }
     
-    // Check iOS audio unlock status
-    if (this.isIOS() && !window.__audioUnlocked) {
-      // Show prompt and queue the text for later
-      this.showIOSPrompt()
-      this.pendingIOSTexts = this.pendingIOSTexts || []
-      this.pendingIOSTexts.push({ text, messageId })
-      return
+    // Enhanced iOS check - be more aggressive about preventing requests
+    if (this.isIOS()) {
+      console.log('iOS detected, checking audio unlock status:', window.__audioUnlocked)
+      
+      if (!window.__audioUnlocked) {
+        console.log('iOS audio not unlocked, queuing text and showing prompt')
+        // Show prompt and queue the text for later
+        this.showIOSPrompt()
+        this.pendingIOSTexts = this.pendingIOSTexts || []
+        this.pendingIOSTexts.push({ text, messageId })
+        return
+      }
+      
+      // Double-check AudioContext state on iOS
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        console.log('iOS AudioContext suspended, attempting resume')
+        this.audioContext.resume().catch(() => {})
+        // Still queue the text to be safe
+        this.pendingIOSTexts = this.pendingIOSTexts || []
+        this.pendingIOSTexts.push({ text, messageId })
+        this.showIOSPrompt()
+        return
+      }
+      
+      console.log('iOS audio appears unlocked, proceeding with TTS')
     }
     
     const key = this.normalizeText(text)
@@ -587,6 +605,8 @@ export default class extends Controller {
 
   async fetchAudioBlob(text) {
     try {
+      console.log('TTS: Making request for text length:', text.length)
+      
       const response = await fetch('/tts/speak', {
         method: 'POST',
         headers: {
@@ -595,12 +615,17 @@ export default class extends Controller {
         },
         body: JSON.stringify({ text }),
         // Add timeout to prevent hanging on frontend too
-        signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined // 20 second timeout
+        signal: AbortSignal.timeout ? AbortSignal.timeout(35000) : undefined // 35 second timeout
       })
       
       if (!response.ok) {
-        if (response.status === 503) {
-          throw new Error('TTS service temporarily unavailable. Please try again.')
+        const errorData = await response.json().catch(() => ({}))
+        console.log('TTS: Server error response:', response.status, errorData)
+        
+        if (response.status === 408 || response.status === 504) {
+          throw new Error('TTS request timed out. Please wait and try again.')
+        } else if (response.status === 503) {
+          throw new Error('TTS service busy. Please wait a moment and try again.')
         } else if (response.status >= 500) {
           throw new Error('TTS server error. Please try again later.')
         } else {
@@ -608,8 +633,11 @@ export default class extends Controller {
         }
       }
       
+      console.log('TTS: Successfully received audio blob')
       return await response.blob()
     } catch (error) {
+      console.error('TTS: Request failed:', error.name, error.message)
+      
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
         throw new Error('TTS request timed out. Please try again.')
       }
@@ -714,61 +742,72 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
-    // Much faster timeout
-    const timeoutPromise = new Promise((resolve) => {
-      setTimeout(() => resolve(true), 1000) // Always succeed after 1 second
-    })
-    
-    const unlockPromise = this.performIOSUnlock()
-    
-    try {
-      await Promise.race([unlockPromise, timeoutPromise])
-      return true
-    } catch (error) {
-      return true // Always succeed
-    }
-  }
-  
-  async performIOSUnlock() {
     // Very simple unlock - just the user gesture is usually enough
     try {
+      console.log('Starting iOS audio unlock process...')
+      
+      // Small delay to ensure "Enabling Audio..." is visible
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Try AudioContext unlock
       const AudioContext = window.AudioContext || window.webkitAudioContext
-      if (AudioContext && !this.audioContext) {
-        this.audioContext = new AudioContext()
+      if (AudioContext) {
+        if (!this.audioContext) {
+          console.log('Creating new AudioContext...')
+          this.audioContext = new AudioContext()
+        }
+        
         if (this.audioContext.state === 'suspended') {
-          this.audioContext.resume().catch(() => {}) // Don't wait for this
+          console.log('AudioContext suspended, attempting resume...')
+          await this.audioContext.resume()
+          console.log('AudioContext state after resume:', this.audioContext.state)
         }
       }
       
-      // Try simple audio play but don't wait for it
+      // Try simple audio play and wait for it to succeed
+      console.log('Testing audio playback...')
       const audio = new Audio()
       audio.volume = 0.01
       audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
-      audio.play().catch(() => {}) // Don't wait for this
       
-      // The user gesture itself is the unlock
-      window.__audioUnlocked = true
-      this.hideIOSPrompt()
-      
-      // Process pending texts with delay
-      if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-        const pendingTexts = this.pendingIOSTexts
-        this.pendingIOSTexts = []
-        
-        setTimeout(() => {
-          pendingTexts.forEach(({ text, messageId }) => {
-            this.enqueue(text, messageId)
-          })
-        }, 100)
+      try {
+        await audio.play()
+        console.log('Audio playback test successful')
+      } catch (playError) {
+        console.log('Audio playback test failed:', playError.message)
+        // Don't fail the unlock for this
       }
       
-      return true
+      // Verify that we have a working audio context
+      const audioWorking = this.audioContext && this.audioContext.state === 'running'
+      console.log('Audio context working:', audioWorking)
+      
+      if (audioWorking) {
+        // The user gesture and audio test worked
+        window.__audioUnlocked = true
+        console.log('iOS audio unlock successful')
+        
+        // Process pending texts with delay
+        if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+          console.log('Processing', this.pendingIOSTexts.length, 'pending texts')
+          const pendingTexts = this.pendingIOSTexts
+          this.pendingIOSTexts = []
+          
+          setTimeout(() => {
+            pendingTexts.forEach(({ text, messageId }) => {
+              this.enqueue(text, messageId)
+            })
+          }, 100)
+        }
+        
+        return true
+      } else {
+        console.log('iOS audio unlock failed - audio context not working')
+        return false
+      }
     } catch (error) {
-      // Even on error, consider unlocked
-      window.__audioUnlocked = true
-      this.hideIOSPrompt()
-      return true
+      console.log('iOS audio unlock error:', error.message)
+      return false
     }
   }
 
@@ -779,7 +818,34 @@ export default class extends Controller {
     const isMacWithTouch = userAgent.includes('mac') && 'ontouchend' in document
     const isIOSWebKit = /webkit/.test(userAgent) && /mobile/.test(userAgent)
     
-    return isIOSDevice || isMacWithTouch || isIOSWebKit
+    // Additional iOS indicators
+    const hasIOSVendor = /apple/.test(navigator.vendor.toLowerCase())
+    const isIOSSafari = /safari/.test(userAgent) && /mobile/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent)
+    const isIOSChrome = /crios/.test(userAgent)
+    const isIOSFirefox = /fxios/.test(userAgent)
+    
+    // Check for iOS-specific APIs
+    const hasIOSAPIs = 'ontouchstart' in window && window.DeviceMotionEvent !== undefined
+    
+    const isIOS = isIOSDevice || isMacWithTouch || isIOSWebKit || hasIOSVendor || isIOSSafari || isIOSChrome || isIOSFirefox || hasIOSAPIs
+    
+    // Debug logging
+    if (isIOS) {
+      console.log('iOS Detection Results:', {
+        userAgent: navigator.userAgent,
+        isIOSDevice,
+        isMacWithTouch,
+        isIOSWebKit,
+        hasIOSVendor,
+        isIOSSafari,
+        isIOSChrome,
+        isIOSFirefox,
+        hasIOSAPIs,
+        finalResult: isIOS
+      })
+    }
+    
+    return isIOS
   }
 
   showIOSPrompt() {
