@@ -191,6 +191,7 @@ export default class extends Controller {
     
     this.initializeState()
     this.setupEventListeners()
+    this.setupIOSGestureCapture()
     
     // Ensure all existing TTS buttons are visible
     setTimeout(() => {
@@ -229,6 +230,10 @@ export default class extends Controller {
     
     // Audio-level deduplication
     this.currentlyPlayingKey = null
+    
+    // iOS gesture capture state
+    this.iosGestureEnabled = false
+    this.pendingTTSQueue = []
   }
 
   setupEventListeners() {
@@ -263,14 +268,95 @@ export default class extends Controller {
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
   }
 
-  // ===== CONTENT DETECTION =====
-  // Removed redundant streaming observer and content handling methods
-  // Individual TTS controllers handle their own streaming content
+  // ===== iOS GESTURE CAPTURE =====
+
+  setupIOSGestureCapture() {
+    // Check if we're on iOS
+    if (!this.isIOS()) {
+      this.iosGestureEnabled = true // Non-iOS devices don't need gesture unlock
+      return
+    }
+
+    // Try to immediately capture user gesture if one is happening
+    this.captureIOSGesture()
+    
+    // Set up global gesture listeners for iOS
+    if (!window.__iosGestureListenersSetup) {
+      const captureGesture = () => {
+        if (window.GlobalTTSInstance) {
+          window.GlobalTTSInstance.captureIOSGesture()
+        }
+      }
+      
+      // Listen for various user interaction events
+      ['click', 'touchstart', 'touchend', 'keydown'].forEach(eventType => {
+        document.addEventListener(eventType, captureGesture, { 
+          passive: true, 
+          capture: true 
+        })
+      })
+      
+      window.__iosGestureListenersSetup = true
+    }
+  }
+
+  isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+           /CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent)
+  }
+
+  captureIOSGesture() {
+    if (this.iosGestureEnabled) return
+
+    // Try to enable speech synthesis with a test utterance
+    try {
+      const testUtterance = new SpeechSynthesisUtterance('')
+      testUtterance.volume = 0
+      speechSynthesis.speak(testUtterance)
+      speechSynthesis.cancel() // Cancel immediately
+      
+      this.iosGestureEnabled = true
+      console.log('TTS: iOS gesture captured, Speech Synthesis enabled')
+      
+      // Process any pending TTS requests
+      this.processPendingTTSQueue()
+      
+    } catch (error) {
+      console.log('TTS: iOS gesture capture failed:', error)
+    }
+  }
+
+  processPendingTTSQueue() {
+    if (!this.iosGestureEnabled || this.pendingTTSQueue.length === 0) {
+      return
+    }
+
+    console.log(`TTS: Processing ${this.pendingTTSQueue.length} pending TTS requests`)
+    
+    // Process all pending requests
+    const pendingRequests = [...this.pendingTTSQueue]
+    this.pendingTTSQueue = []
+    
+    pendingRequests.forEach(({ text, messageId }) => {
+      this.enqueue(text, messageId)
+    })
+  }
 
   // ===== QUEUE MANAGEMENT =====
 
   enqueue(text, messageId = null) {
     if (!this.enabled || !text) {
+      return
+    }
+
+    // On iOS, check if we have gesture permission
+    if (this.isIOS() && !this.iosGestureEnabled) {
+      console.log('TTS: Queueing TTS request for iOS gesture unlock')
+      this.pendingTTSQueue.push({ text, messageId })
+      
+      // Show user a helpful message
+      this.showIOSGestureHelp()
       return
     }
     
@@ -299,6 +385,17 @@ export default class extends Controller {
     }
     
     this.processQueue()
+  }
+
+  showIOSGestureHelp() {
+    // Only show this message once per session
+    if (window.__iosGestureHelpShown) return
+    window.__iosGestureHelpShown = true
+
+    console.log('TTS: iOS requires user interaction before speech can play. Tap anywhere to enable.')
+    
+    // Could optionally show a toast or other UI element here
+    // For now, just log to console as most users will naturally interact with the page
   }
 
   isAlreadyProcessed(key) {
@@ -505,6 +602,9 @@ export default class extends Controller {
     // Clear currently playing markers
     this.currentlyPlayingKey = null
     window.CurrentlyPlayingTTSKey = null
+    
+    // Clear pending queue for iOS
+    this.pendingTTSQueue = []
     
     window.GlobalTTSManager.clearActiveMessage()
   }
