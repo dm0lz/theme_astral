@@ -401,14 +401,32 @@ export default class extends Controller {
     this.currentMessageId = messageId
     window.GlobalTTSManager.setActiveMessage(messageId)
 
-    // iOS autoplay workaround: start a silent audio right away within user gesture
-    try {
-      if (!this.audio) {
+    // iOS-specific audio initialization
+    if (this.isIOS() && !this.audio) {
+      try {
+        // Create a properly configured audio element for iOS
+        this.audio = new Audio()
+        this.audio.preload = 'auto'
+        this.audio.playsInline = true
+        this.audio.controls = false
+        this.audio.muted = false
+        this.audio.volume = 1.0
+        this.audio.setAttribute('playsinline', 'true')
+        this.audio.setAttribute('webkit-playsinline', 'true')
+        
+        // Set a silent audio source to prepare the element
         const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
-        this.audio = new Audio(silentSrc)
-        this.audio.play().catch(()=>{})
+        this.audio.src = silentSrc
+        
+        // Attempt to load and play silently to prepare for real audio
+        this.audio.load()
+        this.audio.play().catch(() => {
+          // If silent play fails, we'll handle it during actual playback
+        })
+      } catch(e) {
+        // Fallback - will create audio elements as needed
       }
-    } catch(e){}
+    }
   }
 
   async processQueue() {
@@ -461,7 +479,7 @@ export default class extends Controller {
       const blob = await this.getAudioBlob(text, key)
       const audio = this.createAudioElement(blob)
       
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         const cleanup = () => {
           URL.revokeObjectURL(audio.src)
           // Clear the currently playing markers
@@ -470,12 +488,52 @@ export default class extends Controller {
           resolve()
         }
         
+        const handleError = (error) => {
+          URL.revokeObjectURL(audio.src)
+          this.currentlyPlayingKey = null
+          window.CurrentlyPlayingTTSKey = null
+          reject(error)
+        }
+        
+        // Set up event handlers
         audio.onended = cleanup
-        audio.onerror = cleanup
-        audio.play().then(()=>{
-          const btn=window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId);
-          if(btn) window.GlobalTTSManager.setStopState(btn);
-        }).catch(cleanup)
+        audio.onerror = (e) => handleError(new Error('Audio playback failed'))
+        audio.oncanplay = () => {
+          // iOS-specific: ensure we can play before attempting
+          if (this.isIOS() && audio.readyState < 3) {
+            return // Wait for more data
+          }
+        }
+        
+        // Attempt to play with iOS-specific handling
+        const playPromise = audio.play()
+        
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
+            if (btn) window.GlobalTTSManager.setStopState(btn)
+          }).catch((error) => {
+            // iOS playback failed - try to re-unlock audio
+            if (this.isIOS()) {
+              this.unlockIOSAudio().then(() => {
+                // Retry playback once
+                const retryPromise = audio.play()
+                if (retryPromise) {
+                  retryPromise.then(() => {
+                    const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
+                    if (btn) window.GlobalTTSManager.setStopState(btn)
+                  }).catch(handleError)
+                }
+              }).catch(handleError)
+            } else {
+              handleError(error)
+            }
+          })
+        } else {
+          // Older browsers - no promise returned
+          const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
+          if (btn) window.GlobalTTSManager.setStopState(btn)
+        }
       })
     } catch (error) {
       // Clear markers on error
@@ -494,13 +552,35 @@ export default class extends Controller {
 
   createAudioElement(blob) {
     const url = URL.createObjectURL(blob)
-    if (!this.audio) {
-      this.audio = new Audio()
-    } else {
-      this.audio.pause()
+    
+    // Create fresh audio element for iOS compatibility
+    const audio = new Audio()
+    
+    // iOS-specific audio configuration
+    if (this.isIOS()) {
+      audio.preload = 'auto'
+      audio.playsInline = true
+      audio.controls = false
+      audio.autoplay = false
+      audio.muted = false
+      audio.volume = 1.0
+      
+      // Set important attributes for iOS
+      audio.setAttribute('playsinline', 'true')
+      audio.setAttribute('webkit-playsinline', 'true')
     }
-    this.audio.src = url
-    return this.audio
+    
+    audio.src = url
+    
+    // Store reference but don't reuse on iOS
+    if (!this.isIOS()) {
+      if (this.audio) {
+        this.audio.pause()
+      }
+      this.audio = audio
+    }
+    
+    return audio
   }
 
   // ===== API COMMUNICATION =====
@@ -636,24 +716,34 @@ export default class extends Controller {
         }
       }
       
-      // Strategy 2: Multiple audio unlock attempts
+      // Strategy 2: Create and play a test audio element to unlock HTML5 audio
+      const testAudio = new Audio()
+      testAudio.preload = 'auto'
+      testAudio.playsInline = true
+      testAudio.controls = false
+      testAudio.muted = false
+      testAudio.volume = 0.1
+      testAudio.setAttribute('playsinline', 'true')
+      testAudio.setAttribute('webkit-playsinline', 'true')
+      
+      // Strategy 3: Multiple audio unlock attempts with different formats
       const unlockAttempts = [
-        // Attempt 1: Very short beep
+        // Attempt 1: Very short WAV beep
         () => {
-          const audio = new Audio()
-          audio.volume = 0.1
-          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
-          return audio.play()
+          testAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
+          return testAudio.play()
         },
-        // Attempt 2: Different audio format
+        // Attempt 2: MP3 data
         () => {
-          const audio = new Audio()
-          audio.volume = 0.05
-          const audioData = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
-          audio.src = audioData
-          return audio.play()
+          testAudio.src = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
+          return testAudio.play()
         },
-        // Attempt 3: Oscillator (Web Audio API)
+        // Attempt 3: Different WAV format
+        () => {
+          testAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+          return testAudio.play()
+        },
+        // Attempt 4: Oscillator (Web Audio API)
         () => {
           if (this.audioContext) {
             const oscillator = this.audioContext.createOscillator()
@@ -671,16 +761,23 @@ export default class extends Controller {
       ]
       
       // Try each unlock method
+      let unlockSuccessful = false
       for (let i = 0; i < unlockAttempts.length; i++) {
         try {
           await unlockAttempts[i]()
+          unlockSuccessful = true
           break
         } catch (error) {
-          if (i === unlockAttempts.length - 1) {
-            throw new Error('All unlock methods failed')
-          }
+          // Continue to next method
         }
       }
+      
+      if (!unlockSuccessful) {
+        throw new Error('All unlock methods failed')
+      }
+      
+      // Wait a moment for the unlock to take effect
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       window.__audioUnlocked = true
       
