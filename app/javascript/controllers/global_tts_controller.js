@@ -455,6 +455,99 @@ export default class extends Controller {
 
   // ===== AUDIO PLAYBACK =====
 
+  splitTextIntoChunks(text, maxLength = 200) {
+    // Split text into sentences, including those that don't end with punctuation
+    const sentences = []
+    
+    // First, split by sentence-ending punctuation
+    const parts = text.split(/([.!?]+)/)
+    let currentSentence = ''
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim()
+      if (!part) continue
+      
+      if (/^[.!?]+$/.test(part)) {
+        // This is punctuation, add it to current sentence
+        currentSentence += part
+        if (currentSentence.trim()) {
+          sentences.push(currentSentence.trim())
+        }
+        currentSentence = ''
+      } else {
+        // This is text content
+        currentSentence += part
+        
+        // If this is the last part and we have content, it's the final sentence
+        if (i === parts.length - 1 && currentSentence.trim()) {
+          sentences.push(currentSentence.trim())
+        }
+      }
+    }
+    
+    // If we didn't find any sentences with the split method, treat entire text as one sentence
+    if (sentences.length === 0 && text.trim()) {
+      sentences.push(text.trim())
+    }
+    
+    console.log('TTS: Found sentences:', sentences)
+    
+    // Now chunk the sentences
+    const chunks = []
+    let currentChunk = ''
+
+    for (const sentence of sentences) {
+      if (!sentence) continue
+
+      // If adding this sentence would exceed maxLength, save current chunk and start new one
+      if (currentChunk.length + sentence.length > maxLength && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim())
+        currentChunk = sentence
+      } else {
+        currentChunk += (currentChunk ? ' ' : '') + sentence
+      }
+    }
+
+    // Add the last chunk if it's not empty
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim())
+    }
+
+    console.log('TTS: Created chunks:', chunks)
+    return chunks.length > 0 ? chunks : [text.trim()]
+  }
+
+  async speakChunk(chunk, voice, chunkIndex, totalChunks) {
+    return new Promise((resolve, reject) => {
+      const utterance = new SpeechSynthesisUtterance(chunk)
+      
+      // Configure voice settings
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+      utterance.volume = 1.0
+      
+      if (voice) {
+        utterance.voice = voice
+      }
+
+      utterance.onstart = () => {
+        console.log(`TTS: Speaking chunk ${chunkIndex + 1}/${totalChunks}`)
+      }
+
+      utterance.onend = () => {
+        console.log(`TTS: Finished chunk ${chunkIndex + 1}/${totalChunks}`)
+        resolve()
+      }
+
+      utterance.onerror = (event) => {
+        console.error(`TTS: Error in chunk ${chunkIndex + 1}:`, event.error)
+        reject(new Error(`Speech synthesis failed: ${event.error}`))
+      }
+
+      speechSynthesis.speak(utterance)
+    })
+  }
+
   async getAvailableVoices() {
     return new Promise((resolve) => {
       let voices = speechSynthesis.getVoices()
@@ -530,11 +623,13 @@ export default class extends Controller {
   async playAudio(text, key) {
     // Final deduplication check - prevent the same audio from playing simultaneously
     if (this.currentlyPlayingKey === key) {
+      console.log('TTS: Already playing this content, skipping')
       return
     }
     
     // Check if any audio is currently playing the same content
     if (window.CurrentlyPlayingTTSKey === key) {
+      console.log('TTS: Content already playing globally, skipping')
       return
     }
     
@@ -545,69 +640,65 @@ export default class extends Controller {
     try {
       console.log('TTS: Starting speech synthesis for text:', text.substring(0, 50) + '...')
       
-      return new Promise(async (resolve, reject) => {
-        // Check browser support
-        if (!('speechSynthesis' in window)) {
-          reject(new Error('Speech synthesis not supported'))
-          return
+      // Check browser support
+      if (!('speechSynthesis' in window)) {
+        throw new Error('Speech synthesis not supported')
+      }
+
+      // iOS-specific handling with debugging
+      if (this.isIOS()) {
+        console.log('TTS: iOS detected, audio unlock status:', window.__audioUnlocked)
+        if (!window.__audioUnlocked) {
+          throw new Error('Audio not unlocked on iOS')
+        }
+      }
+
+      // Select the best available voice
+      console.log('TTS: Selecting voice...')
+      const selectedVoice = await this.selectBestVoice()
+      console.log('TTS: Voice selected:', selectedVoice?.name || 'default')
+      
+      // Split text into manageable chunks
+      const chunks = this.splitTextIntoChunks(text)
+      console.log(`TTS: Split text into ${chunks.length} chunks`)
+
+      // Update button to show it's starting
+      const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
+      if (btn) {
+        console.log('TTS: Setting button to stop state')
+        window.GlobalTTSManager.setStopState(btn)
+      }
+
+      // Speak each chunk sequentially
+      for (let i = 0; i < chunks.length; i++) {
+        // Check if we should stop (user clicked stop or speech was cancelled)
+        if (this.currentlyPlayingKey !== key) {
+          console.log('TTS: Speech was cancelled, stopping')
+          break
         }
 
-        const utterance = new SpeechSynthesisUtterance(text)
+        console.log(`TTS: Starting chunk ${i + 1}/${chunks.length}`)
+        await this.speakChunk(chunks[i], selectedVoice, i, chunks.length)
         
-        // Configure voice settings
-        utterance.rate = 1.0
-        utterance.pitch = 1.0
-        utterance.volume = 1.0
-        
-        // Select the best available voice
-        const selectedVoice = await this.selectBestVoice()
-        if (selectedVoice) {
-          utterance.voice = selectedVoice
+        // Small delay between chunks to prevent issues
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100))
         }
+      }
 
-        const cleanup = () => {
-          // Clear the currently playing markers
-          this.currentlyPlayingKey = null
-          window.CurrentlyPlayingTTSKey = null
-          resolve()
-        }
-        
-        const handleError = (error) => {
-          this.currentlyPlayingKey = null
-          window.CurrentlyPlayingTTSKey = null
-          reject(error)
-        }
+      console.log('TTS: Completed all chunks successfully')
 
-        utterance.onstart = () => {
-          console.log('TTS: Speech synthesis started')
-          const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
-          if (btn) window.GlobalTTSManager.setStopState(btn)
-        }
-
-        utterance.onend = () => {
-          console.log('TTS: Speech synthesis ended')
-          cleanup()
-        }
-
-        utterance.onerror = (event) => {
-          console.error('TTS: Speech synthesis error:', event.error)
-          handleError(new Error(`Speech synthesis failed: ${event.error}`))
-        }
-
-        // iOS-specific handling
-        if (this.isIOS() && !window.__audioUnlocked) {
-          handleError(new Error('Audio not unlocked on iOS'))
-          return
-        }
-
-        // Start speech synthesis
-        speechSynthesis.speak(utterance)
-      })
     } catch (error) {
+      console.error('TTS playback error:', error.message)
       // Clear markers on error
       this.currentlyPlayingKey = null
       window.CurrentlyPlayingTTSKey = null
       throw error
+    } finally {
+      // Clear markers on completion
+      this.currentlyPlayingKey = null
+      window.CurrentlyPlayingTTSKey = null
+      console.log('TTS: Playback finished, cleared markers')
     }
   }
 
