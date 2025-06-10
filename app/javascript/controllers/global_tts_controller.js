@@ -345,17 +345,14 @@ export default class extends Controller {
     
     // Enhanced iOS check - be more aggressive about preventing requests
     if (this.isIOS()) {
-      console.log('iOS detected, checking audio unlock status:', window.__audioUnlocked)
       
       if (!window.__audioUnlocked) {
-        console.log('iOS audio not unlocked, queuing text for later')
         // Queue the text for later without showing prompt
         this.pendingIOSTexts = this.pendingIOSTexts || []
         this.pendingIOSTexts.push({ text, messageId })
         return
       }
       
-      console.log('iOS audio appears unlocked, proceeding with TTS')
     }
     
     const key = this.normalizeText(text)
@@ -512,8 +509,6 @@ export default class extends Controller {
       sentences.push(cleanedText.trim())
     }
     
-    console.log('TTS: Found sentences:', sentences)
-    
     // Now chunk the sentences
     const chunks = []
     let currentChunk = ''
@@ -535,7 +530,6 @@ export default class extends Controller {
       chunks.push(currentChunk.trim())
     }
 
-    console.log('TTS: Created chunks:', chunks)
     return chunks.length > 0 ? chunks : [cleanedText.trim()]
   }
 
@@ -555,16 +549,13 @@ export default class extends Controller {
       }
 
       utterance.onstart = () => {
-        console.log(`TTS: Speaking chunk ${chunkIndex + 1}/${totalChunks}`)
       }
 
       utterance.onend = () => {
-        console.log(`TTS: Finished chunk ${chunkIndex + 1}/${totalChunks}`)
         resolve()
       }
       
       utterance.onerror = (event) => {
-        console.error(`TTS: Error in chunk ${chunkIndex + 1}:`, event.error)
         reject(new Error(`Speech synthesis failed: ${event.error}`))
       }
 
@@ -604,7 +595,6 @@ export default class extends Controller {
     let voices = await this.getAvailableVoices()
     
     if (voices.length === 0) {
-      console.log('No voices available')
       return null
     }
     
@@ -613,10 +603,8 @@ export default class extends Controller {
     if (selectedVoiceName) {
       const storedVoice = voices.find(voice => voice.name === selectedVoiceName)
       if (storedVoice) {
-        console.log('Using stored voice preference:', storedVoice.name, storedVoice.lang)
         return storedVoice
     } else {
-        console.log('Stored voice not available:', selectedVoiceName)
         // Clear invalid stored voice
         localStorage.removeItem('ttsSelectedVoice')
       }
@@ -635,7 +623,6 @@ export default class extends Controller {
       
     if (countryVoices.length > 0) {
       voices = countryVoices
-      console.log(`Found ${voices.length} voices matching browser country ${browserCountry} : ${voices.map(v => v.name).join(', ')}`)
     }
 
     // select siri voice specifically from country voices
@@ -643,7 +630,6 @@ export default class extends Controller {
       voice.name.toLowerCase().includes("siri")
     )
     if (siriVoice) {
-      console.log('Found siri voice:', siriVoice.name, siriVoice.lang)
     }
     
     // Check for google voice specifically
@@ -651,9 +637,7 @@ export default class extends Controller {
       voice.name.toLowerCase().includes("google")
     )
     if (googleVoice) {
-      console.log('Found google voice:', googleVoice.name, googleVoice.lang)
     } else {
-      console.log('No google voice found. Available voice names:', voices.map(v => v.name))
     }
     
     // Prefer siri voice FIRST, then google voice, then language-based fallbacks
@@ -663,20 +647,17 @@ export default class extends Controller {
       voice.default
     ) || voices[0]
     
-    console.log('Selected voice:', preferredVoice.name, preferredVoice.lang)
     return preferredVoice
   }
 
   async playAudio(text, key) {
     // Final deduplication check - prevent the same audio from playing simultaneously
     if (this.currentlyPlayingKey === key) {
-      console.log('TTS: Already playing this content, skipping')
       return
     }
     
     // Check if any audio is currently playing the same content
     if (window.CurrentlyPlayingTTSKey === key) {
-      console.log('TTS: Content already playing globally, skipping')
       return
     }
     
@@ -685,7 +666,6 @@ export default class extends Controller {
     window.CurrentlyPlayingTTSKey = key
     
     try {
-      console.log('TTS: Starting speech synthesis for text:', text.substring(0, 50) + '...')
       
       // Check browser support
       if (!('speechSynthesis' in window)) {
@@ -694,25 +674,20 @@ export default class extends Controller {
 
       // iOS-specific handling with debugging
       if (this.isIOS()) {
-        console.log('TTS: iOS detected, audio unlock status:', window.__audioUnlocked)
         if (!window.__audioUnlocked) {
           throw new Error('Audio not unlocked on iOS')
         }
       }
 
       // Select the best available voice
-      console.log('TTS: Selecting voice...')
       const selectedVoice = await this.selectBestVoice()
-      console.log('TTS: Voice selected:', selectedVoice?.name || 'default')
       
       // Split text into manageable chunks
       const chunks = this.splitTextIntoChunks(text)
-      console.log(`TTS: Split text into ${chunks.length} chunks`)
 
       // Update button to show it's starting
       const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
       if (btn) {
-        console.log('TTS: Setting button to stop state')
         window.GlobalTTSManager.setStopState(btn)
       }
 
@@ -720,11 +695,9 @@ export default class extends Controller {
       for (let i = 0; i < chunks.length; i++) {
         // Check if we should stop (user clicked stop or speech was cancelled)
         if (this.currentlyPlayingKey !== key) {
-          console.log('TTS: Speech was cancelled, stopping')
           break
         }
 
-        console.log(`TTS: Starting chunk ${i + 1}/${chunks.length}`)
         await this.speakChunk(chunks[i], selectedVoice, i, chunks.length)
         
         // Small delay between chunks to prevent issues
@@ -732,8 +705,6 @@ export default class extends Controller {
           await new Promise(resolve => setTimeout(resolve, 100))
         }
       }
-
-      console.log('TTS: Completed all chunks successfully')
 
     } catch (error) {
       console.error('TTS playback error:', error.message)
@@ -745,7 +716,6 @@ export default class extends Controller {
       // Clear markers on completion
       this.currentlyPlayingKey = null
       window.CurrentlyPlayingTTSKey = null
-      console.log('TTS: Playback finished, cleared markers')
     }
   }
 
@@ -770,7 +740,6 @@ export default class extends Controller {
     // Stop speech synthesis
     if ('speechSynthesis' in window) {
       speechSynthesis.cancel()
-      console.log('TTS: Speech synthesis cancelled')
     }
     
     // Legacy audio cleanup (if any)
@@ -856,7 +825,6 @@ export default class extends Controller {
     if (window.__audioUnlocked) return true
     
     try {
-      console.log('Starting iOS audio unlock for Speech Synthesis...')
       
       // Small delay to ensure "Enabling Audio..." is visible
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -864,7 +832,6 @@ export default class extends Controller {
       // For Speech Synthesis, we mainly need user gesture
       // Test if speechSynthesis works
       if ('speechSynthesis' in window) {
-        console.log('Speech Synthesis available')
         
         // Try to speak a silent utterance to unlock
         const testUtterance = new SpeechSynthesisUtterance('')
@@ -874,12 +841,10 @@ export default class extends Controller {
         // Wait a moment for the test
         await new Promise(resolve => setTimeout(resolve, 100))
         
-        console.log('Speech Synthesis test completed')
         window.__audioUnlocked = true
         
         // Process pending texts
         if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-          console.log('Processing', this.pendingIOSTexts.length, 'pending texts')
           const pendingTexts = this.pendingIOSTexts
           this.pendingIOSTexts = []
           
@@ -892,11 +857,9 @@ export default class extends Controller {
         
         return true
       } else {
-        console.log('Speech Synthesis not available')
         return false
       }
     } catch (error) {
-      console.log('iOS audio unlock error:', error.message)
       // For Speech Synthesis, even errors can indicate unlock worked
       window.__audioUnlocked = true
       return true
@@ -960,9 +923,7 @@ export default class extends Controller {
       
       if (countryVoices.length > 0) {
         voices = countryVoices
-        console.log(`Filtering to ${voices.length} voices from country ${browserCountry}`)
       } else {
-        console.log(`No voices found for country ${browserCountry}, showing all voices`)
       }
     }
 
@@ -1259,7 +1220,6 @@ export default class extends Controller {
 
   selectVoice(voiceName) {
     localStorage.setItem('ttsSelectedVoice', voiceName)
-    console.log('Selected voice:', voiceName)
   }
 
   getSelectedVoiceName() {
@@ -1315,17 +1275,14 @@ export default class extends Controller {
       if (clearButton) {
         // Insert right after the clear button
         clearButton.parentNode.insertBefore(button, clearButton.nextSibling)
-        console.log('Placed voice selector button after clear button and applied matching styles')
       } else {
         // Add to the end of the container
         targetContainer.appendChild(button)
-        console.log('Added voice selector button to container')
       }
     } else {
       // Fallback: add to body with fixed positioning
       button.classList.add('fixed', 'top-5', 'right-5', 'z-50')
       document.body.appendChild(button)
-      console.log('Added voice selector button with fixed positioning')
     }
   }
 
@@ -1345,7 +1302,6 @@ export default class extends Controller {
     for (const selector of selectors) {
       const clearButton = container.querySelector(selector)
       if (clearButton) {
-        console.log('Found clear button with selector:', selector)
         return clearButton
       }
     }
@@ -1354,12 +1310,10 @@ export default class extends Controller {
     const allButtons = container.querySelectorAll('button')
     for (const button of allButtons) {
       if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
-        console.log('Found clear button by text content:', button.textContent.trim())
         return button
       }
     }
     
-    console.log('No clear button found in container')
     return null
   }
 
@@ -1368,7 +1322,6 @@ export default class extends Controller {
     const clearButton = this.findClearButtonGlobally()
     
     if (clearButton) {
-      console.log('Styling clear button:', clearButton)
       
       // Remove existing classes that might conflict
       clearButton.removeAttribute('class')
@@ -1383,9 +1336,6 @@ export default class extends Controller {
         clearButton.innerHTML = `<span class="font-normal text-sm">${originalText}</span>`
       }
       
-      console.log('Applied classes to clear button:', clearButton.className)
-    } else {
-      console.log('Clear button not found for styling')
     }
   }
 
@@ -1436,7 +1386,6 @@ export default class extends Controller {
     for (const selector of clearChatSelectors) {
       const clearButton = document.querySelector(selector)
       if (clearButton) {
-        console.log('Found clear chat button, placing voice selector next to it')
         return clearButton.parentElement
       }
     }
@@ -1445,7 +1394,6 @@ export default class extends Controller {
     const allButtons = document.querySelectorAll('button')
     for (const button of allButtons) {
       if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
-        console.log('Found clear button by text content, placing voice selector next to it')
         return button.parentElement
       }
     }
@@ -1465,7 +1413,6 @@ export default class extends Controller {
     for (const selector of buttonContainerSelectors) {
       const container = document.querySelector(selector)
       if (container && container.querySelector('button')) {
-        console.log('Found button container:', selector)
         return container
       }
     }
@@ -1484,12 +1431,10 @@ export default class extends Controller {
     for (const selector of generalContainers) {
       const container = document.querySelector(selector)
       if (container) {
-        console.log('Found general container:', selector)
         return container
       }
     }
 
-    console.log('No suitable container found, will use fixed positioning')
     return null
   }
 } 
