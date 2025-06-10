@@ -41,5 +41,10 @@ Rails.application.routes.draw do
   get "/:id" => "public/seo_pages#show"
   root "public/landing_page#index"
 
-  post "tts/speak", to: "tts#speak"
+  # Chat and message related
+  post "messages", to: "messages#create"
+  
+  # Admin analytics - must be before the catch-all admin route
+  get "admin/analytics", to: "admin#analytics"
+  get "admin", to: "admin#index"
 end
