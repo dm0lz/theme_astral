@@ -542,10 +542,12 @@ export default class extends Controller {
   async speakChunk(chunk, voice, chunkIndex, totalChunks) {
     return new Promise((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(chunk)
+      const browserLang = navigator.language || navigator.userLanguage
+      utterance.lang = browserLang
       
       // Configure voice settings
       utterance.rate = 1.0
-      utterance.pitch = 1.0
+      utterance.pitch = 1.2
       utterance.volume = 1.0
       
       if (voice) {
