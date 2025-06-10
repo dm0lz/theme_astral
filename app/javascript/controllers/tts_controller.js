@@ -270,6 +270,31 @@ export default class extends Controller {
     // iOS-compatible container detection - avoid pseudo-selectors
     // Try multiple approaches for maximum compatibility
     
+    // For temp_message, specifically target the left container with avatar and Assistant text
+    if (this.element.id === 'temp_message') {
+      // Look for the container that has both the avatar (bg-indigo-500) and Assistant text
+      const avatarContainer = this.element.querySelector('.flex.items-center.space-x-1, .flex.items-center.space-x-2')
+      if (avatarContainer) {
+        // Verify this is the left container by checking for avatar
+        const hasAvatar = avatarContainer.querySelector('.bg-indigo-500, [class*="bg-indigo"]')
+        const hasAssistantText = avatarContainer.textContent && avatarContainer.textContent.includes('Assistant')
+        
+        if (hasAvatar || hasAssistantText) {
+          return avatarContainer
+        }
+      }
+      
+      // Fallback: find container with avatar specifically
+      const avatarElement = this.element.querySelector('.bg-indigo-500, [class*="bg-indigo"]')
+      if (avatarElement) {
+        const parentContainer = avatarElement.closest('.flex.items-center')
+        if (parentContainer) {
+          return parentContainer
+        }
+      }
+    }
+    
+    // For other messages, use original logic
     // First try: exact class match with space-x-2
     let container = this.element.querySelector('.flex.items-center.space-x-2')
     
@@ -277,7 +302,7 @@ export default class extends Controller {
       // Second try: any flex container with items-center
       const flexContainers = this.element.querySelectorAll('.flex.items-center')
       if (flexContainers.length > 0) {
-        // Use the last one (usually the message footer)
+        // For non-temp messages, use the last one (usually the message footer)
         container = flexContainers[flexContainers.length - 1]
       }
     }
