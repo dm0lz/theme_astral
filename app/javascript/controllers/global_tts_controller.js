@@ -191,6 +191,7 @@ export default class extends Controller {
     
     this.initializeState()
     this.setupEventListeners()
+    this.setupUserGestureCapture()
     
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
@@ -265,6 +266,43 @@ export default class extends Controller {
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
   }
 
+  setupUserGestureCapture() {
+    // Early user gesture capture for auto-play on iOS
+    if (this.isIOS() && !window.__speechUnlocked) {
+      const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
+      
+      this.userGestureHandler = () => {
+        if (!window.__speechUnlocked) {
+          // Try a silent speech synthesis to unlock auto-play
+          if ('speechSynthesis' in window) {
+            const testUtterance = new SpeechSynthesisUtterance('')
+            testUtterance.volume = 0
+            speechSynthesis.speak(testUtterance)
+            window.__speechUnlocked = true
+            console.log('TTS: User gesture captured, auto-play enabled')
+          }
+        }
+      }
+      
+      // Add listeners to capture first user interaction
+      unlockEvents.forEach(event => {
+        document.addEventListener(event, this.userGestureHandler, { 
+          once: true, 
+          passive: true,
+          capture: true 
+        })
+      })
+    }
+  }
+
+  isIOS() {
+    // Simple iOS detection
+    const userAgent = navigator.userAgent.toLowerCase()
+    return /ipad|iphone|ipod/.test(userAgent) || 
+           (userAgent.includes('mac') && 'ontouchend' in document) ||
+           (/webkit/.test(userAgent) && /mobile/.test(userAgent))
+  }
+
   // ===== CONTENT DETECTION =====
   // Removed redundant streaming observer and content handling methods
   // Individual TTS controllers handle their own streaming content
@@ -273,6 +311,12 @@ export default class extends Controller {
 
   enqueue(text, messageId = null) {
     if (!this.enabled || !text) {
+      return
+    }
+    
+    // iOS auto-play check - wait for user gesture
+    if (this.isIOS() && !window.__speechUnlocked) {
+      console.log('TTS: Waiting for user gesture on iOS for auto-play')
       return
     }
     
@@ -536,6 +580,14 @@ export default class extends Controller {
     // Legacy audio cleanup (if any)
     if (this.audio) {
       this.audio.pause()
+    }
+    
+    // Clean up user gesture handlers
+    if (this.userGestureHandler) {
+      const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
+      unlockEvents.forEach(event => {
+        document.removeEventListener(event, this.userGestureHandler, { capture: true })
+      })
     }
     
     // Clean up event listeners
