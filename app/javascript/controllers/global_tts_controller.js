@@ -168,6 +168,7 @@ export default class extends Controller {
     
     this.initializeState()
     this.setupEventListeners()
+    this.setupIOSAudioUnlock()
     
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
@@ -269,6 +270,15 @@ export default class extends Controller {
 
   enqueue(text, messageId = null) {
     if (!this.enabled || !text) {
+      return
+    }
+    
+    // Check iOS audio unlock status
+    if (this.isIOS() && !window.__audioUnlocked) {
+      // Show prompt and queue the text for later
+      this.showIOSPrompt()
+      this.pendingIOSTexts = this.pendingIOSTexts || []
+      this.pendingIOSTexts.push({ text, messageId })
       return
     }
     
@@ -527,6 +537,12 @@ export default class extends Controller {
       this.audio.pause()
     }
     
+    // Clean up iOS prompt
+    this.hideIOSPrompt()
+    
+    // Clear pending iOS texts
+    this.pendingIOSTexts = []
+    
     // Clean up event listeners
     if (window.TTSEventListenersAdded) {
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
@@ -538,6 +554,143 @@ export default class extends Controller {
       // Clear the global references
       window.TTSEventListenersAdded = false
       window.TTSEventListenerCount = Math.max(0, (window.TTSEventListenerCount || 1) - 1)
+    }
+  }
+
+  // ===== iOS AUDIO UNLOCK SYSTEM =====
+
+  setupIOSAudioUnlock() {
+    if (!this.isIOS()) return
+    
+    // Add early unlock listeners for common user interactions
+    const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
+    
+    this.earlyUnlockHandler = async () => {
+      if (!window.__audioUnlocked) {
+        await this.unlockIOSAudio()
+      }
+    }
+    
+    // Add listeners to document to catch any user interaction
+    unlockEvents.forEach(event => {
+      document.addEventListener(event, this.earlyUnlockHandler, { 
+        once: true, 
+        passive: true,
+        capture: true 
+      })
+    })
+  }
+
+  async unlockIOSAudio() {
+    if (window.__audioUnlocked) return true
+    
+    try {
+      // Create and resume AudioContext
+      const AudioContext = window.AudioContext || window.webkitAudioContext
+      if (AudioContext) {
+        if (!this.audioContext) {
+          this.audioContext = new AudioContext()
+        }
+        
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume()
+        }
+      }
+      
+      // Play silent audio to unlock HTMLAudioElement
+      const silentAudio = new Audio()
+      silentAudio.volume = 0.01 // Very low but not muted
+      silentAudio.preload = 'auto'
+      
+      // Use a proper minimal WAV file
+      const silentWav = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2W1u+8cCQGLITN8diJNwgZZ7zs45xKEgxPpePytVgeB0OZ2/C/ciUGLH/L8diJNwgZZr3t4p5LFQ1QpuPytVkeB0CY2/C+ciUGLH/L8tiJNwgZZr3t4p5LFQ1QpuP'
+      silentAudio.src = silentWav
+      
+      await silentAudio.play()
+      
+      window.__audioUnlocked = true
+      console.log('✅ iOS audio unlocked successfully')
+      
+      // Remove the iOS prompt if it exists
+      this.hideIOSPrompt()
+      
+      // Process any pending iOS texts
+      if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+        const pendingTexts = this.pendingIOSTexts
+        this.pendingIOSTexts = []
+        
+        // Process each pending text
+        pendingTexts.forEach(({ text, messageId }) => {
+          this.enqueue(text, messageId)
+        })
+      }
+      
+      return true
+    } catch (error) {
+      console.warn('⚠️ iOS audio unlock failed:', error)
+      this.showIOSPrompt()
+      return false
+    }
+  }
+
+  isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.userAgent.includes('Mac') && 'ontouchend' in document)
+  }
+
+  showIOSPrompt() {
+    if (document.getElementById('ios-audio-prompt')) return
+    
+    const prompt = document.createElement('div')
+    prompt.id = 'ios-audio-prompt'
+    prompt.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #FF6B35;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        cursor: pointer;
+        animation: slideDown 0.3s ease-out;
+      ">
+        🎵 Tap here to enable audio for speech
+      </div>
+    `
+    
+    // Add CSS animation
+    if (!document.getElementById('ios-audio-styles')) {
+      const styles = document.createElement('style')
+      styles.id = 'ios-audio-styles'
+      styles.textContent = `
+        @keyframes slideDown {
+          from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+          to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+      `
+      document.head.appendChild(styles)
+    }
+    
+    prompt.onclick = async () => {
+      const unlocked = await this.unlockIOSAudio()
+      if (unlocked) {
+        this.hideIOSPrompt()
+      }
+    }
+    
+    document.body.appendChild(prompt)
+  }
+
+  hideIOSPrompt() {
+    const prompt = document.getElementById('ios-audio-prompt')
+    if (prompt) {
+      prompt.remove()
     }
   }
 } 
