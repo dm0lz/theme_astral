@@ -1,20 +1,18 @@
 <div id="temp_message" data-controller="tts">
-  <div class="flex justify-end mb-4">
-    <div class="max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl px-4 py-3 rounded-2xl shadow-lg bg-indigo-900/60 border border-indigo-800/30 bg-amber-600/90 border border-amber-500/50 rounded-bl-none text-white">
+  <div class="flex justify-end mb-3 sm:mb-4">
+    <div class="max-w-[85%] sm:max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl px-3 sm:px-4 py-2 sm:py-3 rounded-2xl shadow-lg bg-indigo-900/60 border border-indigo-800/30 bg-indigo-600/90 border border-indigo-500/50 rounded-br-none text-white">
       <div class="hidden" id="sentence_chunks_container" data-tts-target="chunks"></div>
-      <div class="break-words overflow-wrap-anywhere leading-relaxed p-2 flex flex-wrap min-w-0 w-full" id="chunks_container" data-controller="loading">
-        <!-- chunks are inserted here by turbo stream -->
-      </div>
-      <div class="flex items-center justify-between mt-3 pt-2 border-t border-white/20 p-2">
-        <div class="flex items-center space-x-2">
-          <div class="w-6 h-6 rounded-full flex items-center justify-center bg-indigo-500">
+      <%= render "app/chat_messages/chunks_container", response: "" %>
+      <div class="flex items-center justify-between mt-2 sm:mt-3 pt-2 border-t border-white/20 p-1 sm:p-2">
+        <div class="flex items-center space-x-1 sm:space-x-2">
+          <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-indigo-500">
             <span class="text-xs font-medium text-white">AI</span>
           </div>
-          <span class="text-xs font-medium text-white/90">Assistant</span>
+          <span class="text-xs font-medium text-white/90 hidden sm:inline">Assistant</span>
         </div>
         
-        <div class="flex items-center space-x-2">
-          <div class="text-xs text-white/70 ml-2">
+        <div class="flex items-center space-x-1 sm:space-x-2">
+          <div class="text-xs text-white/70">
             <%= Time.now.strftime('%H:%M') %>
           </div>
         </div>
@@ -22,4 +20,3 @@
     </div>
   </div>
 </div>
-

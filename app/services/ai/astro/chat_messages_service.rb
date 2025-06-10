@@ -28,11 +28,11 @@ class Ai::Astro::ChatMessagesService
             )
             buffer = ""
           end
-          Turbo::StreamsChannel.broadcast_append_to(
+          Turbo::StreamsChannel.broadcast_update_to(
             "streaming_channel_#{@chat_message.user_id}",
             target: "chunks_container",
-            partial: "app/chat_messages/chunk",
-            locals: { chunk: delta }
+            partial: "app/chat_messages/chunks_container",
+            locals: { response: response }
           )
           sleep 0.05
         end
