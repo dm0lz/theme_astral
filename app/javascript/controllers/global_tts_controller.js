@@ -178,7 +178,7 @@ window.GlobalTTSManager = {
 
 /**
  * Global TTS Controller
- * Manages speech synthesis queue and audio playback using OpenAI TTS API
+ * Manages speech synthesis queue and audio playback using Speech Synthesis API
  */
 export default class extends Controller {
   connect() {
@@ -191,7 +191,12 @@ export default class extends Controller {
     
     this.initializeState()
     this.setupEventListeners()
-    this.setupUserGestureCapture()
+    this.setupIOSAudioUnlock()
+    
+    // iOS compatibility: ensure all existing TTS buttons are visible
+    setTimeout(() => {
+      this.ensureAllButtonsVisible()
+    }, 100)
     
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
@@ -220,6 +225,8 @@ export default class extends Controller {
     this.spoken = new Set()
     this.playing = false
     this.processing = false
+    this.prefetched = new Map()
+    this.prefetchQueue = new Set()
     this.currentMessageId = null // Track which message initiated current session
     this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
     window.__ttsEnabled = this.enabled
@@ -232,6 +239,10 @@ export default class extends Controller {
     
     // Audio-level deduplication
     this.currentlyPlayingKey = null
+    
+    // Frontend request queue to prevent concurrent API calls
+    this.requestQueue = []
+    this.processingRequest = false
   }
 
   setupEventListeners() {
@@ -266,46 +277,27 @@ export default class extends Controller {
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
   }
 
-  setupUserGestureCapture() {
-    // Early user gesture capture for auto-play on iOS
-    if (this.isIOS() && !window.__speechUnlocked) {
-      const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
-      
-      this.userGestureHandler = () => {
-        if (!window.__speechUnlocked) {
-          // Try a silent speech synthesis to unlock auto-play
-          if ('speechSynthesis' in window) {
-            const testUtterance = new SpeechSynthesisUtterance('')
-            testUtterance.volume = 0
-            speechSynthesis.speak(testUtterance)
-            window.__speechUnlocked = true
-            console.log('TTS: User gesture captured, auto-play enabled')
-          }
-        }
-      }
-      
-      // Add listeners to capture first user interaction
-      unlockEvents.forEach(event => {
-        document.addEventListener(event, this.userGestureHandler, { 
-          once: true, 
-          passive: true,
-          capture: true 
-        })
-      })
-    }
-  }
-
-  isIOS() {
-    // Simple iOS detection
-    const userAgent = navigator.userAgent.toLowerCase()
-    return /ipad|iphone|ipod/.test(userAgent) || 
-           (userAgent.includes('mac') && 'ontouchend' in document) ||
-           (/webkit/.test(userAgent) && /mobile/.test(userAgent))
-  }
-
   // ===== CONTENT DETECTION =====
   // Removed redundant streaming observer and content handling methods
   // Individual TTS controllers handle their own streaming content
+
+  // ===== PREFETCHING =====
+
+  async prefetchText(text) {
+    const key = this.normalizeText(text)
+    if (this.prefetched.has(key) || this.prefetchQueue.has(key)) return
+    
+    this.prefetchQueue.add(key)
+    try {
+      // For Speech Synthesis, we don't actually prefetch audio blobs
+      // but we can prepare the utterance
+      this.prefetched.set(key, text)
+    } catch (error) {
+      console.error('TTS prefetch failed:', error.message)
+    } finally {
+      this.prefetchQueue.delete(key)
+    }
+  }
 
   // ===== QUEUE MANAGEMENT =====
 
@@ -314,10 +306,19 @@ export default class extends Controller {
       return
     }
     
-    // iOS auto-play check - wait for user gesture
-    if (this.isIOS() && !window.__speechUnlocked) {
-      console.log('TTS: Waiting for user gesture on iOS for auto-play')
-      return
+    // Enhanced iOS check - be more aggressive about preventing requests
+    if (this.isIOS()) {
+      console.log('iOS detected, checking audio unlock status:', window.__audioUnlocked)
+      
+      if (!window.__audioUnlocked) {
+        console.log('iOS audio not unlocked, queuing text for later')
+        // Queue the text for later without showing prompt
+        this.pendingIOSTexts = this.pendingIOSTexts || []
+        this.pendingIOSTexts.push({ text, messageId })
+        return
+      }
+      
+      console.log('iOS audio appears unlocked, proceeding with TTS')
     }
     
     const key = this.normalizeText(text)
@@ -338,6 +339,7 @@ export default class extends Controller {
     
     this.markAsRecent(key)
     this.markAsVeryRecent(key)
+    this.prefetchText(text)
     this.queue.push({ text, key })
     
     if (!this.processing) {
@@ -508,6 +510,12 @@ export default class extends Controller {
           handleError(new Error(`Speech synthesis failed: ${event.error}`))
         }
 
+        // iOS-specific handling
+        if (this.isIOS() && !window.__audioUnlocked) {
+          handleError(new Error('Audio not unlocked on iOS'))
+          return
+        }
+
         // Start speech synthesis
         speechSynthesis.speak(utterance)
       })
@@ -554,6 +562,10 @@ export default class extends Controller {
     this.queue = []
     this.currentMessageId = null
     
+    // Clear frontend request queue
+    this.requestQueue = []
+    this.processingRequest = false
+    
     // Clear currently playing markers
     this.currentlyPlayingKey = null
     window.CurrentlyPlayingTTSKey = null
@@ -572,23 +584,12 @@ export default class extends Controller {
   }
 
   cleanup() {
-    // Stop speech synthesis if active
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel()
-    }
-    
-    // Legacy audio cleanup (if any)
     if (this.audio) {
       this.audio.pause()
     }
     
-    // Clean up user gesture handlers
-    if (this.userGestureHandler) {
-      const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
-      unlockEvents.forEach(event => {
-        document.removeEventListener(event, this.userGestureHandler, { capture: true })
-      })
-    }
+    // Clear pending iOS texts
+    this.pendingIOSTexts = []
     
     // Clean up event listeners
     if (window.TTSEventListenersAdded) {
@@ -602,5 +603,115 @@ export default class extends Controller {
       window.TTSEventListenersAdded = false
       window.TTSEventListenerCount = Math.max(0, (window.TTSEventListenerCount || 1) - 1)
     }
+  }
+
+  // ===== iOS AUDIO UNLOCK SYSTEM =====
+
+  setupIOSAudioUnlock() {
+    if (!this.isIOS()) return
+    
+    // Add early unlock listeners for common user interactions
+    const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
+    
+    this.earlyUnlockHandler = async () => {
+      if (!window.__audioUnlocked) {
+        await this.unlockIOSAudio()
+      }
+    }
+    
+    // Add listeners to document to catch any user interaction
+    unlockEvents.forEach(event => {
+      document.addEventListener(event, this.earlyUnlockHandler, { 
+        once: true, 
+        passive: true,
+        capture: true 
+      })
+    })
+  }
+
+  async unlockIOSAudio() {
+    if (window.__audioUnlocked) return true
+    
+    try {
+      console.log('Starting iOS audio unlock for Speech Synthesis...')
+      
+      // Small delay to ensure "Enabling Audio..." is visible
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // For Speech Synthesis, we mainly need user gesture
+      // Test if speechSynthesis works
+      if ('speechSynthesis' in window) {
+        console.log('Speech Synthesis available')
+        
+        // Try to speak a silent utterance to unlock
+        const testUtterance = new SpeechSynthesisUtterance('')
+        testUtterance.volume = 0
+        speechSynthesis.speak(testUtterance)
+        
+        // Wait a moment for the test
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        console.log('Speech Synthesis test completed')
+        window.__audioUnlocked = true
+        
+        // Process pending texts
+        if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+          console.log('Processing', this.pendingIOSTexts.length, 'pending texts')
+          const pendingTexts = this.pendingIOSTexts
+          this.pendingIOSTexts = []
+          
+          setTimeout(() => {
+            pendingTexts.forEach(({ text, messageId }) => {
+              this.enqueue(text, messageId)
+            })
+          }, 100)
+        }
+        
+        return true
+      } else {
+        console.log('Speech Synthesis not available')
+        return false
+      }
+    } catch (error) {
+      console.log('iOS audio unlock error:', error.message)
+      // For Speech Synthesis, even errors can indicate unlock worked
+      window.__audioUnlocked = true
+      return true
+    }
+  }
+
+  isIOS() {
+    // Enhanced iOS detection for better reliability
+    const userAgent = navigator.userAgent.toLowerCase()
+    const isIOSDevice = /ipad|iphone|ipod/.test(userAgent)
+    const isMacWithTouch = userAgent.includes('mac') && 'ontouchend' in document
+    const isIOSWebKit = /webkit/.test(userAgent) && /mobile/.test(userAgent)
+    
+    // Additional iOS indicators
+    const hasIOSVendor = /apple/.test(navigator.vendor.toLowerCase())
+    const isIOSSafari = /safari/.test(userAgent) && /mobile/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent)
+    const isIOSChrome = /crios/.test(userAgent)
+    const isIOSFirefox = /fxios/.test(userAgent)
+    
+    // Check for iOS-specific APIs
+    const hasIOSAPIs = 'ontouchstart' in window && window.DeviceMotionEvent !== undefined
+    
+    const isIOS = isIOSDevice || isMacWithTouch || isIOSWebKit || hasIOSVendor || isIOSSafari || isIOSChrome || isIOSFirefox || hasIOSAPIs
+    
+    return isIOS
+  }
+
+  ensureAllButtonsVisible() {
+    // Find all TTS buttons in the document and ensure they're visible if TTS is enabled
+    if (!window.__ttsEnabled) return
+    
+    const allTTSButtons = document.querySelectorAll('[data-controller*="tts"], [data-tts-button], [data-action*="tts"]')
+    allTTSButtons.forEach(button => {
+      if (button.classList.contains('hidden')) {
+        button.classList.remove('hidden')
+      }
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
+    })
   }
 } 
