@@ -210,6 +210,7 @@ export default class extends Controller {
     this.initializeState()
     this.setupEventListeners()
     this.setupIOSAudioUnlock()
+    this.createVoiceSelectorButton()
     
     // iOS compatibility: ensure all existing TTS buttons are visible
     setTimeout(() => {
@@ -228,6 +229,12 @@ export default class extends Controller {
     this.cleanup()
     if (window.GlobalTTSControllerCount) {
       window.GlobalTTSControllerCount--
+    }
+    
+    // Remove voice selector button
+    const voiceButton = document.getElementById('tts-voice-selector-btn')
+    if (voiceButton) {
+      voiceButton.remove()
     }
     
     // Clear global instance reference
@@ -271,6 +278,7 @@ export default class extends Controller {
       window.removeEventListener('tts:stop', window.TTSStopHandler)
       window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
       window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
+      window.removeEventListener('keydown', window.TTSKeydownHandler)
     }
     
     // Create handler functions and store them globally to prevent duplicates
@@ -282,6 +290,13 @@ export default class extends Controller {
       window.__ttsEnabled = e.detail
       window.GlobalTTSManager.updateAllButtons()
     }
+    window.TTSKeydownHandler = (e) => {
+      // Ctrl/Cmd + Shift + V to open voice selector
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'V') {
+        e.preventDefault()
+        this.showVoiceSelector()
+      }
+    }
     
     // Add event listeners
     window.addEventListener('tts:toggle', window.TTSToggleHandler)
@@ -289,10 +304,14 @@ export default class extends Controller {
     window.addEventListener('tts:stop', window.TTSStopHandler)
     window.addEventListener('beforeunload', window.TTSBeforeUnloadHandler)
     window.addEventListener('tts:enabled', window.TTSEnabledHandler)
+    window.addEventListener('keydown', window.TTSKeydownHandler)
     
     // Mark that event listeners have been added
     window.TTSEventListenersAdded = true
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
+    
+    // Expose voice selector globally
+    window.showTTSVoiceSelector = () => this.showVoiceSelector()
   }
 
   // ===== CONTENT DETECTION =====
@@ -541,7 +560,7 @@ export default class extends Controller {
         console.log(`TTS: Finished chunk ${chunkIndex + 1}/${totalChunks}`)
         resolve()
       }
-
+      
       utterance.onerror = (event) => {
         console.error(`TTS: Error in chunk ${chunkIndex + 1}:`, event.error)
         reject(new Error(`Speech synthesis failed: ${event.error}`))
@@ -587,6 +606,20 @@ export default class extends Controller {
       return null
     }
     
+    // First priority: Check for stored voice preference
+    const selectedVoiceName = this.getSelectedVoiceName()
+    if (selectedVoiceName) {
+      const storedVoice = voices.find(voice => voice.name === selectedVoiceName)
+      if (storedVoice) {
+        console.log('Using stored voice preference:', storedVoice.name, storedVoice.lang)
+        return storedVoice
+    } else {
+        console.log('Stored voice not available:', selectedVoiceName)
+        // Clear invalid stored voice
+        localStorage.removeItem('ttsSelectedVoice')
+      }
+    }
+    
     // Get browser language and country
     const browserLang = navigator.language || navigator.userLanguage
     const browserCountry = browserLang.split('-')[1]?.toUpperCase()
@@ -602,15 +635,6 @@ export default class extends Controller {
       voices = countryVoices
       console.log(`Found ${voices.length} voices matching browser country ${browserCountry} : ${voices.map(v => v.name).join(', ')}`)
     }
-    // Check for google voice specifically
-    const googleVoice = voices.find(voice => 
-      voice.name.toLowerCase().includes("google")
-    )
-    if (googleVoice) {
-      console.log('Found google voice:', googleVoice.name, googleVoice.lang)
-    } else {
-      console.log('No google voice found. Available voice names:', voices.map(v => v.name))
-    }
 
     // select siri voice specifically from country voices
     const siriVoice = countryVoices.find(voice => 
@@ -620,7 +644,17 @@ export default class extends Controller {
       console.log('Found siri voice:', siriVoice.name, siriVoice.lang)
     }
     
-    // Prefer google voice FIRST, then language-based fallbacks
+    // Check for google voice specifically
+    const googleVoice = voices.find(voice => 
+      voice.name.toLowerCase().includes("google")
+    )
+    if (googleVoice) {
+      console.log('Found google voice:', googleVoice.name, googleVoice.lang)
+    } else {
+      console.log('No google voice found. Available voice names:', voices.map(v => v.name))
+    }
+    
+    // Prefer siri voice FIRST, then google voice, then language-based fallbacks
     const preferredVoice = siriVoice || googleVoice || voices.find(voice => 
       voice.lang.startsWith('en') ||
       voice.lang.startsWith('fr') ||
@@ -784,6 +818,7 @@ export default class extends Controller {
       window.removeEventListener('tts:stop', window.TTSStopHandler)
       window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
       window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
+      window.removeEventListener('keydown', window.TTSKeydownHandler)
       
       // Clear the global references
       window.TTSEventListenersAdded = false
@@ -899,5 +934,559 @@ export default class extends Controller {
       button.style.opacity = '1'
       button.style.visibility = 'visible'
     })
+  }
+
+  // ===== VOICE SELECTION SYSTEM =====
+
+  async showVoiceSelector() {
+    const allVoices = await this.getAvailableVoices()
+    if (allVoices.length === 0) {
+      alert('No voices available')
+      return
+    }
+
+    // Filter voices by browser language country
+    const browserLang = navigator.language || navigator.userLanguage
+    const browserCountry = browserLang.split('-')[1]?.toUpperCase()
+    
+    let voices = allVoices
+    if (browserCountry) {
+      const countryVoices = allVoices.filter(voice => {
+        const voiceCountry = voice.lang.split('-')[1]?.toUpperCase()
+        return voiceCountry === browserCountry
+      })
+      
+      if (countryVoices.length > 0) {
+        voices = countryVoices
+        console.log(`Filtering to ${voices.length} voices from country ${browserCountry}`)
+      } else {
+        console.log(`No voices found for country ${browserCountry}, showing all voices`)
+      }
+    }
+
+    // Create modal
+    const modal = this.createVoiceSelectorModal(voices, browserCountry)
+    document.body.appendChild(modal)
+    
+    // Show modal
+    setTimeout(() => modal.classList.add('show'), 10)
+  }
+
+  createVoiceSelectorModal(voices, browserCountry) {
+    const modal = document.createElement('div')
+    modal.className = 'tts-voice-modal'
+    modal.innerHTML = `
+      <div class="tts-voice-modal-content">
+        <div class="tts-voice-modal-header">
+          <div>
+            <h3>Select Voice</h3>
+            <div class="tts-voice-country-info">${browserCountry ? `Showing ${voices.length} voices for ${browserCountry}` : `Showing all ${voices.length} voices`}</div>
+          </div>
+          <button class="tts-voice-modal-close">&times;</button>
+        </div>
+        <div class="tts-voice-modal-body">
+          <div class="tts-voice-list">
+            ${voices.map(voice => `
+              <div class="tts-voice-item" data-voice-name="${voice.name}">
+                <div class="tts-voice-info">
+                  <div class="tts-voice-name">${voice.name}</div>
+                  <div class="tts-voice-lang">${voice.lang}</div>
+                </div>
+                <button class="tts-voice-preview" data-voice-name="${voice.name}">
+                  Preview
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `
+
+    // Add styles
+    this.addVoiceSelectorStyles()
+
+    // Add event listeners
+    this.setupVoiceSelectorEvents(modal, voices)
+
+    // Highlight current selection
+    this.highlightCurrentVoice(modal)
+
+    return modal
+  }
+
+  addVoiceSelectorStyles() {
+    if (document.getElementById('tts-voice-styles')) return
+
+    const styles = document.createElement('style')
+    styles.id = 'tts-voice-styles'
+    styles.textContent = `
+      .tts-voice-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(4px);
+      }
+      .tts-voice-modal.show {
+        opacity: 1;
+      }
+      .tts-voice-modal-content {
+        background: rgba(17, 24, 39, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        color: white;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(20px);
+      }
+      .tts-voice-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .tts-voice-modal-header h3 {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .tts-voice-country-info {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 4px;
+      }
+      .tts-voice-modal-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 24px;
+        cursor: pointer;
+        padding: 4px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+      }
+      .tts-voice-modal-close:hover {
+        color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .tts-voice-modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        max-height: 60vh;
+      }
+      .tts-voice-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tts-voice-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .tts-voice-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+      }
+      .tts-voice-item.selected {
+        background: rgba(34, 197, 94, 0.15);
+        border-color: rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2);
+      }
+      .tts-voice-item.selected:hover {
+        background: rgba(34, 197, 94, 0.2);
+        border-color: rgba(34, 197, 94, 0.5);
+      }
+      .tts-voice-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .tts-voice-name {
+        font-weight: 500;
+        margin-bottom: 4px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 14px;
+      }
+      .tts-voice-item.selected .tts-voice-name {
+        color: rgba(34, 197, 94, 1);
+      }
+      .tts-voice-lang {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+        font-family: monospace;
+      }
+      .tts-voice-item.selected .tts-voice-lang {
+        color: rgba(34, 197, 94, 0.8);
+      }
+      .tts-voice-preview {
+        background: rgba(99, 102, 241, 0.2);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        color: rgba(99, 102, 241, 1);
+        padding: 8px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        margin-left: 12px;
+        flex-shrink: 0;
+      }
+      .tts-voice-preview:hover {
+        background: rgba(99, 102, 241, 0.3);
+        border-color: rgba(99, 102, 241, 0.6);
+        color: rgba(99, 102, 241, 1);
+        transform: translateY(-1px);
+      }
+      .tts-voice-preview:active {
+        transform: translateY(0);
+        background: rgba(99, 102, 241, 0.4);
+      }
+      .tts-voice-preview:disabled {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.4);
+        cursor: not-allowed;
+        transform: none;
+      }
+    `
+    document.head.appendChild(styles)
+  }
+
+  setupVoiceSelectorEvents(modal, voices) {
+    // Close modal
+    modal.querySelector('.tts-voice-modal-close').onclick = () => {
+      this.closeVoiceSelector(modal)
+    }
+
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        this.closeVoiceSelector(modal)
+      }
+    }
+
+    // Voice selection
+    modal.querySelectorAll('.tts-voice-item').forEach(item => {
+      item.onclick = (e) => {
+        if (e.target.classList.contains('tts-voice-preview')) return
+        
+        const voiceName = item.dataset.voiceName
+        this.selectVoice(voiceName)
+        this.highlightCurrentVoice(modal)
+      }
+    })
+
+    // Voice preview
+    modal.querySelectorAll('.tts-voice-preview').forEach(button => {
+      button.onclick = async (e) => {
+        e.stopPropagation()
+        const voiceName = button.dataset.voiceName
+        const voice = voices.find(v => v.name === voiceName)
+        await this.previewVoice(voice, button)
+      }
+    })
+  }
+
+  highlightCurrentVoice(modal) {
+    const selectedVoiceName = this.getSelectedVoiceName()
+    
+    modal.querySelectorAll('.tts-voice-item').forEach(item => {
+      item.classList.remove('selected')
+      if (item.dataset.voiceName === selectedVoiceName) {
+        item.classList.add('selected')
+      }
+    })
+  }
+
+  async previewVoice(voice, button) {
+    // Stop any current speech
+    speechSynthesis.cancel()
+    
+    // Disable button during preview
+    button.disabled = true
+    button.textContent = 'Playing...'
+    
+    try {
+      const utterance = new SpeechSynthesisUtterance('bonjour et bienvenue sous les étoiles')
+      utterance.voice = voice
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+      utterance.volume = 1.0
+      
+      utterance.onend = () => {
+        button.disabled = false
+        button.textContent = 'Preview'
+      }
+      
+      utterance.onerror = () => {
+        button.disabled = false
+        button.textContent = 'Preview'
+      }
+      
+      speechSynthesis.speak(utterance)
+    } catch (error) {
+      console.error('Voice preview error:', error)
+      button.disabled = false
+      button.textContent = 'Preview'
+    }
+  }
+
+  selectVoice(voiceName) {
+    localStorage.setItem('ttsSelectedVoice', voiceName)
+    console.log('Selected voice:', voiceName)
+  }
+
+  getSelectedVoiceName() {
+    return localStorage.getItem('ttsSelectedVoice')
+  }
+
+  closeVoiceSelector(modal) {
+    modal.classList.remove('show')
+    setTimeout(() => {
+      document.body.removeChild(modal)
+    }, 300)
+  }
+
+  createVoiceSelectorButton() {
+    // Remove existing button if present
+    const existingButton = document.getElementById('tts-voice-selector-btn')
+    if (existingButton) {
+      existingButton.remove()
+    }
+
+    // Define shared button classes for consistency
+    const buttonClasses = 'inline-flex items-center justify-center gap-1.5 bg-transparent border border-white/20 text-white/70 px-3 py-2 rounded-md cursor-pointer text-sm font-normal transition-all duration-200 whitespace-nowrap min-h-8 relative z-10 flex-shrink-0 hover:bg-white/10 hover:border-white/30 hover:text-white/90 active:bg-white/15 active:scale-95 focus:outline-2 focus:outline-blue-500/50 focus:outline-offset-2'
+
+    // Create voice selector button using Tailwind classes
+    const button = document.createElement('button')
+    button.id = 'tts-voice-selector-btn'
+    button.className = buttonClasses + ' ml-2'
+    button.innerHTML = `
+      <svg class="w-4 h-4 flex-shrink-0 opacity-80 hover:opacity-100" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+      </svg>
+      <span class="font-normal text-sm sm:inline hidden">Voice</span>
+    `
+    button.title = 'Select TTS Voice (Ctrl+Shift+V)'
+    
+    // Ensure click event doesn't propagate
+    button.onclick = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this.showVoiceSelector()
+    }
+
+    // Find and style the clear button with the same design
+    this.styleClearButton(buttonClasses)
+
+    // Find a good place to insert the button
+    const targetContainer = this.findVoiceButtonContainer()
+    if (targetContainer) {
+      // Look for a clear button to place next to
+      const clearButton = this.findClearButton(targetContainer)
+      
+      if (clearButton) {
+        // Insert right after the clear button
+        clearButton.parentNode.insertBefore(button, clearButton.nextSibling)
+        console.log('Placed voice selector button after clear button and applied matching styles')
+      } else {
+        // Add to the end of the container
+        targetContainer.appendChild(button)
+        console.log('Added voice selector button to container')
+      }
+    } else {
+      // Fallback: add to body with fixed positioning
+      button.classList.add('fixed', 'top-5', 'right-5', 'z-50')
+      document.body.appendChild(button)
+      console.log('Added voice selector button with fixed positioning')
+    }
+  }
+
+  findClearButton(container) {
+    // Try multiple selectors to find the clear button
+    const selectors = [
+      '[data-action*="clear"]',
+      '[data-controller*="clear"]', 
+      'button[title*="clear" i]',
+      'button[title*="Clear" i]',
+      '.clear-chat',
+      '.clear-button',
+      '#clear-chat',
+      '#clear-button'
+    ]
+    
+    for (const selector of selectors) {
+      const clearButton = container.querySelector(selector)
+      if (clearButton) {
+        console.log('Found clear button with selector:', selector)
+        return clearButton
+      }
+    }
+    
+    // Also check for buttons with "clear" text content
+    const allButtons = container.querySelectorAll('button')
+    for (const button of allButtons) {
+      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
+        console.log('Found clear button by text content:', button.textContent.trim())
+        return button
+      }
+    }
+    
+    console.log('No clear button found in container')
+    return null
+  }
+
+  styleClearButton(buttonClasses) {
+    // Find clear button globally and apply consistent styling
+    const clearButton = this.findClearButtonGlobally()
+    
+    if (clearButton) {
+      console.log('Styling clear button:', clearButton)
+      
+      // Remove existing classes that might conflict
+      clearButton.removeAttribute('class')
+      
+      // Apply the same classes as voice button
+      clearButton.className = buttonClasses
+      
+      // Ensure the button content is properly structured
+      if (!clearButton.querySelector('svg') && !clearButton.innerHTML.includes('<')) {
+        // If it's just text, wrap it properly
+        const originalText = clearButton.textContent.trim()
+        clearButton.innerHTML = `<span class="font-normal text-sm">${originalText}</span>`
+      }
+      
+      console.log('Applied classes to clear button:', clearButton.className)
+    } else {
+      console.log('Clear button not found for styling')
+    }
+  }
+
+  findClearButtonGlobally() {
+    // Try to find clear button in the entire document
+    const selectors = [
+      '[data-action*="clear"]',
+      '[data-controller*="clear"]', 
+      'button[title*="clear" i]',
+      'button[title*="Clear" i]',
+      '.clear-chat',
+      '.clear-button',
+      '#clear-chat',
+      '#clear-button'
+    ]
+    
+    for (const selector of selectors) {
+      const clearButton = document.querySelector(selector)
+      if (clearButton) {
+        return clearButton
+      }
+    }
+    
+    // Check all buttons for "clear" text
+    const allButtons = document.querySelectorAll('button')
+    for (const button of allButtons) {
+      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
+        return button
+      }
+    }
+    
+    return null
+  }
+
+  findVoiceButtonContainer() {
+    // First priority: Look for clear chat button and place voice button next to it
+    const clearChatSelectors = [
+      '[data-action*="clear"]',
+      '[data-controller*="clear"]', 
+      'button[title*="clear" i]',
+      'button[title*="Clear" i]',
+      '.clear-chat',
+      '.clear-button',
+      '#clear-chat',
+      '#clear-button'
+    ]
+    
+    for (const selector of clearChatSelectors) {
+      const clearButton = document.querySelector(selector)
+      if (clearButton) {
+        console.log('Found clear chat button, placing voice selector next to it')
+        return clearButton.parentElement
+      }
+    }
+    
+    // Also check for buttons with "clear" text content manually
+    const allButtons = document.querySelectorAll('button')
+    for (const button of allButtons) {
+      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
+        console.log('Found clear button by text content, placing voice selector next to it')
+        return button.parentElement
+      }
+    }
+    
+    // Second priority: Look for button containers that might contain the clear button
+    const buttonContainerSelectors = [
+      '.chat-controls',
+      '.chat-actions', 
+      '.message-controls',
+      '.toolbar-buttons',
+      '.action-buttons',
+      '.flex.items-center.space-x-2',
+      '.flex.gap-2',
+      '.flex.space-x-2'
+    ]
+    
+    for (const selector of buttonContainerSelectors) {
+      const container = document.querySelector(selector)
+      if (container && container.querySelector('button')) {
+        console.log('Found button container:', selector)
+        return container
+      }
+    }
+    
+    // Third priority: Try to find an appropriate container for the voice button
+    const generalContainers = [
+      '.chat-header',
+      '.toolbar',
+      '.controls',
+      'header',
+      '.header',
+      'nav',
+      '.nav'
+    ]
+
+    for (const selector of generalContainers) {
+      const container = document.querySelector(selector)
+      if (container) {
+        console.log('Found general container:', selector)
+        return container
+      }
+    }
+
+    console.log('No suitable container found, will use fixed positioning')
+    return null
   }
 } 
