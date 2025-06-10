@@ -273,19 +273,8 @@ export default class extends Controller {
       return
     }
     
-    // Debug iOS detection and audio state
-    const isIOSDevice = this.isIOS()
-    const audioUnlocked = window.__audioUnlocked
-    console.log('🔍 TTS Enqueue Debug:', {
-      isIOS: isIOSDevice,
-      audioUnlocked: audioUnlocked,
-      userAgent: navigator.userAgent,
-      text: text.substring(0, 50) + '...'
-    })
-    
     // Check iOS audio unlock status
-    if (isIOSDevice && !audioUnlocked) {
-      console.log('📱 iOS detected, audio not unlocked - showing prompt')
+    if (this.isIOS() && !window.__audioUnlocked) {
       // Show prompt and queue the text for later
       this.showIOSPrompt()
       this.pendingIOSTexts = this.pendingIOSTexts || []
@@ -629,7 +618,7 @@ export default class extends Controller {
         () => {
           const audio = new Audio()
           audio.volume = 0.05
-          const audioData = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
+          const audioData = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
           audio.src = audioData
           return audio.play()
         },
@@ -691,37 +680,14 @@ export default class extends Controller {
   }
 
   isIOS() {
-    const ua = navigator.userAgent
-    const isIPad = /iPad/.test(ua)
-    const isIPhone = /iPhone/.test(ua)
-    const isIPod = /iPod/.test(ua)
-    const isMacTouch = /Mac/.test(ua) && 'ontouchend' in document
-    const isIOSWebView = /OS [\d_]+ like Mac OS X/.test(ua)
-    
-    const result = isIPad || isIPhone || isIPod || isMacTouch || isIOSWebView
-    
-    console.log('🔍 iOS Detection:', {
-      userAgent: ua,
-      isIPad,
-      isIPhone, 
-      isIPod,
-      isMacTouch,
-      isIOSWebView,
-      finalResult: result
-    })
-    
-    return result
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.userAgent.includes('Mac') && 'ontouchend' in document)
   }
 
   showIOSPrompt() {
-    console.log('📱 showIOSPrompt() called')
-    
     if (document.getElementById('ios-audio-prompt')) {
-      console.log('📱 Prompt already exists, skipping')
       return
     }
-    
-    console.log('📱 Creating iOS audio prompt...')
     
     const prompt = document.createElement('div')
     prompt.id = 'ios-audio-prompt'
@@ -763,12 +729,10 @@ export default class extends Controller {
         }
       `
       document.head.appendChild(styles)
-      console.log('📱 Added CSS styles for prompt')
     }
     
     // Click handler for unlock
     const unlockHandler = async (e) => {
-      console.log('📱 Prompt clicked/tapped')
       e.preventDefault()
       e.stopPropagation()
       
@@ -795,14 +759,10 @@ export default class extends Controller {
     prompt.addEventListener('click', unlockHandler)
     prompt.addEventListener('touchend', unlockHandler)
     prompt.addEventListener('touchstart', (e) => {
-      e.preventDefault() // Prevent default touch behavior
+      e.preventDefault()
     })
     
     document.body.appendChild(prompt)
-    console.log('📱 iOS audio prompt added to DOM')
-    
-    // Force a repaint to ensure visibility
-    prompt.offsetHeight
   }
 
   hideIOSPrompt() {
