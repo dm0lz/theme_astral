@@ -699,9 +699,27 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Unlock timeout')), 5000) // 5 second timeout
+    })
+    
+    const unlockPromise = this.performIOSUnlock()
+    
+    try {
+      await Promise.race([unlockPromise, timeoutPromise])
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+  
+  async performIOSUnlock() {
     try {
       // Strategy 1: AudioContext unlock
       const AudioContext = window.AudioContext || window.webkitAudioContext
+      let audioContextUnlocked = false
+      
       if (AudioContext) {
         try {
           if (!this.audioContext) {
@@ -711,93 +729,99 @@ export default class extends Controller {
           if (this.audioContext.state === 'suspended') {
             await this.audioContext.resume()
           }
+          
+          if (this.audioContext.state === 'running') {
+            audioContextUnlocked = true
+          }
         } catch (contextError) {
-          // Silently handle AudioContext errors
+          // AudioContext failed, continue with HTML5 audio
         }
       }
       
-      // Strategy 2: Create and play a test audio element to unlock HTML5 audio
-      const testAudio = new Audio()
-      testAudio.preload = 'auto'
-      testAudio.playsInline = true
-      testAudio.controls = false
-      testAudio.muted = false
-      testAudio.volume = 0.1
-      testAudio.setAttribute('playsinline', 'true')
-      testAudio.setAttribute('webkit-playsinline', 'true')
+      // Strategy 2: HTML5 Audio unlock with timeout for each attempt
+      let htmlAudioUnlocked = false
       
-      // Strategy 3: Multiple audio unlock attempts with different formats
+      const createTimeLimitedPromise = (promiseFunc, timeLimit = 2000) => {
+        return Promise.race([
+          promiseFunc(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Attempt timeout')), timeLimit))
+        ])
+      }
+      
       const unlockAttempts = [
-        // Attempt 1: Very short WAV beep
+        // Attempt 1: Simple WAV
         () => {
-          testAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
-          return testAudio.play()
+          const audio = new Audio()
+          audio.volume = 0.1
+          audio.muted = false
+          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
+          return audio.play()
         },
-        // Attempt 2: MP3 data
+        // Attempt 2: Different WAV format
         () => {
-          testAudio.src = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
-          return testAudio.play()
+          const audio = new Audio()
+          audio.volume = 0.1
+          audio.muted = false
+          audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+          return audio.play()
         },
-        // Attempt 3: Different WAV format
+        // Attempt 3: Oscillator if AudioContext is available
         () => {
-          testAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
-          return testAudio.play()
-        },
-        // Attempt 4: Oscillator (Web Audio API)
-        () => {
-          if (this.audioContext) {
+          if (this.audioContext && this.audioContext.state === 'running') {
             const oscillator = this.audioContext.createOscillator()
             const gainNode = this.audioContext.createGain()
             oscillator.connect(gainNode)
             gainNode.connect(this.audioContext.destination)
-            oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime)
+            oscillator.frequency.setValueAtTime(220, this.audioContext.currentTime)
             gainNode.gain.setValueAtTime(0.01, this.audioContext.currentTime)
             oscillator.start(this.audioContext.currentTime)
-            oscillator.stop(this.audioContext.currentTime + 0.01)
+            oscillator.stop(this.audioContext.currentTime + 0.05)
             return Promise.resolve()
           }
-          return Promise.reject('No AudioContext')
+          return Promise.reject('No AudioContext available')
         }
       ]
       
-      // Try each unlock method
-      let unlockSuccessful = false
+      // Try each unlock method with individual timeouts
       for (let i = 0; i < unlockAttempts.length; i++) {
         try {
-          await unlockAttempts[i]()
-          unlockSuccessful = true
+          await createTimeLimitedPromise(unlockAttempts[i], 1500)
+          htmlAudioUnlocked = true
           break
         } catch (error) {
-          // Continue to next method
+          // Continue to next attempt
+          continue
         }
       }
       
-      if (!unlockSuccessful) {
-        throw new Error('All unlock methods failed')
-      }
-      
-      // Wait a moment for the unlock to take effect
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      window.__audioUnlocked = true
-      
-      // Remove the iOS prompt if it exists
-      this.hideIOSPrompt()
-      
-      // Process any pending iOS texts
-      if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-        const pendingTexts = this.pendingIOSTexts
-        this.pendingIOSTexts = []
+      // Check if any method succeeded
+      if (audioContextUnlocked || htmlAudioUnlocked) {
+        // Small delay to ensure unlock takes effect
+        await new Promise(resolve => setTimeout(resolve, 100))
         
-        // Process each pending text
-        pendingTexts.forEach(({ text, messageId }) => {
-          this.enqueue(text, messageId)
-        })
+        window.__audioUnlocked = true
+        
+        // Remove the iOS prompt
+        this.hideIOSPrompt()
+        
+        // Process any pending iOS texts
+        if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+          const pendingTexts = this.pendingIOSTexts
+          this.pendingIOSTexts = []
+          
+          // Process each pending text
+          pendingTexts.forEach(({ text, messageId }) => {
+            this.enqueue(text, messageId)
+          })
+        }
+        
+        return true
+      } else {
+        throw new Error('All unlock attempts failed')
       }
       
-      return true
     } catch (error) {
-      return false
+      throw error
     }
   }
 
