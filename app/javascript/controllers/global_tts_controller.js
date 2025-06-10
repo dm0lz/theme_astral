@@ -159,13 +159,40 @@ window.GlobalTTSManager = {
  */
 export default class extends Controller {
   connect() {
+    console.log('🎯 Global TTS Controller: Connecting...')
+    
+    // Prevent multiple global controllers
+    if (window.GlobalTTSInstance) {
+      console.warn('⚠️  Global TTS Controller already exists! Disconnecting previous instance.')
+      window.GlobalTTSInstance.cleanup()
+    }
+    
+    window.GlobalTTSInstance = this
+    
     this.initializeState()
     this.setupEventListeners()
-    this.initializeStreamingObserver()
+    
+    // Debug: Check if there are multiple global controllers
+    if (window.GlobalTTSControllerCount) {
+      window.GlobalTTSControllerCount++
+      console.warn(`⚠️  Multiple Global TTS Controllers detected! Count: ${window.GlobalTTSControllerCount}`)
+    } else {
+      window.GlobalTTSControllerCount = 1
+      console.log('✅ First Global TTS Controller initialized')
+    }
   }
 
   disconnect() {
+    console.log('🎯 Global TTS Controller: Disconnecting...')
     this.cleanup()
+    if (window.GlobalTTSControllerCount) {
+      window.GlobalTTSControllerCount--
+    }
+    
+    // Clear global instance reference
+    if (window.GlobalTTSInstance === this) {
+      window.GlobalTTSInstance = null
+    }
   }
 
   // ===== INITIALIZATION =====
@@ -180,47 +207,62 @@ export default class extends Controller {
     this.currentMessageId = null // Track which message initiated current session
     this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
     window.__ttsEnabled = this.enabled
+    
+    // Enhanced duplicate prevention
+    this.recentTexts = new Map() // Track recent texts with timestamps
+    this.cooldownPeriod = 2000 // 2 seconds cooldown for identical text
+    this.veryRecentTexts = new Map() // Track very recent texts (last 500ms)
+    this.rapidCooldown = 500 // 500ms for rapid duplicate prevention
+    
+    // Audio-level deduplication
+    this.currentlyPlayingKey = null
   }
 
   setupEventListeners() {
-    window.addEventListener('tts:toggle', () => this.toggle())
-    window.addEventListener('tts:add', (e) => this.enqueue(e.detail.text, e.detail.messageId))
-    window.addEventListener('tts:stop', () => this.stop())
-    window.addEventListener('beforeunload', () => this.cleanup())
-    window.addEventListener('tts:enabled',e=>{window.__ttsEnabled=e.detail;window.GlobalTTSManager.updateAllButtons();});
-  }
-
-  initializeStreamingObserver() {
-    this.contentObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          this.handleNewStreamingContent(node)
-        })
-      })
-    })
+    // Remove any existing listeners first to prevent duplicates
+    if (window.TTSEventListenersAdded) {
+      console.warn('⚠️ TTS Event listeners already exist, removing old ones')
+      window.removeEventListener('tts:toggle', window.TTSToggleHandler)
+      window.removeEventListener('tts:add', window.TTSAddHandler) 
+      window.removeEventListener('tts:stop', window.TTSStopHandler)
+      window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
+      window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
+    }
     
-    const streamingContainers = document.querySelectorAll('[id*="chunks"], [class*="chunks"]')
-    streamingContainers.forEach(container => {
-      this.contentObserver.observe(container, { 
-        childList: true, 
-        subtree: true 
+    // Create handler functions and store them globally to prevent duplicates
+    window.TTSToggleHandler = () => this.toggle()
+    window.TTSAddHandler = (e) => {
+      console.log(`📥 TTS Event Received:`, {
+        text: e.detail.text?.substring(0, 100) + '...',
+        messageId: e.detail.messageId,
+        timestamp: new Date().toISOString(),
+        listenerCount: window.TTSEventListenerCount || 'unknown'
       })
-    })
+      this.enqueue(e.detail.text, e.detail.messageId)
+    }
+    window.TTSStopHandler = () => this.stop()
+    window.TTSBeforeUnloadHandler = () => this.cleanup()
+    window.TTSEnabledHandler = (e) => {
+      window.__ttsEnabled = e.detail
+      window.GlobalTTSManager.updateAllButtons()
+    }
+    
+    // Add event listeners
+    window.addEventListener('tts:toggle', window.TTSToggleHandler)
+    window.addEventListener('tts:add', window.TTSAddHandler)
+    window.addEventListener('tts:stop', window.TTSStopHandler)
+    window.addEventListener('beforeunload', window.TTSBeforeUnloadHandler)
+    window.addEventListener('tts:enabled', window.TTSEnabledHandler)
+    
+    // Mark that event listeners have been added
+    window.TTSEventListenersAdded = true
+    window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
+    console.log(`✅ TTS Event listeners added (count: ${window.TTSEventListenerCount})`)
   }
 
   // ===== CONTENT DETECTION =====
-
-  handleNewStreamingContent(node) {
-    if (node.nodeType !== Node.ELEMENT_NODE) return
-    
-    const text = node.textContent?.trim()
-    if (!text || text.length === 0 || text.length >= 200) return
-    
-    // Only prefetch complete sentences from streaming
-    if (text.match(/[.!?]$/)) {
-      this.prefetchText(text)
-    }
-  }
+  // Removed redundant streaming observer and content handling methods
+  // Individual TTS controllers handle their own streaming content
 
   // ===== PREFETCHING =====
 
@@ -242,15 +284,45 @@ export default class extends Controller {
   // ===== QUEUE MANAGEMENT =====
 
   enqueue(text, messageId = null) {
-    if (!this.enabled || !text) return
+    if (!this.enabled || !text) {
+      console.log('🚫 TTS: Enqueue blocked - disabled or no text')
+      return
+    }
     
     const key = this.normalizeText(text)
-    if (this.isAlreadyProcessed(key)) return
+    console.log(`🔄 TTS Enqueue:`, {
+      originalText: text.substring(0, 50) + '...',
+      normalizedKey: key,
+      messageId: messageId,
+      queueLength: this.queue.length,
+      processing: this.processing
+    })
     
+    if (this.isAlreadyProcessed(key)) {
+      console.log(`❌ TTS: Already processed - ${key}`)
+      return
+    }
+    
+    // Enhanced duplicate prevention with cooldown
+    if (this.isRecentDuplicate(key)) {
+      console.log(`❌ TTS: Recent duplicate - ${key}`)
+      return
+    }
+    
+    // Rapid duplicate prevention (for texts arriving within 500ms)
+    if (this.isVeryRecentDuplicate(key)) {
+      console.log(`❌ TTS: Very recent duplicate - ${key}`)
+      return
+    }
+    
+    console.log(`✅ TTS: Adding to queue - ${key}`)
+    this.markAsRecent(key)
+    this.markAsVeryRecent(key)
     this.prefetchText(text)
     this.queue.push({ text, key })
     
     if (!this.processing) {
+      console.log(`🚀 TTS: Starting processing for ${messageId}`)
       this.startProcessing(messageId)
     }
     
@@ -260,8 +332,55 @@ export default class extends Controller {
   isAlreadyProcessed(key) {
     return this.spoken.has(key) || this.queue.some(item => item.key === key)
   }
+  
+  isRecentDuplicate(key) {
+    if (!this.recentTexts.has(key)) return false
+    
+    const lastTimestamp = this.recentTexts.get(key)
+    const now = Date.now()
+    
+    return (now - lastTimestamp) < this.cooldownPeriod
+  }
+  
+  isVeryRecentDuplicate(key) {
+    if (!this.veryRecentTexts.has(key)) return false
+    
+    const lastTimestamp = this.veryRecentTexts.get(key)
+    const now = Date.now()
+    
+    return (now - lastTimestamp) < this.rapidCooldown
+  }
+  
+  markAsRecent(key) {
+    const now = Date.now()
+    this.recentTexts.set(key, now)
+    
+    // Clean up old entries to prevent memory leaks
+    for (const [textKey, timestamp] of this.recentTexts.entries()) {
+      if (now - timestamp > this.cooldownPeriod * 2) {
+        this.recentTexts.delete(textKey)
+      }
+    }
+  }
+  
+  markAsVeryRecent(key) {
+    const now = Date.now()
+    this.veryRecentTexts.set(key, now)
+    
+    // Clean up old entries to prevent memory leaks
+    for (const [textKey, timestamp] of this.veryRecentTexts.entries()) {
+      if (now - timestamp > this.rapidCooldown * 2) {
+        this.veryRecentTexts.delete(textKey)
+      }
+    }
+  }
 
   startProcessing(messageId) {
+    // Safety check: if already processing, stop the current session first
+    if (this.processing && this.currentMessageId !== messageId) {
+      this.stop()
+    }
+    
     this.processing = true
     this.currentMessageId = messageId
     window.GlobalTTSManager.setActiveMessage(messageId)
@@ -308,22 +427,48 @@ export default class extends Controller {
   // ===== AUDIO PLAYBACK =====
 
   async playAudio(text, key) {
-    const blob = await this.getAudioBlob(text, key)
-    const audio = this.createAudioElement(blob)
+    // Final deduplication check - prevent the same audio from playing simultaneously
+    if (this.currentlyPlayingKey === key) {
+      console.log(`🚫 TTS: Audio already playing for key: ${key}`)
+      return
+    }
     
-    return new Promise((resolve) => {
-      const cleanup = () => {
-        URL.revokeObjectURL(audio.src)
-        resolve()
-      }
+    // Check if any audio is currently playing the same content
+    if (window.CurrentlyPlayingTTSKey === key) {
+      console.log(`🚫 TTS: Audio globally playing for key: ${key}`)
+      return
+    }
+    
+    // Mark this audio as currently playing
+    this.currentlyPlayingKey = key
+    window.CurrentlyPlayingTTSKey = key
+    
+    try {
+      const blob = await this.getAudioBlob(text, key)
+      const audio = this.createAudioElement(blob)
       
-      audio.onended = cleanup
-      audio.onerror = cleanup
-      audio.play().then(()=>{
-        const btn=window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId);
-        if(btn) window.GlobalTTSManager.setStopState(btn);
-      }).catch(cleanup)
-    })
+      return new Promise((resolve) => {
+        const cleanup = () => {
+          URL.revokeObjectURL(audio.src)
+          // Clear the currently playing markers
+          this.currentlyPlayingKey = null
+          window.CurrentlyPlayingTTSKey = null
+          resolve()
+        }
+        
+        audio.onended = cleanup
+        audio.onerror = cleanup
+        audio.play().then(()=>{
+          const btn=window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId);
+          if(btn) window.GlobalTTSManager.setStopState(btn);
+        }).catch(cleanup)
+      })
+    } catch (error) {
+      // Clear markers on error
+      this.currentlyPlayingKey = null
+      window.CurrentlyPlayingTTSKey = null
+      throw error
+    }
   }
 
   async getAudioBlob(text, key) {
@@ -372,8 +517,9 @@ export default class extends Controller {
   normalizeText(text) {
     return text
       .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .replace(/[.!?]+$/, '')
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .replace(/[.!?]+$/, '') // Remove trailing punctuation
+      .replace(/[^\w\s]/g, '') // Remove all non-word characters except spaces
       .trim()
   }
 
@@ -389,6 +535,11 @@ export default class extends Controller {
     this.processing = false
     this.queue = []
     this.currentMessageId = null
+    
+    // Clear currently playing markers
+    this.currentlyPlayingKey = null
+    window.CurrentlyPlayingTTSKey = null
+    
     window.GlobalTTSManager.clearActiveMessage()
   }
 
@@ -407,8 +558,18 @@ export default class extends Controller {
       this.audio.pause()
     }
     
-    if (this.contentObserver) {
-      this.contentObserver.disconnect()
+    // Clean up event listeners
+    if (window.TTSEventListenersAdded) {
+      console.log('🧹 Cleaning up TTS event listeners')
+      window.removeEventListener('tts:toggle', window.TTSToggleHandler)
+      window.removeEventListener('tts:add', window.TTSAddHandler)
+      window.removeEventListener('tts:stop', window.TTSStopHandler)
+      window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
+      window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
+      
+      // Clear the global references
+      window.TTSEventListenersAdded = false
+      window.TTSEventListenerCount = Math.max(0, (window.TTSEventListenerCount || 1) - 1)
     }
   }
 } 

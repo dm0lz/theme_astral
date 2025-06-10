@@ -4,6 +4,10 @@ import { Controller } from "@hotwired/stimulus"
  * Individual TTS Controller
  * Handles UI interactions and delegates to the global TTS system
  */
+
+// Global registry to prevent multiple streaming observers
+window.TTSStreamingRegistry = window.TTSStreamingRegistry || new Set()
+
 export default class extends Controller {
   static targets = ["chunks"]
   static values = {
@@ -12,9 +16,50 @@ export default class extends Controller {
   }
 
   connect() {
+    console.log(`🎛️  TTS Controller connecting:`, {
+      elementId: this.element.id || 'no-id',
+      hasChunksTarget: this.hasChunksTarget,
+      isStreamingMessage: this.isStreamingMessage()
+    })
+    
+    // Special handling for temp_message to prevent duplicates
+    if (this.element.id === 'temp_message') {
+      // Check if there are any other temp_message elements
+      const existingTempMessages = document.querySelectorAll('#temp_message')
+      if (existingTempMessages.length > 1) {
+        console.warn(`⚠️  Multiple temp_message elements detected! Count: ${existingTempMessages.length}`)
+        // Remove older temp messages
+        existingTempMessages.forEach((el, index) => {
+          if (index < existingTempMessages.length - 1) {
+            console.log(`🗑️  Removing old temp_message`)
+            el.remove()
+          }
+        })
+      }
+    }
+    
     this.initializeButton()
     this.registerWithGlobalManager()
-    this.setupStreamingObserver()
+    
+    // Only set up streaming observer for temp messages to prevent duplicates
+    if (this.isStreamingMessage()) {
+      const elementId = this.element.id || 'unknown'
+      
+      // Check if streaming is already handled for this element
+      if (window.TTSStreamingRegistry.has(elementId)) {
+        console.log(`🚫 TTS: Streaming already handled for ${elementId}`)
+        return
+      }
+      
+      // Register this element as having streaming
+      window.TTSStreamingRegistry.add(elementId)
+      this.registeredForStreaming = elementId
+      
+      this.setupStreamingObserver()
+      // Initialize processed content tracking only for streaming
+      this.processedContent = new Set()
+      console.log(`✅ TTS: Streaming enabled for ${elementId}`)
+    }
   }
 
   disconnect() {
@@ -40,14 +85,36 @@ export default class extends Controller {
   setupStreamingObserver() {
     if (!this.hasChunksTarget) return
 
+    // Add a debounce mechanism to prevent rapid-fire mutations
+    this.pendingProcessing = new Set()
+    this.processingTimeout = null
+
     this.observer = new MutationObserver((mutations) => {
       if (!this.enabledValue) return
       
+      // Clear any pending timeout
+      if (this.processingTimeout) {
+        clearTimeout(this.processingTimeout)
+      }
+      
+      // Collect all new text content
+      const newTexts = new Set()
+      
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
-          this.handleStreamingContent(node)
+          const text = this.extractText(node)
+          if (text && this.isCompleteSentence(text)) {
+            newTexts.add(text)
+          }
         })
       })
+      
+      // Process with a small delay to batch mutations
+      this.processingTimeout = setTimeout(() => {
+        newTexts.forEach(text => {
+          this.handleStreamingContent(text)
+        })
+      }, 50)
     })
     
     this.observer.observe(this.chunksTarget, { 
@@ -93,12 +160,59 @@ export default class extends Controller {
 
   // ===== STREAMING CONTENT =====
 
-  handleStreamingContent(node) {
-    const text = this.extractText(node)
-    if (!text || !this.isCompleteSentence(text)) return
+  handleStreamingContent(text) {
+    if (!text) return
+    
+    // Prevent duplicate processing of the same content
+    const contentKey = this.normalizeText(text)
+    
+    // Check if this content is already being processed
+    if (this.pendingProcessing.has(contentKey)) {
+      console.log(`🚫 TTS: Content already being processed: ${contentKey}`)
+      return
+    }
+    
+    // Global content lock to prevent race conditions between multiple controllers
+    if (!window.TTSContentLock) {
+      window.TTSContentLock = new Set()
+    }
+    
+    if (window.TTSContentLock.has(contentKey)) {
+      console.log(`🚫 TTS: Content locked globally: ${contentKey}`)
+      return
+    }
+    
+    // Lock this content globally and locally
+    window.TTSContentLock.add(contentKey)
+    this.pendingProcessing.add(contentKey)
+    
+    // Also check local processed content
+    if (this.processedContent.has(contentKey)) {
+      window.TTSContentLock.delete(contentKey)
+      this.pendingProcessing.delete(contentKey)
+      return
+    }
+    
+    this.processedContent.add(contentKey)
+    console.log(`✅ TTS: Processing new content: ${contentKey}`)
     
     const messageId = this.getStreamingMessageId()
     this.dispatchTTS(text, messageId)
+    
+    // Release locks after processing
+    setTimeout(() => {
+      window.TTSContentLock.delete(contentKey)
+      this.pendingProcessing.delete(contentKey)
+    }, 1000)
+  }
+
+  normalizeText(text) {
+    return text
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[.!?]+$/, '')
+      .replace(/[^\w\s]/g, '')
+      .trim()
   }
 
   getStreamingMessageId() {
@@ -140,6 +254,13 @@ export default class extends Controller {
   }
 
   dispatchTTS(text, messageId) {
+    console.log(`📤 TTS Dispatching:`, {
+      text: text.substring(0, 50) + '...',
+      messageId: messageId,
+      from: this.element.id || 'unknown-element',
+      timestamp: new Date().toISOString()
+    })
+    
     // Unlock iOS audio autoplay on first user interaction
     if (!window.__audioUnlocked) {
       try {
@@ -236,11 +357,33 @@ export default class extends Controller {
   cleanup() {
     this.cleanupObserver()
     this.unregisterFromGlobalManager()
+    
+    // Remove from streaming registry if registered
+    if (this.registeredForStreaming) {
+      window.TTSStreamingRegistry.delete(this.registeredForStreaming)
+    }
+    
+    // Clear processed content to prevent memory leaks (only for streaming messages)
+    if (this.processedContent) {
+      this.processedContent.clear()
+    }
   }
 
   cleanupObserver() {
     if (this.observer) {
       this.observer.disconnect()
+      this.observer = null
+    }
+    
+    // Clear any pending processing timeout
+    if (this.processingTimeout) {
+      clearTimeout(this.processingTimeout)
+      this.processingTimeout = null
+    }
+    
+    // Clear pending processing set
+    if (this.pendingProcessing) {
+      this.pendingProcessing.clear()
     }
   }
 
@@ -249,5 +392,10 @@ export default class extends Controller {
     if (button && window.GlobalTTSManager) {
       window.GlobalTTSManager.unregisterButton(button)
     }
+  }
+
+  // Check if this is a streaming message (temp_message)
+  isStreamingMessage() {
+    return this.element.id === 'temp_message' || this.hasChunksTarget
   }
 }
