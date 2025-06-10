@@ -643,28 +643,28 @@ export default class extends Controller {
     
     const prompt = document.createElement('div')
     prompt.id = 'ios-audio-prompt'
-    prompt.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #FF6B35;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10000;
-        font-family: system-ui, -apple-system, sans-serif;
-        font-size: 14px;
-        cursor: pointer;
-        animation: slideDown 0.3s ease-out;
-      ">
-        🎵 Tap here to enable audio for speech
-      </div>
+    prompt.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #FF6B35;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 999999;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: rgba(0,0,0,0.2);
+      animation: slideDown 0.3s ease-out;
     `
+    prompt.textContent = '🎵 Tap here to enable audio for speech'
     
-    // Add CSS animation
+    // Add CSS animation if not already present
     if (!document.getElementById('ios-audio-styles')) {
       const styles = document.createElement('style')
       styles.id = 'ios-audio-styles'
@@ -673,18 +673,51 @@ export default class extends Controller {
           from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
           to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
+        #ios-audio-prompt:hover {
+          background: #E55A2B !important;
+        }
+        #ios-audio-prompt:active {
+          transform: translateX(-50%) scale(0.98) !important;
+        }
       `
       document.head.appendChild(styles)
     }
     
-    prompt.onclick = async () => {
+    // Click handler for unlock
+    const unlockHandler = async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      prompt.style.background = '#4CAF50'
+      prompt.textContent = '🔄 Unlocking audio...'
+      
       const unlocked = await this.unlockIOSAudio()
       if (unlocked) {
-        this.hideIOSPrompt()
+        prompt.style.background = '#4CAF50'
+        prompt.textContent = '✅ Audio enabled!'
+        setTimeout(() => {
+          this.hideIOSPrompt()
+        }, 1000)
+      } else {
+        prompt.style.background = '#FF6B35'
+        prompt.textContent = '❌ Please try again'
+        setTimeout(() => {
+          prompt.textContent = '🎵 Tap here to enable audio for speech'
+        }, 2000)
       }
     }
     
+    // Add multiple event types for better compatibility
+    prompt.addEventListener('click', unlockHandler)
+    prompt.addEventListener('touchend', unlockHandler)
+    prompt.addEventListener('touchstart', (e) => {
+      e.preventDefault() // Prevent default touch behavior
+    })
+    
     document.body.appendChild(prompt)
+    
+    // Debug: log that prompt was created
+    console.log('iOS audio prompt created and added to DOM')
   }
 
   hideIOSPrompt() {
