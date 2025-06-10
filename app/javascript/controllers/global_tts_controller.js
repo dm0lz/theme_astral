@@ -456,11 +456,14 @@ export default class extends Controller {
   // ===== AUDIO PLAYBACK =====
 
   splitTextIntoChunks(text, maxLength = 200) {
+    // Clean emojis and icons from text before processing
+    let cleanedText = text.replace(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/gu, '')
+    
     // Split text into sentences, including those that don't end with punctuation
     const sentences = []
     
     // First, split by sentence-ending punctuation
-    const parts = text.split(/([.!?]+)/)
+    const parts = cleanedText.split(/([.!?]+)/)
     let currentSentence = ''
     
     for (let i = 0; i < parts.length; i++) {
@@ -486,8 +489,8 @@ export default class extends Controller {
     }
     
     // If we didn't find any sentences with the split method, treat entire text as one sentence
-    if (sentences.length === 0 && text.trim()) {
-      sentences.push(text.trim())
+    if (sentences.length === 0 && cleanedText.trim()) {
+      sentences.push(cleanedText.trim())
     }
     
     console.log('TTS: Found sentences:', sentences)
@@ -514,7 +517,7 @@ export default class extends Controller {
     }
 
     console.log('TTS: Created chunks:', chunks)
-    return chunks.length > 0 ? chunks : [text.trim()]
+    return chunks.length > 0 ? chunks : [cleanedText.trim()]
   }
 
   async speakChunk(chunk, voice, chunkIndex, totalChunks) {
@@ -608,9 +611,17 @@ export default class extends Controller {
     } else {
       console.log('No google voice found. Available voice names:', voices.map(v => v.name))
     }
+
+    // select siri voice specifically from country voices
+    const siriVoice = countryVoices.find(voice => 
+      voice.name.toLowerCase().includes("siri")
+    )
+    if (siriVoice) {
+      console.log('Found siri voice:', siriVoice.name, siriVoice.lang)
+    }
     
     // Prefer google voice FIRST, then language-based fallbacks
-    const preferredVoice = googleVoice || voices.find(voice => 
+    const preferredVoice = siriVoice || googleVoice || voices.find(voice => 
       voice.lang.startsWith('en') ||
       voice.lang.startsWith('fr') ||
       voice.default

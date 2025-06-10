@@ -18,8 +18,8 @@ class Ai::Astro::ChatMessagesService
           buffer += delta
           # if buffer contains a sentence ending, send it to the client
           if buffer.match(/[.!?]\s*$/)
-            # remove all icons like ✨, 🌟, 🌈, etc.
-            buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}]/, '')
+            # remove all icons like  ✨, 🌟, 🌈, etc.
+            buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
             Turbo::StreamsChannel.broadcast_append_to(
               "streaming_channel_#{@chat_message.user_id}",
               target: "sentence_chunks_container",
