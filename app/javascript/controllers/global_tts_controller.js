@@ -32,12 +32,20 @@ window.GlobalTTSManager = {
       enabled = window.__ttsEnabled
     }
     
-    // Force visibility update for iOS compatibility
+    // Handle button visibility based on TTS enabled state
     if (enabled) {
+      // Show button - remove hidden class and ensure visibility
       button.classList.remove('hidden')
-      button.style.display = '' // Clear any inline display:none
+      button.style.display = 'inline-flex'
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
     } else {
+      // Hide button - use inline styles to override any existing styles
       button.classList.add('hidden')
+      button.style.display = 'none'
+      button.style.opacity = '0'
+      button.style.visibility = 'hidden'
+      return // Don't set button state if TTS is disabled
     }
     
     if (enabled && this.isActive && messageId === this.activeMessageId) {
@@ -108,13 +116,19 @@ window.GlobalTTSManager = {
   
   updateAllButtons() {
     this.allButtons.forEach((messageId, button) => {
-      // Force visibility update for iOS compatibility
       if (window.__ttsEnabled) {
+        // Show button - remove hidden class and ensure visibility
         button.classList.remove('hidden')
-        button.style.display = '' // Clear any inline display:none
+        button.style.display = 'inline-flex' // Restore display
+        button.style.opacity = '1'
+        button.style.visibility = 'visible'
       } else {
+        // Hide button - use inline styles to override any existing styles
         button.classList.add('hidden')
-        return
+        button.style.display = 'none'
+        button.style.opacity = '0'
+        button.style.visibility = 'hidden'
+        return // Don't update button state if TTS is disabled
       }
       
       if (this.isActive && messageId === this.activeMessageId) {
@@ -134,10 +148,12 @@ window.GlobalTTSManager = {
     button.dataset.speaking = "true"
     button.title = "Stop reading"
     
-    // Ensure visibility on iOS
-    button.style.opacity = '1'
-    button.style.visibility = 'visible'
-    button.style.display = button.style.display || 'inline-flex'
+    // Only make visible if TTS is enabled
+    if (window.__ttsEnabled) {
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
+      button.style.display = button.style.display || 'inline-flex'
+    }
   },
   
   setSpeakerState(button) {
@@ -151,10 +167,12 @@ window.GlobalTTSManager = {
     button.dataset.speaking = "false"
     button.title = "Read message aloud"
     
-    // Ensure visibility on iOS
-    button.style.opacity = '1'
-    button.style.visibility = 'visible'
-    button.style.display = button.style.display || 'inline-flex'
+    // Only make visible if TTS is enabled
+    if (window.__ttsEnabled) {
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
+      button.style.display = button.style.display || 'inline-flex'
+    }
   },
   
   getButtonByMessageId(id) {
@@ -437,6 +455,78 @@ export default class extends Controller {
 
   // ===== AUDIO PLAYBACK =====
 
+  async getAvailableVoices() {
+    return new Promise((resolve) => {
+      let voices = speechSynthesis.getVoices()
+      
+      if (voices.length > 0) {
+        resolve(voices)
+        return
+      }
+      
+      // Voices not ready yet, wait for them
+      const handleVoicesChanged = () => {
+        voices = speechSynthesis.getVoices()
+        if (voices.length > 0) {
+          speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
+          resolve(voices)
+        }
+      }
+      
+      speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged)
+      
+      // Fallback timeout in case voiceschanged never fires
+      setTimeout(() => {
+        speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
+        resolve(speechSynthesis.getVoices()) // Return whatever we have
+      }, 1000)
+    })
+  }
+
+  async selectBestVoice() {
+    let voices = await this.getAvailableVoices()
+    
+    if (voices.length === 0) {
+      console.log('No voices available')
+      return null
+    }
+    
+    // Get browser language and country
+    const browserLang = navigator.language || navigator.userLanguage
+    const browserCountry = browserLang.split('-')[1]?.toUpperCase()
+    
+    // Filter voices by browser country if available
+    const countryVoices = browserCountry ? 
+      voices.filter(voice => {
+        const voiceCountry = voice.lang.split('-')[1]?.toUpperCase()
+        return voiceCountry === browserCountry
+      }) : []
+      
+    if (countryVoices.length > 0) {
+      voices = countryVoices
+      console.log(`Found ${voices.length} voices matching browser country ${browserCountry} : ${voices.map(v => v.name).join(', ')}`)
+    }
+    // Check for google voice specifically
+    const googleVoice = voices.find(voice => 
+      voice.name.toLowerCase().includes("google")
+    )
+    if (googleVoice) {
+      console.log('Found google voice:', googleVoice.name, googleVoice.lang)
+    } else {
+      console.log('No google voice found. Available voice names:', voices.map(v => v.name))
+    }
+    
+    // Prefer google voice FIRST, then language-based fallbacks
+    const preferredVoice = googleVoice || voices.find(voice => 
+      voice.lang.startsWith('en') ||
+      voice.lang.startsWith('fr') ||
+      voice.default
+    ) || voices[0]
+    
+    console.log('Selected voice:', preferredVoice.name, preferredVoice.lang)
+    return preferredVoice
+  }
+
   async playAudio(text, key) {
     // Final deduplication check - prevent the same audio from playing simultaneously
     if (this.currentlyPlayingKey === key) {
@@ -455,7 +545,7 @@ export default class extends Controller {
     try {
       console.log('TTS: Starting speech synthesis for text:', text.substring(0, 50) + '...')
       
-      return new Promise((resolve, reject) => {
+      return new Promise(async (resolve, reject) => {
         // Check browser support
         if (!('speechSynthesis' in window)) {
           reject(new Error('Speech synthesis not supported'))
@@ -469,16 +559,10 @@ export default class extends Controller {
         utterance.pitch = 1.0
         utterance.volume = 1.0
         
-        // Try to select a good voice
-        const voices = speechSynthesis.getVoices()
-        if (voices.length > 0) {
-          // Prefer English or French voices, fallback to first available
-          const preferredVoice = voices.find(voice => 
-            voice.lang.startsWith('en') || 
-            voice.lang.startsWith('fr') ||
-            voice.default
-          ) || voices[0]
-          utterance.voice = preferredVoice
+        // Select the best available voice
+        const selectedVoice = await this.selectBestVoice()
+        if (selectedVoice) {
+          utterance.voice = selectedVoice
         }
 
         const cleanup = () => {

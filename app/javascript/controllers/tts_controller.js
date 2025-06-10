@@ -302,11 +302,20 @@ export default class extends Controller {
     // Add explicit iOS-compatible styling
     button.style.minWidth = '24px'
     button.style.minHeight = '24px'
-    button.style.display = 'inline-flex'
     button.style.alignItems = 'center'
     button.style.justifyContent = 'center'
-    button.style.opacity = '1'
-    button.style.visibility = 'visible'
+    
+    // Check TTS enabled state before making visible
+    if (window.__ttsEnabled) {
+      button.style.display = 'inline-flex'
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
+    } else {
+      button.style.display = 'none'
+      button.style.opacity = '0'
+      button.style.visibility = 'hidden'
+      button.classList.add('hidden')
+    }
     
     // Add data attributes for easier debugging
     button.setAttribute('data-tts-button', 'streaming')
