@@ -191,6 +191,7 @@ export default class extends Controller {
     
     this.initializeState()
     this.setupEventListeners()
+    this.setupUserInteractionTracking()
     
     // Ensure all existing TTS buttons are visible
     setTimeout(() => {
@@ -272,6 +273,56 @@ export default class extends Controller {
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
   }
 
+  setupUserInteractionTracking() {
+    // Track if user has interacted to enable Speech Synthesis autoplay
+    if (!window.__speechSynthesisUnlocked) {
+      const unlockEvents = ['click', 'touchstart', 'touchend', 'keydown', 'mousedown']
+      
+      const unlockSpeechSynthesis = () => {
+        console.log('TTS: User interaction detected, unlocking Speech Synthesis')
+        
+        // Test Speech Synthesis with a silent utterance to unlock it
+        if ('speechSynthesis' in window) {
+          const testUtterance = new SpeechSynthesisUtterance('')
+          testUtterance.volume = 0
+          speechSynthesis.speak(testUtterance)
+          
+          // Mark as unlocked
+          window.__speechSynthesisUnlocked = true
+          
+          // Remove listeners once unlocked
+          unlockEvents.forEach(event => {
+            document.removeEventListener(event, unlockSpeechSynthesis, true)
+          })
+          
+          console.log('TTS: Speech Synthesis unlocked for autoplay')
+          
+          // Process any pending texts
+          if (this.pendingTexts && this.pendingTexts.length > 0) {
+            console.log('TTS: Processing', this.pendingTexts.length, 'pending texts')
+            const pendingTexts = this.pendingTexts
+            this.pendingTexts = []
+            
+            setTimeout(() => {
+              pendingTexts.forEach(({ text, messageId }) => {
+                this.enqueue(text, messageId)
+              })
+            }, 100)
+          }
+        }
+      }
+      
+      // Add listeners to capture user interaction
+      unlockEvents.forEach(event => {
+        document.addEventListener(event, unlockSpeechSynthesis, { 
+          once: true, 
+          passive: true,
+          capture: true 
+        })
+      })
+    }
+  }
+
   // ===== CONTENT DETECTION =====
   // Removed redundant streaming observer and content handling methods
   // Individual TTS controllers handle their own streaming content
@@ -297,6 +348,15 @@ export default class extends Controller {
 
   enqueue(text, messageId = null) {
     if (!this.enabled || !text) {
+      return
+    }
+    
+    // Check if Speech Synthesis is available and unlocked
+    if ('speechSynthesis' in window && !window.__speechSynthesisUnlocked) {
+      console.log('TTS: Speech Synthesis not yet unlocked, queuing text')
+      // Queue the text for later when user interacts
+      this.pendingTexts = this.pendingTexts || []
+      this.pendingTexts.push({ text, messageId })
       return
     }
     
@@ -543,6 +603,14 @@ export default class extends Controller {
   }
 
   cleanup() {
+    // Stop any ongoing speech synthesis
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel()
+    }
+    
+    // Clear pending texts
+    this.pendingTexts = []
+    
     // Clean up event listeners
     if (window.TTSEventListenersAdded) {
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
