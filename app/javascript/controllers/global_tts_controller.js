@@ -31,7 +31,15 @@ window.GlobalTTSManager = {
     } else {
       enabled = window.__ttsEnabled
     }
-    button.classList.toggle('hidden', !enabled);
+    
+    // Force visibility update for iOS compatibility
+    if (enabled) {
+      button.classList.remove('hidden')
+      button.style.display = '' // Clear any inline display:none
+    } else {
+      button.classList.add('hidden')
+    }
+    
     if (enabled && this.isActive && messageId === this.activeMessageId) {
       this.setStopState(button)
     } else {
@@ -100,10 +108,15 @@ window.GlobalTTSManager = {
   
   updateAllButtons() {
     this.allButtons.forEach((messageId, button) => {
-      // visibility
-      button.classList.toggle('hidden', !window.__ttsEnabled);
-
-      if (!window.__ttsEnabled) return;
+      // Force visibility update for iOS compatibility
+      if (window.__ttsEnabled) {
+        button.classList.remove('hidden')
+        button.style.display = '' // Clear any inline display:none
+      } else {
+        button.classList.add('hidden')
+        return
+      }
+      
       if (this.isActive && messageId === this.activeMessageId) {
         this.setStopState(button)
       } else {
@@ -120,6 +133,11 @@ window.GlobalTTSManager = {
       </svg>`
     button.dataset.speaking = "true"
     button.title = "Stop reading"
+    
+    // Ensure visibility on iOS
+    button.style.opacity = '1'
+    button.style.visibility = 'visible'
+    button.style.display = button.style.display || 'inline-flex'
   },
   
   setSpeakerState(button) {
@@ -132,6 +150,11 @@ window.GlobalTTSManager = {
       </svg>`
     button.dataset.speaking = "false"
     button.title = "Read message aloud"
+    
+    // Ensure visibility on iOS
+    button.style.opacity = '1'
+    button.style.visibility = 'visible'
+    button.style.display = button.style.display || 'inline-flex'
   },
   
   getButtonByMessageId(id) {
@@ -169,6 +192,11 @@ export default class extends Controller {
     this.initializeState()
     this.setupEventListeners()
     this.setupIOSAudioUnlock()
+    
+    // iOS compatibility: ensure all existing TTS buttons are visible
+    setTimeout(() => {
+      this.ensureAllButtonsVisible()
+    }, 100)
     
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
@@ -770,5 +798,19 @@ export default class extends Controller {
     if (prompt) {
       prompt.remove()
     }
+  }
+
+  ensureAllButtonsVisible() {
+    // Find all TTS buttons in the document and ensure they're visible if TTS is enabled
+    if (!window.__ttsEnabled) return
+    
+    const allTTSButtons = document.querySelectorAll('[data-controller*="tts"], [data-tts-button], [data-action*="tts"]')
+    allTTSButtons.forEach(button => {
+      if (button.classList.contains('hidden')) {
+        button.classList.remove('hidden')
+      }
+      button.style.opacity = '1'
+      button.style.visibility = 'visible'
+    })
   }
 } 

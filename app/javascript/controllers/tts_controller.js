@@ -267,7 +267,30 @@ export default class extends Controller {
   }
 
   findButtonContainer() {
-    return this.element.querySelector('.flex.items-center.space-x-2:first-child')
+    // iOS-compatible container detection - avoid pseudo-selectors
+    // Try multiple approaches for maximum compatibility
+    
+    // First try: exact class match with space-x-2
+    let container = this.element.querySelector('.flex.items-center.space-x-2')
+    
+    if (!container) {
+      // Second try: any flex container with items-center
+      const flexContainers = this.element.querySelectorAll('.flex.items-center')
+      if (flexContainers.length > 0) {
+        // Use the last one (usually the message footer)
+        container = flexContainers[flexContainers.length - 1]
+      }
+    }
+    
+    if (!container) {
+      // Third try: look for any flex container
+      const anyFlex = this.element.querySelectorAll('.flex')
+      if (anyFlex.length > 0) {
+        container = anyFlex[anyFlex.length - 1]
+      }
+    }
+    
+    return container
   }
 
   buildToggleButton() {
@@ -275,6 +298,20 @@ export default class extends Controller {
     button.className = 'text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10'
     button.innerHTML = this.getSpeakerIcon()
     button.onclick = () => this.handleToggleClick(button)
+    
+    // Add explicit iOS-compatible styling
+    button.style.minWidth = '24px'
+    button.style.minHeight = '24px'
+    button.style.display = 'inline-flex'
+    button.style.alignItems = 'center'
+    button.style.justifyContent = 'center'
+    button.style.opacity = '1'
+    button.style.visibility = 'visible'
+    
+    // Add data attributes for easier debugging
+    button.setAttribute('data-tts-button', 'streaming')
+    button.setAttribute('title', 'Read message aloud')
+    
     return button
   }
 
