@@ -13,7 +13,7 @@ module Ai
       def call
         # Use mutex to ensure only one TTS request at a time
         @@tts_mutex.synchronize do
-          Timeout::timeout(30) do
+          Timeout::timeout(20) do
             Rails.logger.info "TTS: Starting request for text length: #{text.length}"
             
             response = openai_client.audio.speech(
@@ -30,7 +30,7 @@ module Ai
           end
         end
       rescue Timeout::Error
-        Rails.logger.error "TTS Error: Request timed out after 30 seconds"
+        Rails.logger.error "TTS Error: Request timed out after 20 seconds"
         raise StandardError, "TTS request timed out"
       rescue => e
         Rails.logger.error "TTS Error: #{e.class.name} - #{e.message}"
@@ -42,8 +42,8 @@ module Ai
       def openai_client
         @openai_client ||= OpenAI::Client.new(
           access_token: ENV["OPENAI_API_KEY"],
-          request_timeout: 25,
-          read_timeout: 25,
+          request_timeout: 18,
+          read_timeout: 18,
           write_timeout: 5
         )
       end

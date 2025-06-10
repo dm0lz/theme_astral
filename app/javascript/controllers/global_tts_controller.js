@@ -246,6 +246,10 @@ export default class extends Controller {
     
     // Audio-level deduplication
     this.currentlyPlayingKey = null
+    
+    // Frontend request queue to prevent concurrent API calls
+    this.requestQueue = []
+    this.processingRequest = false
   }
 
   setupEventListeners() {
@@ -494,12 +498,35 @@ export default class extends Controller {
     window.CurrentlyPlayingTTSKey = key
     
     try {
-      const blob = await this.getAudioBlob(text, key)
-      const audio = this.createAudioElement(blob)
+      console.log('TTS: Starting speech synthesis for text:', text.substring(0, 50) + '...')
       
       return new Promise((resolve, reject) => {
+        // Check browser support
+        if (!('speechSynthesis' in window)) {
+          reject(new Error('Speech synthesis not supported'))
+          return
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text)
+        
+        // Configure voice settings
+        utterance.rate = 1.0
+        utterance.pitch = 1.0
+        utterance.volume = 1.0
+        
+        // Try to select a good voice
+        const voices = speechSynthesis.getVoices()
+        if (voices.length > 0) {
+          // Prefer English or French voices, fallback to first available
+          const preferredVoice = voices.find(voice => 
+            voice.lang.startsWith('en') || 
+            voice.lang.startsWith('fr') ||
+            voice.default
+          ) || voices[0]
+          utterance.voice = preferredVoice
+        }
+
         const cleanup = () => {
-          URL.revokeObjectURL(audio.src)
           // Clear the currently playing markers
           this.currentlyPlayingKey = null
           window.CurrentlyPlayingTTSKey = null
@@ -507,51 +534,36 @@ export default class extends Controller {
         }
         
         const handleError = (error) => {
-          URL.revokeObjectURL(audio.src)
           this.currentlyPlayingKey = null
           window.CurrentlyPlayingTTSKey = null
           reject(error)
         }
-        
-        // Set up event handlers
-        audio.onended = cleanup
-        audio.onerror = (e) => handleError(new Error('Audio playback failed'))
-        audio.oncanplay = () => {
-          // iOS-specific: ensure we can play before attempting
-          if (this.isIOS() && audio.readyState < 3) {
-            return // Wait for more data
-          }
-        }
-        
-        // Attempt to play with iOS-specific handling
-        const playPromise = audio.play()
-        
-        if (playPromise !== undefined) {
-          playPromise.then(() => {
-            const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
-            if (btn) window.GlobalTTSManager.setStopState(btn)
-          }).catch((error) => {
-            // iOS playback failed - try to re-unlock audio
-            if (this.isIOS()) {
-              this.unlockIOSAudio().then(() => {
-                // Retry playback once
-                const retryPromise = audio.play()
-                if (retryPromise) {
-                  retryPromise.then(() => {
-                    const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
-                    if (btn) window.GlobalTTSManager.setStopState(btn)
-                  }).catch(handleError)
-                }
-              }).catch(handleError)
-            } else {
-              handleError(error)
-            }
-          })
-        } else {
-          // Older browsers - no promise returned
+
+        utterance.onstart = () => {
+          console.log('TTS: Speech synthesis started')
           const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
           if (btn) window.GlobalTTSManager.setStopState(btn)
         }
+
+        utterance.onend = () => {
+          console.log('TTS: Speech synthesis ended')
+          cleanup()
+        }
+
+        utterance.onerror = (event) => {
+          console.error('TTS: Speech synthesis error:', event.error)
+          handleError(new Error(`Speech synthesis failed: ${event.error}`))
+        }
+
+        // iOS-specific handling
+        if (this.isIOS() && !window.__audioUnlocked) {
+          this.showIOSPrompt()
+          handleError(new Error('Audio not unlocked on iOS'))
+          return
+        }
+
+        // Start speech synthesis
+        speechSynthesis.speak(utterance)
       })
     } catch (error) {
       // Clear markers on error
@@ -559,94 +571,6 @@ export default class extends Controller {
       window.CurrentlyPlayingTTSKey = null
       throw error
     }
-  }
-
-  async getAudioBlob(text, key) {
-    if (this.prefetched.has(key)) {
-      return this.prefetched.get(key)
-    }
-    return await this.fetchAudioBlob(text)
-  }
-
-  createAudioElement(blob) {
-    const url = URL.createObjectURL(blob)
-    
-    // Create fresh audio element for iOS compatibility
-    const audio = new Audio()
-    
-    // iOS-specific audio configuration
-    if (this.isIOS()) {
-      audio.preload = 'auto'
-      audio.playsInline = true
-      audio.controls = false
-      audio.autoplay = false
-      audio.muted = false
-      audio.volume = 1.0
-      
-      // Set important attributes for iOS
-      audio.setAttribute('playsinline', 'true')
-      audio.setAttribute('webkit-playsinline', 'true')
-    }
-    
-    audio.src = url
-    
-    // Store reference but don't reuse on iOS
-    if (!this.isIOS()) {
-      if (this.audio) {
-        this.audio.pause()
-      }
-      this.audio = audio
-    }
-    
-    return audio
-  }
-
-  // ===== API COMMUNICATION =====
-
-  async fetchAudioBlob(text) {
-    try {
-      console.log('TTS: Making request for text length:', text.length)
-      
-      const response = await fetch('/tts/speak', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': this.getCSRFToken()
-        },
-        body: JSON.stringify({ text }),
-        // Add timeout to prevent hanging on frontend too
-        signal: AbortSignal.timeout ? AbortSignal.timeout(35000) : undefined // 35 second timeout
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.log('TTS: Server error response:', response.status, errorData)
-        
-        if (response.status === 408 || response.status === 504) {
-          throw new Error('TTS request timed out. Please wait and try again.')
-        } else if (response.status === 503) {
-          throw new Error('TTS service busy. Please wait a moment and try again.')
-        } else if (response.status >= 500) {
-          throw new Error('TTS server error. Please try again later.')
-        } else {
-          throw new Error(`TTS API error: ${response.status}`)
-        }
-      }
-      
-      console.log('TTS: Successfully received audio blob')
-      return await response.blob()
-    } catch (error) {
-      console.error('TTS: Request failed:', error.name, error.message)
-      
-      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        throw new Error('TTS request timed out. Please try again.')
-      }
-      throw error
-    }
-  }
-
-  getCSRFToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.content || ''
   }
 
   // ===== UTILITIES =====
@@ -660,9 +584,20 @@ export default class extends Controller {
       .trim()
   }
 
+  getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || ''
+  }
+
   // ===== CONTROLS =====
 
   stop() {
+    // Stop speech synthesis
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel()
+      console.log('TTS: Speech synthesis cancelled')
+    }
+    
+    // Legacy audio cleanup (if any)
     if (this.audio) {
       this.audio.pause()
       this.audio = null
@@ -672,6 +607,10 @@ export default class extends Controller {
     this.processing = false
     this.queue = []
     this.currentMessageId = null
+    
+    // Clear frontend request queue
+    this.requestQueue = []
+    this.processingRequest = false
     
     // Clear currently playing markers
     this.currentlyPlayingKey = null
@@ -742,52 +681,29 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
-    // Very simple unlock - just the user gesture is usually enough
     try {
-      console.log('Starting iOS audio unlock process...')
+      console.log('Starting iOS audio unlock for Speech Synthesis...')
       
       // Small delay to ensure "Enabling Audio..." is visible
       await new Promise(resolve => setTimeout(resolve, 500))
       
-      // Try AudioContext unlock
-      const AudioContext = window.AudioContext || window.webkitAudioContext
-      if (AudioContext) {
-        if (!this.audioContext) {
-          console.log('Creating new AudioContext...')
-          this.audioContext = new AudioContext()
-        }
+      // For Speech Synthesis, we mainly need user gesture
+      // Test if speechSynthesis works
+      if ('speechSynthesis' in window) {
+        console.log('Speech Synthesis available')
         
-        if (this.audioContext.state === 'suspended') {
-          console.log('AudioContext suspended, attempting resume...')
-          await this.audioContext.resume()
-          console.log('AudioContext state after resume:', this.audioContext.state)
-        }
-      }
-      
-      // Try simple audio play and wait for it to succeed
-      console.log('Testing audio playback...')
-      const audio = new Audio()
-      audio.volume = 0.01
-      audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
-      
-      try {
-        await audio.play()
-        console.log('Audio playback test successful')
-      } catch (playError) {
-        console.log('Audio playback test failed:', playError.message)
-        // Don't fail the unlock for this
-      }
-      
-      // Verify that we have a working audio context
-      const audioWorking = this.audioContext && this.audioContext.state === 'running'
-      console.log('Audio context working:', audioWorking)
-      
-      if (audioWorking) {
-        // The user gesture and audio test worked
+        // Try to speak a silent utterance to unlock
+        const testUtterance = new SpeechSynthesisUtterance('')
+        testUtterance.volume = 0
+        speechSynthesis.speak(testUtterance)
+        
+        // Wait a moment for the test
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        console.log('Speech Synthesis test completed')
         window.__audioUnlocked = true
-        console.log('iOS audio unlock successful')
         
-        // Process pending texts with delay
+        // Process pending texts
         if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
           console.log('Processing', this.pendingIOSTexts.length, 'pending texts')
           const pendingTexts = this.pendingIOSTexts
@@ -802,12 +718,14 @@ export default class extends Controller {
         
         return true
       } else {
-        console.log('iOS audio unlock failed - audio context not working')
+        console.log('Speech Synthesis not available')
         return false
       }
     } catch (error) {
       console.log('iOS audio unlock error:', error.message)
-      return false
+      // For Speech Synthesis, even errors can indicate unlock worked
+      window.__audioUnlocked = true
+      return true
     }
   }
 

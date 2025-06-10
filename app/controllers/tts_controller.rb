@@ -19,16 +19,16 @@ class TtsController < ApplicationController
                 type: "audio/mpeg",
                 disposition: "inline"
     rescue Net::ReadTimeout => e
-      Rails.logger.error "TTS Controller: Network timeout - #{e.message}"
+      Rails.logger.error "TTS Controller: Network read timeout - #{e.message}"
       render json: { 
         error: "TTS network timeout", 
         message: "Request took too long, please try again" 
       }, status: :request_timeout
-    rescue Net::TimeoutError => e
-      Rails.logger.error "TTS Controller: Connection timeout - #{e.message}"
+    rescue Timeout::Error => e
+      Rails.logger.error "TTS Controller: Timeout - #{e.message}"
       render json: { 
-        error: "TTS connection timeout", 
-        message: "Could not connect to TTS service" 
+        error: "TTS timeout", 
+        message: "Request timed out, please try again" 
       }, status: :request_timeout
     rescue StandardError => e
       Rails.logger.error "TTS Controller Error: #{e.class.name} - #{e.message}"
