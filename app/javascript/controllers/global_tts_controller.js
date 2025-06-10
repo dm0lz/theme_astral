@@ -586,20 +586,35 @@ export default class extends Controller {
   // ===== API COMMUNICATION =====
 
   async fetchAudioBlob(text) {
-    const response = await fetch('/tts/speak', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': this.getCSRFToken()
-      },
-      body: JSON.stringify({ text })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`TTS API error: ${response.status}`)
+    try {
+      const response = await fetch('/tts/speak', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': this.getCSRFToken()
+        },
+        body: JSON.stringify({ text }),
+        // Add timeout to prevent hanging on frontend too
+        signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined // 20 second timeout
+      })
+      
+      if (!response.ok) {
+        if (response.status === 503) {
+          throw new Error('TTS service temporarily unavailable. Please try again.')
+        } else if (response.status >= 500) {
+          throw new Error('TTS server error. Please try again later.')
+        } else {
+          throw new Error(`TTS API error: ${response.status}`)
+        }
+      }
+      
+      return await response.blob()
+    } catch (error) {
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        throw new Error('TTS request timed out. Please try again.')
+      }
+      throw error
     }
-    
-    return await response.blob()
   }
 
   getCSRFToken() {
@@ -699,9 +714,9 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
-    // Add timeout to prevent hanging - reduced since we simplified
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Unlock timeout')), 3000) // 3 second timeout
+    // Much faster timeout
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => resolve(true), 1000) // Always succeed after 1 second
     })
     
     const unlockPromise = this.performIOSUnlock()
@@ -710,113 +725,50 @@ export default class extends Controller {
       await Promise.race([unlockPromise, timeoutPromise])
       return true
     } catch (error) {
-      // Even if unlock "fails", set as unlocked since user tapped
-      // The gesture itself often unlocks audio on iOS
-      window.__audioUnlocked = true
-      this.hideIOSPrompt()
-      return true
+      return true // Always succeed
     }
   }
   
   async performIOSUnlock() {
+    // Very simple unlock - just the user gesture is usually enough
     try {
-      let unlockSuccessful = false
-      
-      // Strategy 1: Simple AudioContext unlock
+      // Try AudioContext unlock
       const AudioContext = window.AudioContext || window.webkitAudioContext
-      if (AudioContext) {
-        try {
-          if (!this.audioContext) {
-            this.audioContext = new AudioContext()
-          }
-          
-          if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume()
-          }
-          
-          // AudioContext unlock is often sufficient
-          if (this.audioContext.state === 'running') {
-            unlockSuccessful = true
-          }
-        } catch (contextError) {
-          // Continue to HTML5 audio
+      if (AudioContext && !this.audioContext) {
+        this.audioContext = new AudioContext()
+        if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume().catch(() => {}) // Don't wait for this
         }
       }
       
-      // Strategy 2: Simple HTML5 Audio unlock
-      if (!unlockSuccessful) {
-        try {
-          const audio = new Audio()
-          audio.volume = 0.01
-          audio.muted = false
-          
-          // Use a very simple, reliable audio source
-          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
-          
-          // Try to play with a reasonable timeout
-          const playPromise = audio.play()
-          if (playPromise) {
-            await Promise.race([
-              playPromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Play timeout')), 1000))
-            ])
-          }
-          
-          unlockSuccessful = true
-        } catch (audioError) {
-          // Even if play fails, the gesture might have unlocked audio
-          // On many iOS versions, the attempt itself is enough
-          unlockSuccessful = true
-        }
+      // Try simple audio play but don't wait for it
+      const audio = new Audio()
+      audio.volume = 0.01
+      audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
+      audio.play().catch(() => {}) // Don't wait for this
+      
+      // The user gesture itself is the unlock
+      window.__audioUnlocked = true
+      this.hideIOSPrompt()
+      
+      // Process pending texts with delay
+      if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+        const pendingTexts = this.pendingIOSTexts
+        this.pendingIOSTexts = []
+        
+        setTimeout(() => {
+          pendingTexts.forEach(({ text, messageId }) => {
+            this.enqueue(text, messageId)
+          })
+        }, 100)
       }
       
-      // Strategy 3: Fallback - consider successful if we got this far with a user gesture
-      if (!unlockSuccessful) {
-        // The user tapped, which is often sufficient for iOS audio unlock
-        unlockSuccessful = true
-      }
-      
-      if (unlockSuccessful) {
-        // Small delay to ensure unlock takes effect
-        await new Promise(resolve => setTimeout(resolve, 200))
-        
-        // Verify the unlock worked by testing audio creation
-        try {
-          const testAudio = new Audio()
-          testAudio.volume = 1.0
-          testAudio.muted = false
-          testAudio.preload = 'auto'
-          
-          // If we can configure these properties without error, unlock likely worked
-          window.__audioUnlocked = true
-        } catch (verifyError) {
-          // Even if verification fails, proceed - the user gesture is usually enough
-          window.__audioUnlocked = true
-        }
-        
-        // Remove the iOS prompt
-        this.hideIOSPrompt()
-        
-        // Process any pending iOS texts
-        if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-          const pendingTexts = this.pendingIOSTexts
-          this.pendingIOSTexts = []
-          
-          // Process each pending text with a small delay
-          setTimeout(() => {
-            pendingTexts.forEach(({ text, messageId }) => {
-              this.enqueue(text, messageId)
-            })
-          }, 100)
-        }
-        
-        return true
-      } else {
-        throw new Error('Unlock failed')
-      }
-      
+      return true
     } catch (error) {
-      throw error
+      // Even on error, consider unlocked
+      window.__audioUnlocked = true
+      this.hideIOSPrompt()
+      return true
     }
   }
 
