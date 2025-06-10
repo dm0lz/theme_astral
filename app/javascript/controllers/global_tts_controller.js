@@ -584,29 +584,75 @@ export default class extends Controller {
   async unlockIOSAudio() {
     if (window.__audioUnlocked) return true
     
+    console.log('🔓 Attempting iOS audio unlock...')
+    
     try {
-      // Create and resume AudioContext
+      // Strategy 1: AudioContext unlock
       const AudioContext = window.AudioContext || window.webkitAudioContext
       if (AudioContext) {
-        if (!this.audioContext) {
-          this.audioContext = new AudioContext()
-        }
-        
-        if (this.audioContext.state === 'suspended') {
-          await this.audioContext.resume()
+        try {
+          if (!this.audioContext) {
+            this.audioContext = new AudioContext()
+            console.log('📱 Created new AudioContext, state:', this.audioContext.state)
+          }
+          
+          if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume()
+            console.log('📱 AudioContext resumed, new state:', this.audioContext.state)
+          }
+        } catch (contextError) {
+          console.warn('⚠️ AudioContext unlock failed:', contextError)
         }
       }
       
-      // Play silent audio to unlock HTMLAudioElement
-      const silentAudio = new Audio()
-      silentAudio.volume = 0.01 // Very low but not muted
-      silentAudio.preload = 'auto'
+      // Strategy 2: Multiple audio unlock attempts
+      const unlockAttempts = [
+        // Attempt 1: Very short beep
+        () => {
+          const audio = new Audio()
+          audio.volume = 0.1
+          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IAAAAAEAAQARKwAAIlYAAAIAEABkYXRhAgAAAAEA'
+          return audio.play()
+        },
+        // Attempt 2: Different audio format
+        () => {
+          const audio = new Audio()
+          audio.volume = 0.05
+          const audioData = 'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAAV9ieWduZABCaWdTb3VuZEJhbmsuY29tIC8gTGFTbwv/6xAEAAAGhAJiUBRGQACtAA7+QAAIOqhqpMgMShYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhYGBhY='
+          audio.src = audioData
+          return audio.play()
+        },
+        // Attempt 3: Oscillator (Web Audio API)
+        () => {
+          if (this.audioContext) {
+            const oscillator = this.audioContext.createOscillator()
+            const gainNode = this.audioContext.createGain()
+            oscillator.connect(gainNode)
+            gainNode.connect(this.audioContext.destination)
+            oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime)
+            gainNode.gain.setValueAtTime(0.01, this.audioContext.currentTime)
+            oscillator.start(this.audioContext.currentTime)
+            oscillator.stop(this.audioContext.currentTime + 0.01)
+            return Promise.resolve()
+          }
+          return Promise.reject('No AudioContext')
+        }
+      ]
       
-      // Use a proper minimal WAV file
-      const silentWav = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBT2W1u+8cCQGLITN8diJNwgZZ7zs45xKEgxPpePytVgeB0OZ2/C/ciUGLH/L8diJNwgZZr3t4p5LFQ1QpuPytVkeB0CY2/C+ciUGLH/L8tiJNwgZZr3t4p5LFQ1QpuP'
-      silentAudio.src = silentWav
-      
-      await silentAudio.play()
+      // Try each unlock method
+      for (let i = 0; i < unlockAttempts.length; i++) {
+        try {
+          console.log(`📱 Trying unlock method ${i + 1}...`)
+          await unlockAttempts[i]()
+          console.log(`✅ Unlock method ${i + 1} succeeded`)
+          break
+        } catch (error) {
+          console.warn(`⚠️ Unlock method ${i + 1} failed:`, error)
+          if (i === unlockAttempts.length - 1) {
+            throw new Error('All unlock methods failed')
+          }
+        }
+      }
       
       window.__audioUnlocked = true
       console.log('✅ iOS audio unlocked successfully')
@@ -616,6 +662,7 @@ export default class extends Controller {
       
       // Process any pending iOS texts
       if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+        console.log(`📝 Processing ${this.pendingIOSTexts.length} pending TTS texts`)
         const pendingTexts = this.pendingIOSTexts
         this.pendingIOSTexts = []
         
@@ -627,8 +674,7 @@ export default class extends Controller {
       
       return true
     } catch (error) {
-      console.warn('⚠️ iOS audio unlock failed:', error)
-      this.showIOSPrompt()
+      console.error('❌ iOS audio unlock failed completely:', error)
       return false
     }
   }
