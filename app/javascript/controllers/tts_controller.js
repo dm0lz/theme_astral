@@ -16,30 +16,22 @@ export default class extends Controller {
   }
 
   connect() {
-    console.log(`🎛️  TTS Controller connecting:`, {
-      elementId: this.element.id || 'no-id',
-      hasChunksTarget: this.hasChunksTarget,
-      isStreamingMessage: this.isStreamingMessage()
-    })
+    this.initializeButton()
+    this.registerWithGlobalManager()
     
     // Special handling for temp_message to prevent duplicates
     if (this.element.id === 'temp_message') {
       // Check if there are any other temp_message elements
       const existingTempMessages = document.querySelectorAll('#temp_message')
       if (existingTempMessages.length > 1) {
-        console.warn(`⚠️  Multiple temp_message elements detected! Count: ${existingTempMessages.length}`)
         // Remove older temp messages
         existingTempMessages.forEach((el, index) => {
           if (index < existingTempMessages.length - 1) {
-            console.log(`🗑️  Removing old temp_message`)
             el.remove()
           }
         })
       }
     }
-    
-    this.initializeButton()
-    this.registerWithGlobalManager()
     
     // Only set up streaming observer for temp messages to prevent duplicates
     if (this.isStreamingMessage()) {
@@ -47,7 +39,6 @@ export default class extends Controller {
       
       // Check if streaming is already handled for this element
       if (window.TTSStreamingRegistry.has(elementId)) {
-        console.log(`🚫 TTS: Streaming already handled for ${elementId}`)
         return
       }
       
@@ -58,7 +49,6 @@ export default class extends Controller {
       this.setupStreamingObserver()
       // Initialize processed content tracking only for streaming
       this.processedContent = new Set()
-      console.log(`✅ TTS: Streaming enabled for ${elementId}`)
     }
   }
 
@@ -168,7 +158,6 @@ export default class extends Controller {
     
     // Check if this content is already being processed
     if (this.pendingProcessing.has(contentKey)) {
-      console.log(`🚫 TTS: Content already being processed: ${contentKey}`)
       return
     }
     
@@ -178,7 +167,6 @@ export default class extends Controller {
     }
     
     if (window.TTSContentLock.has(contentKey)) {
-      console.log(`🚫 TTS: Content locked globally: ${contentKey}`)
       return
     }
     
@@ -194,7 +182,6 @@ export default class extends Controller {
     }
     
     this.processedContent.add(contentKey)
-    console.log(`✅ TTS: Processing new content: ${contentKey}`)
     
     const messageId = this.getStreamingMessageId()
     this.dispatchTTS(text, messageId)
@@ -254,13 +241,6 @@ export default class extends Controller {
   }
 
   dispatchTTS(text, messageId) {
-    console.log(`📤 TTS Dispatching:`, {
-      text: text.substring(0, 50) + '...',
-      messageId: messageId,
-      from: this.element.id || 'unknown-element',
-      timestamp: new Date().toISOString()
-    })
-    
     // Unlock iOS audio autoplay on first user interaction
     if (!window.__audioUnlocked) {
       try {

@@ -159,11 +159,8 @@ window.GlobalTTSManager = {
  */
 export default class extends Controller {
   connect() {
-    console.log('🎯 Global TTS Controller: Connecting...')
-    
     // Prevent multiple global controllers
     if (window.GlobalTTSInstance) {
-      console.warn('⚠️  Global TTS Controller already exists! Disconnecting previous instance.')
       window.GlobalTTSInstance.cleanup()
     }
     
@@ -175,15 +172,12 @@ export default class extends Controller {
     // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
       window.GlobalTTSControllerCount++
-      console.warn(`⚠️  Multiple Global TTS Controllers detected! Count: ${window.GlobalTTSControllerCount}`)
     } else {
       window.GlobalTTSControllerCount = 1
-      console.log('✅ First Global TTS Controller initialized')
     }
   }
 
   disconnect() {
-    console.log('🎯 Global TTS Controller: Disconnecting...')
     this.cleanup()
     if (window.GlobalTTSControllerCount) {
       window.GlobalTTSControllerCount--
@@ -221,7 +215,6 @@ export default class extends Controller {
   setupEventListeners() {
     // Remove any existing listeners first to prevent duplicates
     if (window.TTSEventListenersAdded) {
-      console.warn('⚠️ TTS Event listeners already exist, removing old ones')
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
       window.removeEventListener('tts:add', window.TTSAddHandler) 
       window.removeEventListener('tts:stop', window.TTSStopHandler)
@@ -231,15 +224,7 @@ export default class extends Controller {
     
     // Create handler functions and store them globally to prevent duplicates
     window.TTSToggleHandler = () => this.toggle()
-    window.TTSAddHandler = (e) => {
-      console.log(`📥 TTS Event Received:`, {
-        text: e.detail.text?.substring(0, 100) + '...',
-        messageId: e.detail.messageId,
-        timestamp: new Date().toISOString(),
-        listenerCount: window.TTSEventListenerCount || 'unknown'
-      })
-      this.enqueue(e.detail.text, e.detail.messageId)
-    }
+    window.TTSAddHandler = (e) => this.enqueue(e.detail.text, e.detail.messageId)
     window.TTSStopHandler = () => this.stop()
     window.TTSBeforeUnloadHandler = () => this.cleanup()
     window.TTSEnabledHandler = (e) => {
@@ -257,7 +242,6 @@ export default class extends Controller {
     // Mark that event listeners have been added
     window.TTSEventListenersAdded = true
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
-    console.log(`✅ TTS Event listeners added (count: ${window.TTSEventListenerCount})`)
   }
 
   // ===== CONTENT DETECTION =====
@@ -285,44 +269,31 @@ export default class extends Controller {
 
   enqueue(text, messageId = null) {
     if (!this.enabled || !text) {
-      console.log('🚫 TTS: Enqueue blocked - disabled or no text')
       return
     }
     
     const key = this.normalizeText(text)
-    console.log(`🔄 TTS Enqueue:`, {
-      originalText: text.substring(0, 50) + '...',
-      normalizedKey: key,
-      messageId: messageId,
-      queueLength: this.queue.length,
-      processing: this.processing
-    })
     
     if (this.isAlreadyProcessed(key)) {
-      console.log(`❌ TTS: Already processed - ${key}`)
       return
     }
     
     // Enhanced duplicate prevention with cooldown
     if (this.isRecentDuplicate(key)) {
-      console.log(`❌ TTS: Recent duplicate - ${key}`)
       return
     }
     
     // Rapid duplicate prevention (for texts arriving within 500ms)
     if (this.isVeryRecentDuplicate(key)) {
-      console.log(`❌ TTS: Very recent duplicate - ${key}`)
       return
     }
     
-    console.log(`✅ TTS: Adding to queue - ${key}`)
     this.markAsRecent(key)
     this.markAsVeryRecent(key)
     this.prefetchText(text)
     this.queue.push({ text, key })
     
     if (!this.processing) {
-      console.log(`🚀 TTS: Starting processing for ${messageId}`)
       this.startProcessing(messageId)
     }
     
@@ -429,13 +400,11 @@ export default class extends Controller {
   async playAudio(text, key) {
     // Final deduplication check - prevent the same audio from playing simultaneously
     if (this.currentlyPlayingKey === key) {
-      console.log(`🚫 TTS: Audio already playing for key: ${key}`)
       return
     }
     
     // Check if any audio is currently playing the same content
     if (window.CurrentlyPlayingTTSKey === key) {
-      console.log(`🚫 TTS: Audio globally playing for key: ${key}`)
       return
     }
     
@@ -560,7 +529,6 @@ export default class extends Controller {
     
     // Clean up event listeners
     if (window.TTSEventListenersAdded) {
-      console.log('🧹 Cleaning up TTS event listeners')
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
       window.removeEventListener('tts:add', window.TTSAddHandler)
       window.removeEventListener('tts:stop', window.TTSStopHandler)
