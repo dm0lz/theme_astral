@@ -463,6 +463,11 @@ export default class extends Controller {
     this.currentMessageId = messageId
     this.userInitiated = false // Reset flag
     window.GlobalTTSManager.setActiveMessage(messageId)
+    
+    // Start health monitoring to ensure speech continues
+    this.setupSpeechHealthMonitor()
+    
+    console.log(`Started TTS processing for message: ${messageId}`)
   }
 
   async processQueue() {
@@ -480,8 +485,16 @@ export default class extends Controller {
       return
     }
     
+    // Don't process if user stopped or TTS is disabled
+    if (!this.shouldContinueSpeaking()) {
+      console.log('Stopping queue processing - user stopped or TTS disabled')
+      return
+    }
+    
     const queueItem = this.queue.shift()
     const { text, key, messageId, retryCount } = queueItem
+    
+    console.log(`Processing TTS queue item: "${text.substring(0, 100)}..." (retry: ${retryCount})`)
     
     try {
       this.playing = true
@@ -490,6 +503,8 @@ export default class extends Controller {
       
       // Clear retry attempts on success
       this.retryAttempts.delete(key)
+      
+      console.log('TTS queue item completed successfully')
       
     } catch (error) {
       // Handle different types of errors
@@ -502,18 +517,28 @@ export default class extends Controller {
         queueItem.retryCount = retryCount + 1
         this.queue.unshift(queueItem) // Add to front for immediate retry
         
-        // Wait before retry
+        // Wait before retry (progressive backoff)
         await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
         
       } else {
         // Max retries reached or non-retryable error
         console.error('TTS playback failed permanently:', error.message)
         this.handlePlaybackFailure(text, messageId, error)
+        
+        // Don't stop the entire queue for one failed item
+        // Mark as spoken to continue with next items
+        this.spoken.add(key)
       }
     } finally {
       this.playing = false
-      // Continue processing queue immediately
-      this.processQueue()
+      
+      // Ensure we continue processing even after errors
+      // Small delay to prevent tight loops
+      setTimeout(() => {
+        if (this.shouldContinueSpeaking()) {
+          this.processQueue()
+        }
+      }, 100)
     }
   }
 
@@ -591,6 +616,11 @@ export default class extends Controller {
     this.processing = false
     this.currentMessageId = null
     window.GlobalTTSManager.clearActiveMessage()
+    
+    // Stop health monitoring
+    this.stopHealthMonitor()
+    
+    console.log('TTS processing completed')
     
     // Enable hands-free chat: auto-start voice recording when TTS finishes
     this.enableHandsFreeChat()
@@ -688,11 +718,17 @@ export default class extends Controller {
 
   async speakChunk(chunk, voice, chunkIndex, totalChunks) {
     return new Promise((resolve, reject) => {
+      // Don't start if user explicitly stopped
+      if (this.userStopped || !this.processing) {
+        resolve()
+        return
+      }
+
       const utterance = new SpeechSynthesisUtterance(chunk)
       const browserLang = navigator.language || navigator.userLanguage
       utterance.lang = browserLang
       
-      // Configure voice settings
+      // Configure voice settings for better reliability
       utterance.rate = 1.0
       utterance.pitch = 1.2
       utterance.volume = 1.0
@@ -701,23 +737,106 @@ export default class extends Controller {
         utterance.voice = voice
       }
 
+      // Track if this utterance has started
+      let hasStarted = false
+      let hasEnded = false
+      let timeoutId = null
+
+      // Set up a safety timeout to prevent hanging
+      const setupSafetyTimeout = () => {
+        if (timeoutId) clearTimeout(timeoutId)
+        
+        // Calculate reasonable timeout based on chunk length
+        const wordsPerMinute = 150 // Average speaking rate
+        const words = chunk.split(' ').length
+        const estimatedDuration = (words / wordsPerMinute) * 60 * 1000
+        const safetyMargin = Math.max(5000, estimatedDuration * 2) // At least 5s, or 2x estimated
+        
+        timeoutId = setTimeout(() => {
+          if (!hasEnded && hasStarted) {
+            console.warn('Speech chunk timed out, continuing to next chunk')
+            if (!hasEnded) {
+              hasEnded = true
+              resolve()
+            }
+          }
+        }, safetyMargin)
+      }
+
       utterance.onstart = () => {
+        hasStarted = true
+        setupSafetyTimeout() // Start timeout only after speech begins
+        
+        // Ensure speech synthesis isn't paused
+        if (speechSynthesis.paused) {
+          speechSynthesis.resume()
+        }
       }
 
       utterance.onend = () => {
-        resolve()
+        if (timeoutId) clearTimeout(timeoutId)
+        if (!hasEnded) {
+          hasEnded = true
+          resolve()
+        }
       }
       
       utterance.onerror = (event) => {
-        // Handle "interrupted" error gracefully - this is expected when user stops speech
+        if (timeoutId) clearTimeout(timeoutId)
+        
+        if (hasEnded) return // Already handled
+        hasEnded = true
+        
+        // Handle different error types
         if (event.error === 'interrupted') {
-          resolve() // Treat interruption as successful completion
+          // Check if user actually stopped or if it's an automatic interruption
+          if (this.userStopped) {
+            resolve() // User intentionally stopped
+          } else {
+            console.warn('Speech interrupted unexpectedly, continuing...')
+            resolve() // Continue to next chunk
+          }
+        } else if (event.error === 'canceled') {
+          resolve() // Treat as completed
         } else {
+          console.error(`Speech synthesis error: ${event.error}`)
           reject(new Error(`Speech synthesis failed: ${event.error}`))
         }
       }
 
-      speechSynthesis.speak(utterance)
+      utterance.onpause = () => {
+        // Auto-resume if paused (unless user stopped)
+        if (!this.userStopped && this.processing) {
+          setTimeout(() => {
+            if (speechSynthesis.paused && !this.userStopped) {
+              speechSynthesis.resume()
+            }
+          }, 100)
+        }
+      }
+
+      // Start speaking
+      try {
+        speechSynthesis.speak(utterance)
+        
+        // Fallback timeout in case onstart never fires
+        setTimeout(() => {
+          if (!hasStarted && !hasEnded && !this.userStopped) {
+            console.warn('Speech failed to start, skipping chunk')
+            if (!hasEnded) {
+              hasEnded = true
+              resolve()
+            }
+          }
+        }, 3000)
+        
+      } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId)
+        if (!hasEnded) {
+          hasEnded = true
+          reject(new Error(`Failed to start speech: ${error.message}`))
+        }
+      }
     })
   }
 
@@ -824,9 +943,18 @@ export default class extends Controller {
         throw new Error('Speech synthesis not supported in this browser')
       }
 
-      // Check if speechSynthesis is available and not paused
+      // Ensure speech synthesis is ready and not stuck
+      if (speechSynthesis.speaking) {
+        // If something else is speaking, cancel it first
+        speechSynthesis.cancel()
+        // Wait a moment for cleanup
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Check if speechSynthesis is paused and resume it
       if (speechSynthesis.paused) {
         speechSynthesis.resume()
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
 
       // iOS-specific handling
@@ -859,20 +987,53 @@ export default class extends Controller {
         window.GlobalTTSManager.setStopState(btn)
       }
 
-      // Speak each chunk sequentially without interruption checks
+      // Set up monitoring to ensure speech continues
+      const monitorSpeech = () => {
+        // Check every 500ms if speech is still active when it should be
+        if (this.processing && !this.userStopped) {
+          if (speechSynthesis.paused) {
+            console.warn('Speech unexpectedly paused, resuming...')
+            speechSynthesis.resume()
+          }
+          
+          // Continue monitoring
+          setTimeout(monitorSpeech, 500)
+        }
+      }
+      
+      // Start monitoring
+      setTimeout(monitorSpeech, 500)
+
+      // Speak each chunk sequentially with robust continuation
       for (let i = 0; i < chunks.length; i++) {
-        // Only check if user explicitly stopped (not automatic interruptions)
-        if (!this.processing || this.userStopped) {
+        // Only check if user explicitly stopped
+        if (this.userStopped) {
+          console.log('User stopped speech, exiting chunks loop')
+          break
+        }
+        
+        // Double-check processing state
+        if (!this.processing) {
+          console.log('Processing stopped, exiting chunks loop')
           break
         }
 
-        await this.speakChunk(chunks[i], selectedVoice, i, chunks.length)
+        console.log(`Speaking chunk ${i + 1}/${chunks.length}: "${chunks[i].substring(0, 50)}..."`)
         
-        // Small delay between chunks to prevent issues
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+        try {
+          await this.speakChunk(chunks[i], selectedVoice, i, chunks.length)
+        } catch (chunkError) {
+          console.warn(`Chunk ${i + 1} failed, continuing to next:`, chunkError.message)
+          // Continue to next chunk instead of failing entirely
+        }
+        
+        // Small delay between chunks to prevent issues, but check for stops
+        if (i < chunks.length - 1 && !this.userStopped && this.processing) {
+          await new Promise(resolve => setTimeout(resolve, 150))
         }
       }
+
+      console.log('All chunks completed successfully')
 
     } catch (error) {
       // Enhance error information
@@ -948,6 +1109,8 @@ export default class extends Controller {
     // Mark as user-initiated stop
     this.userStopped = true
     
+    console.log('TTS stop requested by user')
+    
     // Stop speech synthesis
     if ('speechSynthesis' in window) {
       speechSynthesis.cancel()
@@ -970,10 +1133,34 @@ export default class extends Controller {
     
     window.GlobalTTSManager.clearActiveMessage()
     
-    // Reset user stop flag after a brief delay
+    // Reset user stop flag after a brief delay to allow for cleanup
     setTimeout(() => {
       this.userStopped = false
-    }, 100)
+      console.log('TTS stop flag reset')
+    }, 500) // Increased delay to ensure cleanup completes
+  }
+
+  // New method to check if speech should continue
+  shouldContinueSpeaking() {
+    return this.processing && 
+           !this.userStopped && 
+           this.enabled && 
+           window.__ttsEnabled
+  }
+
+  // Method to handle unexpected speech interruptions
+  handleUnexpectedStop() {
+    // Only restart if it wasn't a user-initiated stop
+    if (this.shouldContinueSpeaking() && this.queue.length > 0) {
+      console.warn('Speech unexpectedly stopped, attempting to continue...')
+      
+      // Small delay before retrying
+      setTimeout(() => {
+        if (this.shouldContinueSpeaking()) {
+          this.processQueue()
+        }
+      }, 1000)
+    }
   }
 
   toggle() {
@@ -990,6 +1177,9 @@ export default class extends Controller {
     if (this.audio) {
       this.audio.pause()
     }
+    
+    // Stop health monitoring
+    this.stopHealthMonitor()
     
     // Clear pending iOS texts
     this.pendingIOSTexts = []
@@ -1759,6 +1949,55 @@ export default class extends Controller {
     // If we have pending iOS texts, process them now
     if (this.isIOS() && this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
       this.unlockIOSAudio()
+    }
+  }
+
+  // ===== RECOVERY MECHANISMS =====
+
+  // Monitor speech synthesis health and recover from stuck states
+  setupSpeechHealthMonitor() {
+    if (this.healthMonitorInterval) {
+      clearInterval(this.healthMonitorInterval)
+    }
+    
+    this.healthMonitorInterval = setInterval(() => {
+      this.checkSpeechHealth()
+    }, 2000) // Check every 2 seconds
+  }
+
+  checkSpeechHealth() {
+    // Only monitor when we should be speaking
+    if (!this.processing || this.userStopped || !this.enabled) {
+      return
+    }
+
+    // Check if speechSynthesis is in an unexpected state
+    if (this.playing && !speechSynthesis.speaking && !speechSynthesis.pending) {
+      console.warn('Speech synthesis appears stuck - no active speech detected')
+      this.handleUnexpectedStop()
+    }
+
+    // Check if speech is paused when it shouldn't be
+    if (this.playing && speechSynthesis.paused && !this.userStopped) {
+      console.warn('Speech synthesis unexpectedly paused - resuming')
+      speechSynthesis.resume()
+    }
+
+    // Check for queue backup when speech should be active
+    if (this.processing && this.queue.length > 0 && !this.playing && !speechSynthesis.speaking) {
+      console.warn('Queue has items but speech is not active - restarting processing')
+      setTimeout(() => {
+        if (this.shouldContinueSpeaking()) {
+          this.processQueue()
+        }
+      }, 500)
+    }
+  }
+
+  stopHealthMonitor() {
+    if (this.healthMonitorInterval) {
+      clearInterval(this.healthMonitorInterval)
+      this.healthMonitorInterval = null
     }
   }
 } 
