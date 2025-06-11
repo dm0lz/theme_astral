@@ -15,6 +15,7 @@ function initBirthChart() {
   const housePositions = JSON.parse(canvas.dataset.housePositions || '[]');
   const chartPoints = JSON.parse(canvas.dataset.chartPoints || '[]');
   const karmicPoints = JSON.parse(canvas.dataset.karmicPoints || '[]');
+  const asteroidPositions = JSON.parse(canvas.dataset.asteroidPositions || '[]');
   
   let time = 0;
   
@@ -268,6 +269,14 @@ function initBirthChart() {
       'Lilith': '⚸'      // Lilith (Lune Noire)
     };
 
+    // Asteroid symbols
+    const asteroidSymbols = {
+      'Pallas': '⚴',     // Pallas
+      'Vesta': '⚵',      // Vesta
+      'Juno': '⚵',       // Juno 
+      'Ceres': '⚳'       // Ceres
+    };
+
     // Define planetary rulerships
     const planetRulerships = {
       'Sun': [4], // Leo (5th sign, index 4)
@@ -404,6 +413,29 @@ function initBirthChart() {
       ctx.textBaseline = 'top';
       ctx.fillText(formatKarmicDegree(karmic.longitude, karmic.retrograde), x, y + 12);
     });
+
+    // Draw asteroids (Pallas, Vesta, Juno, Ceres)
+    asteroidPositions.forEach((asteroid, i) => {
+      const adjustedLongitude = (asteroid.longitude - house1Longitude + 360) % 360;
+      const angle = ((180 - adjustedLongitude) * Math.PI) / 180;
+      const asteroidRadius = radius * 0.25; // Inside karmic points
+      const x = centerX + Math.cos(angle) * asteroidRadius;
+      const y = centerY + Math.sin(angle) * asteroidRadius;
+      
+      // Draw asteroid symbol
+      ctx.font = 'bold 18px serif';
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.9)'; // Purple color for asteroids
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(asteroidSymbols[asteroid.name] || asteroid.name[0], x, y);
+      
+      // Draw asteroid degree label
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.7)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(formatAsteroidDegree(asteroid.longitude, asteroid.retrograde), x, y + 11);
+    });
     
     // Draw aspects between planets (relative to House 1 at 0°, rotated)
     planetPositions.forEach((planet1, i) => {
@@ -532,6 +564,27 @@ function formatPlanetDegree(longitude, retrograde = false) {
 }
 
 function formatKarmicDegree(longitude, retrograde = false) {
+  const signs = [
+    { name: 'Aries', abbr: 'Ar' },
+    { name: 'Taurus', abbr: 'Ta' },
+    { name: 'Gemini', abbr: 'Ge' },
+    { name: 'Cancer', abbr: 'Cn' },
+    { name: 'Leo', abbr: 'Le' },
+    { name: 'Virgo', abbr: 'Vi' },
+    { name: 'Libra', abbr: 'Li' },
+    { name: 'Scorpio', abbr: 'Sc' },
+    { name: 'Sagittarius', abbr: 'Sa' },
+    { name: 'Capricorn', abbr: 'Cp' },
+    { name: 'Aquarius', abbr: 'Aq' },
+    { name: 'Pisces', abbr: 'Pi' }
+  ];
+  const signIndex = Math.floor(longitude / 30) % 12;
+  const degInSign = longitude - signIndex * 30;
+  const retrogradeSymbol = retrograde ? '(R)' : '';
+  return `${Math.floor(degInSign)}° ${signs[signIndex].abbr}${retrogradeSymbol}`;
+}
+
+function formatAsteroidDegree(longitude, retrograde = false) {
   const signs = [
     { name: 'Aries', abbr: 'Ar' },
     { name: 'Taurus', abbr: 'Ta' },

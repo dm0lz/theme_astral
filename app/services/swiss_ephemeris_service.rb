@@ -1,6 +1,8 @@
 class SwissEphemerisService
   PLANETS = %w[Sun Moon Mercury Venus Mars Jupiter Saturn Uranus Neptune Pluto].freeze
   KARMIC_POINTS = %w[NorthNode SouthNode Chiron Lilith].freeze
+  ASTEROIDS = %w[Ceres Pallas Juno Vesta Astraea].freeze  # Main asteroids we want to support
+  AVAILABLE_ASTEROIDS = { 5 => 'Astraea', 433 => 'Eros' }.freeze  # Asteroids we actually have files for
   HOUSES  = (1..12).to_a.freeze
 
   def initialize(birth_chart)
@@ -19,16 +21,40 @@ class SwissEphemerisService
     house_args = "-house#{lon},#{lat},#{timezone_offset},P"
     
     # Set Swiss Ephemeris data path to vendor/swisseph
-    ENV['SE_EPHE_PATH'] = Rails.root.join('vendor', 'swisseph').to_s
+    ephe_path = Rails.root.join('vendor', 'swisseph').to_s
     
-    cmd = "swetest -b#{date_str} -ut#{ut_time} -p0123456789tAD -fPlZVs -g, #{house_args}"
+    # Base command for planets, karmic points, houses, chart points, and main asteroids
+    cmd = "SE_EPHE_PATH=#{ephe_path} swetest -b#{date_str} -ut#{ut_time} -p0123456789tADFGHI -fPlZVs -g, #{house_args}"
 
     output = `#{cmd}`
     raise "Swiss Ephemeris failed: #{output}" unless $?.success?
 
+    # Try to get additional asteroids with separate commands (numbered asteroids 5+)
+    asteroids_output = ""
+    begin
+      # Try available asteroids that we have files for (numbered asteroids)
+      AVAILABLE_ASTEROIDS.each do |asteroid_num, asteroid_name|
+        asteroid_cmd = "SE_EPHE_PATH=#{ephe_path} swetest -b#{date_str} -ut#{ut_time} -ps -xs#{asteroid_num} -fPlZVs -g,"
+        asteroid_result = `#{asteroid_cmd} 2>/dev/null`
+        if $?.success? && !asteroid_result.include?("not found") && !asteroid_result.include?("illegal")
+          # Only add lines that contain actual asteroid data
+          asteroid_result.lines.each do |line|
+            # Skip header lines and look for lines with asteroid data  
+            if line.include?(',') && !line.include?('date ') && !line.include?('UT:') && !line.include?('Epsilon') && !line.include?('Nutation')
+              asteroids_output += "#{asteroid_name},#{line.split(',')[1..-1].join(',')}"
+            end
+          end
+        end
+      end
+    rescue => e
+      Rails.logger.warn "Additional asteroid calculation failed: #{e.message}"
+      # Continue without additional asteroids if they fail
+    end
+
     {
       planets: parse_planets(output),
       karmic_points: parse_karmic_points(output),
+      asteroids: parse_main_asteroids(output) + parse_asteroids(asteroids_output),
       houses: parse_houses(output),
       chart_points: parse_chart_points(output)
     }
@@ -53,6 +79,73 @@ class SwissEphemerisService
         retrograde: longitude_speed < 0
       }
     end.compact
+  end
+
+  def parse_asteroids(output)
+    asteroids = []
+    
+    # Swiss Ephemeris asteroid name mappings (what swetest actually outputs)
+    asteroid_name_mapping = {
+      'Ceres' => 'Ceres',
+      'Pallas' => 'Pallas', 
+      'Juno' => 'Juno',
+      'Vesta' => 'Vesta',
+      # Sometimes the ephemeris outputs different names or numbers
+      '1' => 'Ceres',
+      '2' => 'Pallas',
+      '3' => 'Juno', 
+      '4' => 'Vesta'
+    }
+
+    return asteroids if output.blank?
+
+    output.lines.each_with_index do |line, index|
+      next if line.blank?
+      
+      parts = line.strip.split(',')
+      next if parts.length < 4
+      
+      asteroid_identifier = parts[0]&.strip
+      next if asteroid_identifier.blank?
+      
+      # Check if this matches any known asteroid name or number
+      mapped_name = nil
+      asteroid_name_mapping.each do |key, value|
+        if asteroid_identifier.include?(key) || asteroid_identifier == key
+          mapped_name = value
+          break
+        end
+      end
+      
+      # Skip if we can't map this to a known asteroid
+      next unless mapped_name
+      
+      # Skip if this is an error line
+      next if line.include?("not found") || line.include?("error") || line.include?("illegal")
+
+      begin
+        longitude = parts[1].to_f
+        zodiac = parts[2]&.strip
+        speed = parts[3].to_f
+        longitude_speed = parts[4]&.to_f || 0.0
+
+        # Determine if retrograde (negative speed)
+        retrograde = speed < 0
+
+        asteroids << {
+          asteroid: mapped_name,
+          longitude: longitude,
+          zodiac: zodiac,
+          speed: speed.abs,
+          retrograde: retrograde
+        }
+      rescue => e
+        Rails.logger.warn "Failed to parse asteroid line: #{line.strip} - #{e.message}"
+        next
+      end
+    end
+
+    asteroids
   end
 
   def parse_karmic_points(output)
@@ -139,6 +232,52 @@ class SwissEphemerisService
     chart_points
   end
 
+  def parse_main_asteroids(output)
+    main_asteroids = []
+    
+    output.lines.each do |line|
+      parts = line.strip.split(',')
+      asteroid_name = parts[0]&.strip
+      
+      case asteroid_name
+      when 'Ceres'
+        main_asteroids << {
+          asteroid: 'Ceres',
+          longitude: parts[1].to_f,
+          zodiac: parts[2].strip,
+          speed: parts[3].to_f,
+          retrograde: parts[4].to_f < 0
+        }
+      when 'Pallas'
+        main_asteroids << {
+          asteroid: 'Pallas',
+          longitude: parts[1].to_f,
+          zodiac: parts[2].strip,
+          speed: parts[3].to_f,
+          retrograde: parts[4].to_f < 0
+        }
+      when 'Juno'
+        main_asteroids << {
+          asteroid: 'Juno',
+          longitude: parts[1].to_f,
+          zodiac: parts[2].strip,
+          speed: parts[3].to_f,
+          retrograde: parts[4].to_f < 0
+        }
+      when 'Vesta'
+        main_asteroids << {
+          asteroid: 'Vesta',
+          longitude: parts[1].to_f,
+          zodiac: parts[2].strip,
+          speed: parts[3].to_f,
+          retrograde: parts[4].to_f < 0
+        }
+      end
+    end
+    
+    main_asteroids
+  end
+
   private
 
   def calculate_zodiac_from_longitude(longitude)
@@ -147,6 +286,18 @@ class SwissEphemerisService
     degree_in_sign = longitude - (sign_index * 30)
     degree = degree_in_sign.floor
     minute = ((degree_in_sign % 1) * 60).floor
-    "#{degree} #{signs[sign_index]} #{minute}'"
+    "#{degree} #{signs[sign_index]} #{degree < 10 ? ' ' : ''}#{minute}'"
+  end
+
+  def create_asteroid_positions(asteroids_data)
+    asteroids_data.each do |asteroid_data|
+      @birth_chart.asteroid_positions.create!(
+        name: asteroid_data[:asteroid],
+        longitude: asteroid_data[:longitude],
+        zodiac: asteroid_data[:zodiac],
+        speed: asteroid_data[:speed],
+        retrograde: asteroid_data[:retrograde]
+      )
+    end
   end
 end

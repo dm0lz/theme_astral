@@ -301,6 +301,7 @@ class Ai::Astro::ChatMessagesService
           House positions: #{house_positions(birth_chart.house_positions)}
           Chart points: #{chart_points(birth_chart.chart_points)}
           Karmic points: #{karmic_points(birth_chart.karmic_points)}
+          Asteroid positions: #{asteroid_positions(birth_chart.asteroid_positions)}
         BIRTH_CHART
       }
     end
@@ -345,6 +346,17 @@ class Ai::Astro::ChatMessagesService
         Zodiac: #{position.zodiac}
         Retrograde: #{position.retrograde}
       KARMIC_POINT
+    end.join("\n")
+  end
+
+  def asteroid_positions(positions)
+    positions.map do |position|
+      <<~ASTEROID_POSITION.strip
+        Asteroid: #{position.name}
+        Longitude: #{position.longitude}
+        Zodiac: #{position.zodiac}
+        Retrograde: #{position.retrograde}
+      ASTEROID_POSITION
     end.join("\n")
   end
 
@@ -406,6 +418,16 @@ class Ai::Astro::ChatMessagesService
       KARMIC_POINT
     end.join("\n")
 
+    asteroids = positions[:asteroids]
+    asteroids_positions = asteroids.map do |asteroid|
+      <<~ASTEROID_POSITION.strip
+        Asteroid: #{asteroid[:name]}
+        Longitude: #{asteroid[:longitude]}
+        Zodiac: #{asteroid[:zodiac]}
+        Retrograde: #{asteroid[:retrograde]}
+      ASTEROID_POSITION
+    end.join("\n")
+
     [
       {
         role: "user",
@@ -433,6 +455,13 @@ class Ai::Astro::ChatMessagesService
         content: <<~CURRENT_POSITIONS.strip
           Here are the current positions of the karmic points in Paris, France :
           #{karmic_points_positions}
+        CURRENT_POSITIONS
+      },
+      {
+        role: "user",
+        content: <<~CURRENT_POSITIONS.strip
+          Here are the current positions of the asteroids in Paris, France :
+          #{asteroids_positions}
         CURRENT_POSITIONS
       }
     ]
@@ -568,6 +597,15 @@ class Ai::Astro::ChatMessagesService
           birth_chart.karmic_points.each do |karmic|
             retrograde_indicator = karmic.retrograde? ? " ℞" : ""
             success_message += "• #{karmic.name}: #{karmic.zodiac}#{retrograde_indicator}\n"
+          end
+        end
+        
+        # Asteroids
+        if birth_chart.asteroid_positions.any?
+          success_message += "\n🌌 **ASTEROIDS:**\n"
+          birth_chart.asteroid_positions.each do |asteroid|
+            retrograde_indicator = asteroid.retrograde? ? " ℞" : ""
+            success_message += "• #{asteroid.name}: #{asteroid.zodiac}#{retrograde_indicator}\n"
           end
         end
         

@@ -3,6 +3,7 @@ class BirthChart < ApplicationRecord
   has_many :house_positions, dependent: :destroy
   has_many :chart_points, dependent: :destroy
   has_many :karmic_points, dependent: :destroy
+  has_many :asteroid_positions, dependent: :destroy
   validates :first_name, presence: true
   validates :last_name, presence: true
   validates :birth, presence: true
@@ -21,38 +22,54 @@ class BirthChart < ApplicationRecord
   def calculate_positions
     ephemeris_data = SwissEphemerisService.new(self).call
     
-    ephemeris_data[:planets].each do |planet_position|
-      self.planet_positions.create(
-        planet: planet_position[:planet],
-        longitude: planet_position[:longitude],
-        zodiac: planet_position[:zodiac],
-        retrograde: planet_position[:retrograde]
+    # Create planet positions
+    ephemeris_data[:planets].each do |planet_data|
+      planet_positions.create!(
+        planet: planet_data[:planet],
+        longitude: planet_data[:longitude],
+        zodiac: planet_data[:zodiac],
+        speed: planet_data[:speed],
+        retrograde: planet_data[:retrograde]
       )
     end
     
-    ephemeris_data[:houses].each do |house_position|
-      self.house_positions.create(
-        house: house_position[:house],
-        longitude: house_position[:longitude],
-        zodiac: house_position[:zodiac]
+    # Create house positions
+    ephemeris_data[:houses].each do |house_data|
+      house_positions.create!(
+        house: house_data[:house],
+        longitude: house_data[:longitude],
+        zodiac: house_data[:zodiac]
       )
     end
     
-    ephemeris_data[:chart_points].each do |chart_point|
-      self.chart_points.create(
-        name: chart_point[:name],
-        longitude: chart_point[:longitude],
-        zodiac: chart_point[:zodiac]
+    # Create chart points
+    ephemeris_data[:chart_points].each do |chart_point_data|
+      chart_points.create!(
+        name: chart_point_data[:name],
+        longitude: chart_point_data[:longitude],
+        zodiac: chart_point_data[:zodiac]
       )
     end
     
-    ephemeris_data[:karmic_points].each do |karmic_point|
-      self.karmic_points.create(
-        name: karmic_point[:name],
-        longitude: karmic_point[:longitude],
-        zodiac: karmic_point[:zodiac],
-        speed: karmic_point[:speed],
-        retrograde: karmic_point[:retrograde]
+    # Create karmic points
+    ephemeris_data[:karmic_points].each do |karmic_point_data|
+      karmic_points.create!(
+        name: karmic_point_data[:name],
+        longitude: karmic_point_data[:longitude],
+        zodiac: karmic_point_data[:zodiac],
+        speed: karmic_point_data[:speed],
+        retrograde: karmic_point_data[:retrograde]
+      )
+    end
+    
+    # Create asteroid positions
+    ephemeris_data[:asteroids].each do |asteroid_data|
+      asteroid_positions.create!(
+        name: asteroid_data[:asteroid],
+        longitude: asteroid_data[:longitude],
+        zodiac: asteroid_data[:zodiac],
+        speed: asteroid_data[:speed],
+        retrograde: asteroid_data[:retrograde]
       )
     end
   end
