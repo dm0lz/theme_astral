@@ -8,9 +8,9 @@
     </div>
 
     <div>
-      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Birth Date and Time</h3>
+      <h3 class="text-sm font-medium text-indigo-200/80 mb-1">Birth Date and Time (UTC)</h3>
       <p class="text-white">
-        <%= birth_chart.birth&.strftime("%B %d, %Y at %I:%M %p") %>
+        <%= birth_chart.birth&.utc&.strftime("%B %d, %Y at %I:%M %p") %>
       </p>
     </div>
 

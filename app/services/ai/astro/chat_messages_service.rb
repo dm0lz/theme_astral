@@ -7,41 +7,160 @@ class Ai::Astro::ChatMessagesService
     client = OpenAI::Client.new(access_token: Rails.application.credentials.deep_seek_api_key, uri_base: "https://api.deepseek.com")
     response = ""
     buffer = ""
-		client.chat(
-			parameters: {
-				model: "deepseek-chat",
-        temperature: 1.1,
-				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
-        stream: proc do |chunk, _bytesize|
-          delta = chunk.dig("choices", 0, "delta", "content")
-          next unless delta
-          response += delta
-          buffer += delta
-          # if buffer contains a sentence ending or a comma, send it to the client
-          if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
-            # remove all icons like  ✨, 🌟, 🌈, etc.
-            buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
-            # remove all * and #
-            buffer = buffer.gsub(/[*#]/, '')
-            Turbo::StreamsChannel.broadcast_append_to(
-              "streaming_channel_#{@chat_message.user_id}",
-              target: "sentence_chunks_container",
-              partial: "app/chat_messages/sentence_chunk",
-              locals: { sentence: buffer }
-            )
-            buffer = ""
-          end
-          Turbo::StreamsChannel.broadcast_update_to(
-            "streaming_channel_#{@chat_message.user_id}",
-            target: "chunks_container",
-            partial: "app/chat_messages/chunks_container",
-            locals: { response: response }
-          )
-          sleep 0.12
+    
+    begin
+      # First, try non-streaming call with tools to check for function calls
+      initial_messages = [ { role: "system", content: system_prompt } ] + prompt_messages
+      
+      initial_response = client.chat(
+        parameters: {
+          model: "deepseek-chat",
+          temperature: 1.1,
+          messages: initial_messages,
+          tools: function_tools,
+          tool_choice: "auto"
+        }
+      )
+      
+      # Check if there are tool calls
+      tool_calls = initial_response.dig("choices", 0, "message", "tool_calls")
+      
+      if tool_calls&.any?
+        # Process function calls
+        messages_with_tools = initial_messages.dup
+        messages_with_tools << {
+          role: "assistant",
+          content: initial_response.dig("choices", 0, "message", "content"),
+          tool_calls: tool_calls
+        }
+        
+        # Execute each tool call
+        tool_calls.each do |tool_call|
+          function_result = execute_function_call({
+            name: tool_call["function"]["name"],
+            arguments: tool_call["function"]["arguments"]
+          })
+          
+          messages_with_tools << {
+            role: "tool",
+            tool_call_id: tool_call["id"],
+            content: function_result
+          }
         end
-			}
-		)
-		# response["choices"][0]["message"]["content"]
+        
+        # Now make a streaming call for the final response with tool results
+        client.chat(
+          parameters: {
+            model: "deepseek-chat",
+            temperature: 1.1,
+            messages: messages_with_tools,
+            stream: proc do |chunk, _bytesize|
+              delta = chunk.dig("choices", 0, "delta", "content")
+              next unless delta
+              
+              response += delta
+              buffer += delta
+              
+              # Stream content as before
+              if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
+                buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+                buffer = buffer.gsub(/[*#]/, '')
+                Turbo::StreamsChannel.broadcast_append_to(
+                  "streaming_channel_#{@chat_message.user_id}",
+                  target: "sentence_chunks_container",
+                  partial: "app/chat_messages/sentence_chunk",
+                  locals: { sentence: buffer }
+                )
+                buffer = ""
+              end
+              
+              Turbo::StreamsChannel.broadcast_update_to(
+                "streaming_channel_#{@chat_message.user_id}",
+                target: "chunks_container",
+                partial: "app/chat_messages/chunks_container",
+                locals: { response: response }
+              )
+              sleep 0.12
+            end
+          }
+        )
+        
+      else
+        # No tool calls, proceed with normal streaming
+        response = initial_response.dig("choices", 0, "message", "content") || ""
+        
+        # If there's already content from the initial response, stream it
+        if response.present?
+          # Simulate streaming for the existing response
+          words = response.split(' ')
+          words.each_with_index do |word, index|
+            buffer += word + ' '
+            
+            if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/) || index == words.length - 1
+              buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+              buffer = buffer.gsub(/[*#]/, '')
+              Turbo::StreamsChannel.broadcast_append_to(
+                "streaming_channel_#{@chat_message.user_id}",
+                target: "sentence_chunks_container",
+                partial: "app/chat_messages/sentence_chunk",
+                locals: { sentence: buffer }
+              )
+              buffer = ""
+            end
+            
+            Turbo::StreamsChannel.broadcast_update_to(
+              "streaming_channel_#{@chat_message.user_id}",
+              target: "chunks_container",
+              partial: "app/chat_messages/chunks_container",
+              locals: { response: response[0..response.index(word) + word.length] }
+            )
+            sleep 0.12
+          end
+        else
+          # Make a streaming call for the response
+          client.chat(
+            parameters: {
+              model: "deepseek-chat",
+              temperature: 1.1,
+              messages: initial_messages,
+              stream: proc do |chunk, _bytesize|
+                delta = chunk.dig("choices", 0, "delta", "content")
+                next unless delta
+                
+                response += delta
+                buffer += delta
+                
+                if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
+                  buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+                  buffer = buffer.gsub(/[*#]/, '')
+                  Turbo::StreamsChannel.broadcast_append_to(
+                    "streaming_channel_#{@chat_message.user_id}",
+                    target: "sentence_chunks_container",
+                    partial: "app/chat_messages/sentence_chunk",
+                    locals: { sentence: buffer }
+                  )
+                  buffer = ""
+                end
+                
+                Turbo::StreamsChannel.broadcast_update_to(
+                  "streaming_channel_#{@chat_message.user_id}",
+                  target: "chunks_container",
+                  partial: "app/chat_messages/chunks_container",
+                  locals: { response: response }
+                )
+                sleep 0.12
+              end
+            }
+          )
+        end
+      end
+
+    rescue => e
+      Rails.logger.error "DeepSeek API error: #{e.message}"
+      response = "I apologize, but I'm having trouble connecting to my astrological knowledge base right now. Please try again in a moment."
+    end
+
+    # Create and broadcast the final message
     chat_message = ChatMessage.create!(user_id: @chat_message.user_id, body: response, author: "assistant")
     Turbo::StreamsChannel.broadcast_replace_to(
       "streaming_channel_#{@chat_message.user_id}",
@@ -83,6 +202,34 @@ class Ai::Astro::ChatMessagesService
       Keep your reply relevant to the user's message. Be concise, but add meaningful insight. Avoid generic or vague responses.
       
       Your responses must be in the same language that the user's message is in.
+
+      IMPORTANT CAPABILITY: You can create birth charts for users when they provide complete birth information.
+      
+      BIRTH TIME IS COMPULSORY: You can only create a birth chart when the user provides ALL required information:
+      - Full name (first and last name)
+      - Exact birth date 
+      - Exact birth time (hour and minute in 24-hour format, e.g., "03:15" for 3:15 AM, "15:30" for 3:30 PM)
+      - Birth city and country
+      
+      IMPORTANT: When extracting birth time, always convert to 24-hour format:
+      - "3h15 du matin" = "03:15"
+      - "3:15 AM" = "03:15" 
+      - "3:30 PM" = "15:30"
+      - "8:45 AM" = "08:45"
+      
+      If a user wants a birth chart but doesn't provide the birth time, politely ask them for it, explaining that the exact birth time is essential for accurate astrological calculations (house positions, ascendant, midheaven, etc.).
+
+      Examples of complete birth information:
+      - "I was born on March 15, 1990 at 3:30 PM in New York, USA. My name is Sarah Johnson."
+      - "Can you create a birth chart for John Smith? He was born December 3, 1985 at 8:45 AM in London, England."
+      - "I need my natal chart. Born April 22, 1988, 10:15 AM, Los Angeles, California. I'm Maria Garcia."
+
+      Examples of incomplete information (do NOT create chart):
+      - "I was born March 15, 1990 in New York" (missing time)
+      - "Born at 3 PM in London" (missing date)
+      - "March 15, 1990 at 3 PM" (missing location)
+
+      After creating a birth chart, provide astrological insights based on the calculated planetary positions.
     PROMPT
   end
 
@@ -169,7 +316,7 @@ class Ai::Astro::ChatMessagesService
   end
 
   def chat_history
-    ChatMessage.where(user_id: @user_id).order(created_at: :asc).map do |msg|
+    ChatMessage.where(user_id: @chat_message.user_id).order(created_at: :asc).map do |msg|
       {
         role: msg.author,
         content: msg.body
@@ -256,5 +403,160 @@ class Ai::Astro::ChatMessagesService
         CURRENT_POSITIONS
       }
     ]
+  end
+
+  def function_tools
+    [
+      {
+        type: "function",
+        function: {
+          name: "create_birth_chart",
+          description: "Create a birth chart for a person based on their birth date, time, and location. Birth time is compulsory for accurate astrological calculations.",
+          parameters: {
+            type: "object",
+            properties: {
+              first_name: {
+                type: "string",
+                description: "The person's first name"
+              },
+              last_name: {
+                type: "string", 
+                description: "The person's last name"
+              },
+              birth_date: {
+                type: "string",
+                description: "Birth date in YYYY-MM-DD format"
+              },
+              birth_time: {
+                type: "string", 
+                description: "Birth time in HH:MM format (24-hour). This is required for accurate chart calculations."
+              },
+              city: {
+                type: "string",
+                description: "Birth city"
+              },
+              country: {
+                type: "string",
+                description: "Birth country"
+              }
+            },
+            required: ["first_name", "last_name", "birth_date", "birth_time", "city", "country"]
+          }
+        }
+      }
+    ]
+  end
+
+  def execute_function_call(call)
+    case call[:name]
+    when "create_birth_chart"
+      create_birth_chart_from_function(call[:arguments])
+    else
+      "Unknown function: #{call[:name]}"
+    end
+  end
+
+  def create_birth_chart_from_function(arguments_json)
+    begin
+      args = JSON.parse(arguments_json)
+      
+      # Validate required fields
+      required_fields = ["first_name", "last_name", "birth_date", "birth_time", "city", "country"]
+      missing_fields = required_fields.select { |field| args[field].blank? }
+      
+      if missing_fields.any?
+        return "I need all the required information to create an accurate birth chart. Missing: #{missing_fields.map(&:humanize).join(', ')}. Please provide the complete birth details including the exact birth time."
+      end
+      
+      # Validate birth time format
+      unless args["birth_time"].match?(/^\d{1,2}:\d{2}$/)
+        return "Please provide the birth time in HH:MM format (e.g., '14:30' for 2:30 PM or '09:15' for 9:15 AM)."
+      end
+      
+      # Parse birth datetime
+      birth_date = Date.parse(args["birth_date"])
+      birth_time = args["birth_time"]
+      
+      # Create datetime without timezone conversion - use local time as-is
+      # This is crucial for accurate birth charts
+      birth_datetime = Time.zone.parse("#{birth_date.strftime('%Y-%m-%d')} #{birth_time}")
+      
+      # Create the birth chart
+      birth_chart = @chat_message.user.birth_charts.create!(
+        first_name: args["first_name"],
+        last_name: args["last_name"], 
+        birth: birth_datetime,
+        city: args["city"],
+        country: args["country"]
+      )
+
+      # Wait a moment for the Swiss Ephemeris calculation to complete
+      sleep(1)
+      
+      # Reload to get the calculated positions
+      birth_chart.reload
+      
+      # Build success message with astrological details
+      success_message = "✨ I've successfully created a birth chart for #{args['first_name']} #{args['last_name']} born on #{birth_date.strftime('%B %d, %Y')} at #{birth_time} in #{args['city']}, #{args['country']}!\n\n"
+      
+      # Add comprehensive astrological data if positions are available
+      if birth_chart.planet_positions.any?
+        success_message += "🌟 **PLANETARY POSITIONS:**\n"
+        
+        # All planets in order
+        all_planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+        all_planets.each do |planet_name|
+          planet = birth_chart.planet_positions.find_by(planet: planet_name)
+          if planet
+            retrograde_indicator = planet.retrograde? ? " ℞" : ""
+            success_message += "• #{planet_name}: #{planet.zodiac}#{retrograde_indicator}\n"
+          end
+        end
+        
+        # Chart points (Ascendant, MC, etc.)
+        if birth_chart.chart_points.any?
+          success_message += "\n📐 **CHART POINTS:**\n"
+          birth_chart.chart_points.each do |point|
+            success_message += "• #{point.name}: #{point.zodiac}\n"
+          end
+        end
+        
+        # House positions
+        if birth_chart.house_positions.any?
+          success_message += "\n🏠 **HOUSE CUSPS:**\n"
+          birth_chart.house_positions.order(:house).each do |house|
+            success_message += "• House #{house.house}: #{house.zodiac}\n"
+          end
+        end
+        
+        # Karmic points
+        if birth_chart.karmic_points.any?
+          success_message += "\n🔮 **KARMIC POINTS:**\n"
+          birth_chart.karmic_points.each do |karmic|
+            retrograde_indicator = karmic.retrograde? ? " ℞" : ""
+            success_message += "• #{karmic.name}: #{karmic.zodiac}#{retrograde_indicator}\n"
+          end
+        end
+        
+        success_message += "\n✨ This complete birth chart reveals the cosmic blueprint of #{args['first_name']}'s personality, destiny, and life path. Let me provide you with a detailed astrological analysis!"
+      else
+        success_message += "The planetary positions are being calculated and will be available shortly for detailed analysis."
+      end
+      
+      success_message
+      
+    rescue JSON::ParserError => e
+      "I had trouble parsing the birth chart information. Could you please provide the birth details again?"
+    rescue Date::Error => e
+      "I couldn't parse the birth date '#{args['birth_date'] rescue 'unknown'}'. Please provide the date in a clear format like 'March 15, 1990' or '1990-03-15'."
+    rescue Time::Error, ArgumentError => e
+      "I couldn't parse the birth time '#{args['birth_time'] rescue 'unknown'}'. Please provide the time in HH:MM format (e.g., '14:30' for 2:30 PM)."
+    rescue ActiveRecord::RecordInvalid => e
+      "I couldn't create the birth chart: #{e.record.errors.full_messages.join(', ')}. Please check the information and try again."
+    rescue => e
+      Rails.logger.error "Birth chart creation error: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      "I encountered an error while creating the birth chart. Please try again with the birth information."
+    end
   end
 end
