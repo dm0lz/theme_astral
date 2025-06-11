@@ -256,11 +256,12 @@ export default class extends Controller {
     this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
     window.__ttsEnabled = this.enabled
     
-    // Enhanced duplicate prevention
-    this.recentTexts = new Map() // Track recent texts with timestamps
-    this.cooldownPeriod = 2000 // 2 seconds cooldown for identical text
-    this.veryRecentTexts = new Map() // Track very recent texts (last 500ms)
-    this.rapidCooldown = 500 // 500ms for rapid duplicate prevention
+    // User interaction flags
+    this.userStopped = false
+    this.userInitiated = false
+    
+    // Simplified duplicate prevention - only very recent duplicates
+    this.veryRecentTexts = new Map() // Track very recent texts (last 100ms)
     
     // Audio-level deduplication
     this.currentlyPlayingKey = null
@@ -357,21 +358,16 @@ export default class extends Controller {
     
     const key = this.normalizeText(text)
     
+    // Simplified duplicate prevention - only check if currently in queue or already spoken
     if (this.isAlreadyProcessed(key)) {
       return
     }
     
-    // Enhanced duplicate prevention with cooldown
-    if (this.isRecentDuplicate(key)) {
-      return
-    }
-    
-    // Rapid duplicate prevention (for texts arriving within 500ms)
+    // Only prevent very rapid duplicates (same content within 100ms)
     if (this.isVeryRecentDuplicate(key)) {
       return
     }
     
-    this.markAsRecent(key)
     this.markAsVeryRecent(key)
     this.prefetchText(text)
     this.queue.push({ text, key })
@@ -387,64 +383,52 @@ export default class extends Controller {
     return this.spoken.has(key) || this.queue.some(item => item.key === key)
   }
   
-  isRecentDuplicate(key) {
-    if (!this.recentTexts.has(key)) return false
-    
-    const lastTimestamp = this.recentTexts.get(key)
-    const now = Date.now()
-    
-    return (now - lastTimestamp) < this.cooldownPeriod
-  }
-  
   isVeryRecentDuplicate(key) {
     if (!this.veryRecentTexts.has(key)) return false
     
     const lastTimestamp = this.veryRecentTexts.get(key)
     const now = Date.now()
     
-    return (now - lastTimestamp) < this.rapidCooldown
-  }
-  
-  markAsRecent(key) {
-    const now = Date.now()
-    this.recentTexts.set(key, now)
-    
-    // Clean up old entries to prevent memory leaks
-    for (const [textKey, timestamp] of this.recentTexts.entries()) {
-      if (now - timestamp > this.cooldownPeriod * 2) {
-        this.recentTexts.delete(textKey)
-      }
-    }
+    // Only prevent duplicates within 100ms (very rapid)
+    return (now - lastTimestamp) < 100
   }
   
   markAsVeryRecent(key) {
     const now = Date.now()
     this.veryRecentTexts.set(key, now)
     
-    // Clean up old entries to prevent memory leaks
+    // Clean up old entries more frequently
     for (const [textKey, timestamp] of this.veryRecentTexts.entries()) {
-      if (now - timestamp > this.rapidCooldown * 2) {
+      if (now - timestamp > 500) { // Clean up after 500ms
         this.veryRecentTexts.delete(textKey)
       }
     }
   }
 
   startProcessing(messageId) {
-    // Safety check: if already processing, stop the current session first
-    if (this.processing && this.currentMessageId !== messageId) {
+    // Only stop current session if explicitly different message AND user didn't manually start
+    if (this.processing && this.currentMessageId !== messageId && !this.userInitiated) {
       this.stop()
     }
     
     this.processing = true
     this.currentMessageId = messageId
+    this.userInitiated = false // Reset flag
     window.GlobalTTSManager.setActiveMessage(messageId)
   }
 
   async processQueue() {
-    if (this.playing || this.queue.length === 0) {
-      if (this.queue.length === 0 && this.processing) {
+    // Continue processing even if currently playing (queue up next items)
+    if (this.queue.length === 0) {
+      if (this.processing && !this.playing) {
         this.endProcessing()
       }
+      return
+    }
+    
+    // If already playing, wait and retry
+    if (this.playing) {
+      setTimeout(() => this.processQueue(), 50)
       return
     }
     
@@ -455,11 +439,14 @@ export default class extends Controller {
       await this.playAudio(text, key)
       this.spoken.add(key)
     } catch (error) {
-      console.error('TTS playback error:', error.message)
+      // Only log non-interruption errors
+      if (!error.message.includes('interrupted') && !error.message.includes('cancelled')) {
+        console.error('TTS playback error:', error.message)
+      }
     } finally {
       this.playing = false
-      // Continue with minimal delay
-      setTimeout(() => this.processQueue(), 10)
+      // Continue processing queue immediately
+      this.processQueue()
     }
   }
 
@@ -685,13 +672,8 @@ export default class extends Controller {
   }
 
   async playAudio(text, key) {
-    // Final deduplication check - prevent the same audio from playing simultaneously
-    if (this.currentlyPlayingKey === key) {
-      return
-    }
-    
-    // Check if any audio is currently playing the same content
-    if (window.CurrentlyPlayingTTSKey === key) {
+    // Only check for same content if it's actually currently playing
+    if (this.currentlyPlayingKey === key && this.playing) {
       return
     }
     
@@ -700,13 +682,12 @@ export default class extends Controller {
     window.CurrentlyPlayingTTSKey = key
     
     try {
-      
       // Check browser support
       if (!('speechSynthesis' in window)) {
         throw new Error('Speech synthesis not supported')
       }
 
-      // iOS-specific handling with debugging
+      // iOS-specific handling
       if (this.isIOS()) {
         if (!window.__audioUnlocked) {
           throw new Error('Audio not unlocked on iOS')
@@ -725,10 +706,10 @@ export default class extends Controller {
         window.GlobalTTSManager.setStopState(btn)
       }
 
-      // Speak each chunk sequentially
+      // Speak each chunk sequentially without interruption checks
       for (let i = 0; i < chunks.length; i++) {
-        // Check if we should stop (user clicked stop or speech was cancelled)
-        if (this.currentlyPlayingKey !== key) {
+        // Only check if user explicitly stopped (not automatic interruptions)
+        if (!this.processing || this.userStopped) {
           break
         }
 
@@ -742,12 +723,9 @@ export default class extends Controller {
 
     } catch (error) {
       // Don't log "interrupted" errors as they are expected when user stops speech
-      if (!error.message.includes('interrupted')) {
-        console.error('TTS playbook error:', error.message)
+      if (!error.message.includes('interrupted') && !error.message.includes('cancelled')) {
+        console.error('TTS playback error:', error.message)
       }
-      // Clear markers on error
-      this.currentlyPlayingKey = null
-      window.CurrentlyPlayingTTSKey = null
       throw error
     } finally {
       // Clear markers on completion
@@ -774,6 +752,9 @@ export default class extends Controller {
   // ===== CONTROLS =====
 
   stop() {
+    // Mark as user-initiated stop
+    this.userStopped = true
+    
     // Stop speech synthesis
     if ('speechSynthesis' in window) {
       speechSynthesis.cancel()
@@ -790,15 +771,16 @@ export default class extends Controller {
     this.queue = []
     this.currentMessageId = null
     
-    // Clear frontend request queue
-    this.requestQueue = []
-    this.processingRequest = false
-    
     // Clear currently playing markers
     this.currentlyPlayingKey = null
     window.CurrentlyPlayingTTSKey = null
     
     window.GlobalTTSManager.clearActiveMessage()
+    
+    // Reset user stop flag after a brief delay
+    setTimeout(() => {
+      this.userStopped = false
+    }, 100)
   }
 
   toggle() {
