@@ -269,6 +269,16 @@ export default class extends Controller {
     // Frontend request queue to prevent concurrent API calls
     this.requestQueue = []
     this.processingRequest = false
+    
+    // Autoplay detection and handling
+    this.autoplayBlocked = false
+    this.hasUserGesture = false
+    this.voicesReady = false
+    this.retryAttempts = new Map() // Track retry attempts per text
+    
+    // Initialize autoplay detection
+    this.detectAutoplayCapability()
+    this.initializeVoiceReadiness()
   }
 
   setupEventListeners() {
@@ -313,6 +323,30 @@ export default class extends Controller {
     
     // Expose voice selector globally
     window.showTTSVoiceSelector = () => this.showVoiceSelector()
+    
+    // Set up user gesture detection for autoplay
+    this.setupUserGestureDetection()
+  }
+
+  setupUserGestureDetection() {
+    // Track user interactions to enable autoplay
+    const gestureEvents = ['click', 'touchstart', 'keydown', 'mousedown']
+    const gestureHandler = () => {
+      if (!this.hasUserGesture) {
+        this.markUserGesture()
+      }
+    }
+    
+    gestureEvents.forEach(event => {
+      document.addEventListener(event, gestureHandler, { 
+        passive: true, 
+        capture: true 
+      })
+    })
+    
+    // Store reference for cleanup
+    this.gestureHandler = gestureHandler
+    this.gestureEvents = gestureEvents
   }
 
   // ===== CONTENT DETECTION =====
@@ -346,14 +380,28 @@ export default class extends Controller {
     
     // Enhanced iOS check - be more aggressive about preventing requests
     if (this.isIOS()) {
-      
       if (!window.__audioUnlocked) {
         // Queue the text for later without showing prompt
         this.pendingIOSTexts = this.pendingIOSTexts || []
         this.pendingIOSTexts.push({ text, messageId })
         return
       }
-      
+    }
+    
+    // Check if autoplay is blocked and we don't have user gesture
+    if (this.autoplayBlocked && !this.hasUserGesture) {
+      console.warn('TTS autoplay blocked - waiting for user gesture')
+      // Queue for later when user interacts
+      this.pendingIOSTexts = this.pendingIOSTexts || []
+      this.pendingIOSTexts.push({ text, messageId })
+      return
+    }
+    
+    // Wait for voices to be ready
+    if (!this.voicesReady) {
+      console.warn('TTS voices not ready - queuing text')
+      setTimeout(() => this.enqueue(text, messageId), 500)
+      return
     }
     
     const key = this.normalizeText(text)
@@ -370,7 +418,7 @@ export default class extends Controller {
     
     this.markAsVeryRecent(key)
     this.prefetchText(text)
-    this.queue.push({ text, key })
+    this.queue.push({ text, key, messageId, retryCount: 0 })
     
     if (!this.processing) {
       this.startProcessing(messageId)
@@ -432,22 +480,111 @@ export default class extends Controller {
       return
     }
     
-    const { text, key } = this.queue.shift()
+    const queueItem = this.queue.shift()
+    const { text, key, messageId, retryCount } = queueItem
     
     try {
       this.playing = true
       await this.playAudio(text, key)
       this.spoken.add(key)
+      
+      // Clear retry attempts on success
+      this.retryAttempts.delete(key)
+      
     } catch (error) {
-      // Only log non-interruption errors
-      if (!error.message.includes('interrupted') && !error.message.includes('cancelled')) {
-        console.error('TTS playback error:', error.message)
+      // Handle different types of errors
+      const shouldRetry = this.shouldRetryPlayback(error, retryCount)
+      
+      if (shouldRetry && retryCount < 3) {
+        console.warn(`TTS playback failed, retrying (${retryCount + 1}/3):`, error.message)
+        
+        // Add back to queue with incremented retry count
+        queueItem.retryCount = retryCount + 1
+        this.queue.unshift(queueItem) // Add to front for immediate retry
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
+        
+      } else {
+        // Max retries reached or non-retryable error
+        console.error('TTS playback failed permanently:', error.message)
+        this.handlePlaybackFailure(text, messageId, error)
       }
     } finally {
       this.playing = false
       // Continue processing queue immediately
       this.processQueue()
     }
+  }
+
+  shouldRetryPlayback(error, retryCount) {
+    // Don't retry user-initiated stops
+    if (error.message.includes('interrupted') || error.message.includes('cancelled')) {
+      return false
+    }
+    
+    // Don't retry if user explicitly stopped
+    if (this.userStopped) {
+      return false
+    }
+    
+    // Retry on autoplay blocks, voice loading issues, or temporary failures
+    const retryableErrors = [
+      'autoplay',
+      'gesture',
+      'voice',
+      'network',
+      'temporary',
+      'synthesis'
+    ]
+    
+    return retryableErrors.some(errorType => 
+      error.message.toLowerCase().includes(errorType)
+    )
+  }
+
+  handlePlaybackFailure(text, messageId, error) {
+    // Mark this content as spoken to prevent infinite retries
+    const key = this.normalizeText(text)
+    this.spoken.add(key)
+    
+    // If it's an autoplay issue, try to prompt for user gesture
+    if (error.message.toLowerCase().includes('autoplay') || 
+        error.message.toLowerCase().includes('gesture')) {
+      this.promptForUserGesture()
+    }
+    
+    // Reset button state
+    const btn = window.GlobalTTSManager.getButtonByMessageId(messageId)
+    if (btn) {
+      window.GlobalTTSManager.setSpeakerState(btn)
+    }
+  }
+
+  promptForUserGesture() {
+    // Only prompt once
+    if (this.hasPromptedForGesture) return
+    this.hasPromptedForGesture = true
+    
+    // Show a subtle notification that user interaction is needed
+    console.info('TTS requires user interaction - click anywhere to enable autoplay')
+    
+    // Set up one-time listeners for user gesture
+    const gestureEvents = ['click', 'touchstart', 'keydown']
+    const gestureHandler = () => {
+      this.markUserGesture()
+      gestureEvents.forEach(event => {
+        document.removeEventListener(event, gestureHandler, { capture: true })
+      })
+    }
+    
+    gestureEvents.forEach(event => {
+      document.addEventListener(event, gestureHandler, { 
+        capture: true, 
+        once: true, 
+        passive: true 
+      })
+    })
   }
 
   endProcessing() {
@@ -684,14 +821,30 @@ export default class extends Controller {
     try {
       // Check browser support
       if (!('speechSynthesis' in window)) {
-        throw new Error('Speech synthesis not supported')
+        throw new Error('Speech synthesis not supported in this browser')
+      }
+
+      // Check if speechSynthesis is available and not paused
+      if (speechSynthesis.paused) {
+        speechSynthesis.resume()
       }
 
       // iOS-specific handling
       if (this.isIOS()) {
         if (!window.__audioUnlocked) {
-          throw new Error('Audio not unlocked on iOS')
+          throw new Error('Audio not unlocked on iOS - user gesture required')
         }
+      }
+
+      // Check autoplay capability
+      if (this.autoplayBlocked && !this.hasUserGesture) {
+        throw new Error('Autoplay blocked - user gesture required')
+      }
+
+      // Ensure voices are ready
+      if (!this.voicesReady) {
+        console.warn('Voices not ready, waiting...')
+        await this.waitForVoices()
       }
 
       // Select the best available voice
@@ -722,16 +875,56 @@ export default class extends Controller {
       }
 
     } catch (error) {
+      // Enhance error information
+      let enhancedError = error
+      
+      if (error.message.includes('synthesis') || error.name === 'SpeechSynthesisErrorEvent') {
+        enhancedError = new Error(`Speech synthesis error: ${error.message}`)
+      } else if (error.message.includes('network')) {
+        enhancedError = new Error(`Network error during TTS: ${error.message}`)
+      }
+      
       // Don't log "interrupted" errors as they are expected when user stops speech
       if (!error.message.includes('interrupted') && !error.message.includes('cancelled')) {
-        console.error('TTS playback error:', error.message)
+        console.error('TTS playback error:', enhancedError.message)
       }
-      throw error
+      
+      throw enhancedError
     } finally {
       // Clear markers on completion
       this.currentlyPlayingKey = null
       window.CurrentlyPlayingTTSKey = null
     }
+  }
+
+  async waitForVoices(timeout = 3000) {
+    return new Promise((resolve) => {
+      if (this.voicesReady) {
+        resolve()
+        return
+      }
+      
+      const checkVoices = () => {
+        const voices = speechSynthesis.getVoices()
+        if (voices.length > 0) {
+          this.voicesReady = true
+          resolve()
+        }
+      }
+      
+      // Check immediately
+      checkVoices()
+      
+      // Set up listener
+      speechSynthesis.addEventListener('voiceschanged', checkVoices)
+      
+      // Timeout fallback
+      setTimeout(() => {
+        speechSynthesis.removeEventListener('voiceschanged', checkVoices)
+        this.voicesReady = true
+        resolve()
+      }, timeout)
+    })
   }
 
   // ===== UTILITIES =====
@@ -801,6 +994,15 @@ export default class extends Controller {
     // Clear pending iOS texts
     this.pendingIOSTexts = []
     
+    // Clean up gesture detection listeners
+    if (this.gestureHandler && this.gestureEvents) {
+      this.gestureEvents.forEach(event => {
+        document.removeEventListener(event, this.gestureHandler, { capture: true })
+      })
+      this.gestureHandler = null
+      this.gestureEvents = null
+    }
+    
     // Clean up event listeners
     if (window.TTSEventListenersAdded) {
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
@@ -844,14 +1046,12 @@ export default class extends Controller {
     if (window.__audioUnlocked) return true
     
     try {
-      
       // Small delay to ensure "Enabling Audio..." is visible
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // For Speech Synthesis, we mainly need user gesture
       // Test if speechSynthesis works
       if ('speechSynthesis' in window) {
-        
         // Try to speak a silent utterance to unlock
         const testUtterance = new SpeechSynthesisUtterance('')
         testUtterance.volume = 0
@@ -862,16 +1062,27 @@ export default class extends Controller {
         
         window.__audioUnlocked = true
         
-        // Process pending texts
+        // Mark that we have user gesture now
+        this.markUserGesture()
+        
+        // Process pending texts immediately
         if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-          const pendingTexts = this.pendingIOSTexts
+          const pendingTexts = [...this.pendingIOSTexts] // Create copy
           this.pendingIOSTexts = []
           
-          setTimeout(() => {
-            pendingTexts.forEach(({ text, messageId }) => {
-              this.enqueue(text, messageId)
-            })
-          }, 100)
+          console.log(`Processing ${pendingTexts.length} pending TTS texts`)
+          
+          // Process each pending text with a small delay between them
+          for (let i = 0; i < pendingTexts.length; i++) {
+            const { text, messageId } = pendingTexts[i]
+            
+            // Add small delay to prevent overwhelming the system
+            if (i > 0) {
+              await new Promise(resolve => setTimeout(resolve, 100))
+            }
+            
+            this.enqueue(text, messageId)
+          }
         }
         
         return true
@@ -881,6 +1092,7 @@ export default class extends Controller {
     } catch (error) {
       // For Speech Synthesis, even errors can indicate unlock worked
       window.__audioUnlocked = true
+      this.markUserGesture()
       return true
     }
   }
@@ -1461,5 +1673,92 @@ export default class extends Controller {
     }
 
     return null
+  }
+
+  // ===== AUTOPLAY DETECTION =====
+
+  async detectAutoplayCapability() {
+    try {
+      // Test if speechSynthesis is available
+      if (!('speechSynthesis' in window)) {
+        this.autoplayBlocked = true
+        return
+      }
+
+      // Try a silent test utterance to check autoplay capability
+      const testUtterance = new SpeechSynthesisUtterance('')
+      testUtterance.volume = 0
+      testUtterance.rate = 10 // Very fast to minimize delay
+      
+      const testPromise = new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          this.autoplayBlocked = true
+          resolve(false)
+        }, 1000)
+        
+        testUtterance.onstart = () => {
+          clearTimeout(timeout)
+          this.autoplayBlocked = false
+          resolve(true)
+        }
+        
+        testUtterance.onerror = () => {
+          clearTimeout(timeout)
+          this.autoplayBlocked = true
+          resolve(false)
+        }
+        
+        testUtterance.onend = () => {
+          clearTimeout(timeout)
+          resolve(true)
+        }
+      })
+      
+      speechSynthesis.speak(testUtterance)
+      await testPromise
+      
+    } catch (error) {
+      console.warn('Autoplay detection failed:', error.message)
+      this.autoplayBlocked = true
+    }
+  }
+
+  async initializeVoiceReadiness() {
+    try {
+      const voices = await this.getAvailableVoices()
+      this.voicesReady = voices.length > 0
+      
+      if (!this.voicesReady) {
+        // Set up a listener for when voices become available
+        const checkVoices = () => {
+          const currentVoices = speechSynthesis.getVoices()
+          if (currentVoices.length > 0) {
+            this.voicesReady = true
+            speechSynthesis.removeEventListener('voiceschanged', checkVoices)
+          }
+        }
+        
+        speechSynthesis.addEventListener('voiceschanged', checkVoices)
+        
+        // Fallback timeout
+        setTimeout(() => {
+          speechSynthesis.removeEventListener('voiceschanged', checkVoices)
+          this.voicesReady = true // Assume ready after timeout
+        }, 3000)
+      }
+    } catch (error) {
+      console.warn('Voice readiness check failed:', error.message)
+      this.voicesReady = true // Assume ready on error
+    }
+  }
+
+  markUserGesture() {
+    this.hasUserGesture = true
+    this.autoplayBlocked = false
+    
+    // If we have pending iOS texts, process them now
+    if (this.isIOS() && this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
+      this.unlockIOSAudio()
+    }
   }
 } 
