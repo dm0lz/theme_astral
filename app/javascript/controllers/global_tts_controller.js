@@ -467,6 +467,35 @@ export default class extends Controller {
     this.processing = false
     this.currentMessageId = null
     window.GlobalTTSManager.clearActiveMessage()
+    
+    // Enable hands-free chat: auto-start voice recording when TTS finishes
+    this.enableHandsFreeChat()
+  }
+
+  enableHandsFreeChat() {
+    // Only enable hands-free chat if:
+    // 1. TTS is enabled
+    // 2. We're on the chat messages page (has #chat_messages element)
+    // 3. Voice toggle button exists and isn't disabled
+    if (!window.__ttsEnabled) return
+    
+    const chatMessagesContainer = document.getElementById('chat_messages')
+    if (!chatMessagesContainer) return // Not on chat page
+    
+    const voiceToggleBtn = document.getElementById('voice-toggle-btn')
+    if (!voiceToggleBtn || voiceToggleBtn.disabled) return // Button not available or disabled
+    
+    const recorder = window.voiceRecorderInstance
+    if (!recorder || recorder.isRecording) return // No recorder or already recording
+    
+    // Add a small delay to ensure TTS has fully completed
+    setTimeout(() => {
+      // Double-check conditions haven't changed
+      if (window.__ttsEnabled && !recorder.isRecording && !voiceToggleBtn.disabled) {
+        // Simulate click on voice toggle button to start recording
+        voiceToggleBtn.click()
+      }
+    }, 500) // 500ms delay to ensure smooth transition
   }
 
   // ===== AUDIO PLAYBACK =====

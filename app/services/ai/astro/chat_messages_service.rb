@@ -10,6 +10,7 @@ class Ai::Astro::ChatMessagesService
 		client.chat(
 			parameters: {
 				model: "deepseek-chat",
+        temperature: 1.1,
 				messages: [ { role: "system", content: system_prompt } ] + prompt_messages,
         stream: proc do |chunk, _bytesize|
           delta = chunk.dig("choices", 0, "delta", "content")
@@ -80,6 +81,8 @@ class Ai::Astro::ChatMessagesService
       Tailor each response to sound warm, intuitive, and insightful—like a caring human astrologer, not a robot.
 
       Keep your reply relevant to the user's message. Be concise, but add meaningful insight. Avoid generic or vague responses.
+      
+      Your responses must be in the same language that the user's message is in.
     PROMPT
   end
 
