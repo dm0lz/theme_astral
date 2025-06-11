@@ -111,7 +111,7 @@ function initBirthChart() {
       const x = centerX + Math.cos(symbolAngle) * symbolRadius;
       const y = centerY + Math.sin(symbolAngle) * symbolRadius;
       
-      ctx.font = 'bold 36px serif';
+      ctx.font = window.innerWidth < 768 ? 'bold 16px serif' : 'bold 36px serif';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -343,7 +343,7 @@ function initBirthChart() {
       const isInOwnSign = planetRulerships[planet.planet] && planetRulerships[planet.planet].includes(planetSignIndex);
       
       // Draw planet symbol (colored based on whether it's in its own sign)
-      ctx.font = 'bold 72px serif';
+      ctx.font = window.innerWidth < 768 ? 'bold 48px serif' : 'bold 72px serif';
       ctx.fillStyle = isInOwnSign ? 'rgba(251, 191, 36, 1)' : '#d1d5db'; // Sun color if in own sign, otherwise gray
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

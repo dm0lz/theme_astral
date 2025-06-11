@@ -1242,6 +1242,12 @@ export default class extends Controller {
   }
 
   createVoiceSelectorButton() {
+    // Only show voice selector button on chat messages index page
+    const chatMessagesContainer = document.getElementById('chat_messages')
+    if (!chatMessagesContainer) {
+      return // Exit early if not on chat messages page
+    }
+
     // Remove existing button if present
     const existingButton = document.getElementById('tts-voice-selector-btn')
     if (existingButton) {
