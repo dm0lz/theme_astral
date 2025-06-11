@@ -7,48 +7,150 @@ class Ai::Astro::ChatMessagesService
     client = OpenAI::Client.new(access_token: Rails.application.credentials.deep_seek_api_key, uri_base: "https://api.deepseek.com")
     response = ""
     buffer = ""
+    tool_calls_buffer = {}
     
     begin
-      # First, try non-streaming call with tools to check for function calls
+      # Use streaming with tools - much cleaner approach
       initial_messages = [ { role: "system", content: system_prompt } ] + prompt_messages
       
-      initial_response = client.chat(
+      client.chat(
         parameters: {
           model: "deepseek-chat",
           temperature: 1.1,
           messages: initial_messages,
           tools: function_tools,
-          tool_choice: "auto"
+          tool_choice: "auto",
+          stream: proc do |chunk, _bytesize|
+            # Handle tool calls in streaming
+            tool_calls = chunk.dig("choices", 0, "delta", "tool_calls")
+            if tool_calls&.any?
+              tool_calls.each do |tool_call|
+                if tool_call["index"] && tool_call["function"]
+                  index = tool_call["index"]
+                  
+                  # Initialize buffer for this tool call if not exists
+                  tool_calls_buffer[index] ||= {
+                    id: nil,
+                    name: nil,
+                    arguments: ""
+                  }
+                  
+                  # Accumulate the function call data
+                  if tool_call["id"]
+                    tool_calls_buffer[index][:id] = tool_call["id"]
+                  end
+                  
+                  if tool_call["function"]["name"]
+                    tool_calls_buffer[index][:name] = tool_call["function"]["name"]
+                  end
+                  
+                  if tool_call["function"]["arguments"]
+                    tool_calls_buffer[index][:arguments] += tool_call["function"]["arguments"]
+                  end
+                end
+              end
+            end
+
+            # Handle regular content streaming
+            delta = chunk.dig("choices", 0, "delta", "content")
+            next unless delta
+            
+            response += delta
+            buffer += delta
+            
+            # Stream content as before
+            if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
+              buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+              buffer = buffer.gsub(/[*#]/, '')
+              Turbo::StreamsChannel.broadcast_append_to(
+                "streaming_channel_#{@chat_message.user_id}",
+                target: "sentence_chunks_container",
+                partial: "app/chat_messages/sentence_chunk",
+                locals: { sentence: buffer }
+              )
+              buffer = ""
+            end
+            
+            Turbo::StreamsChannel.broadcast_update_to(
+              "streaming_channel_#{@chat_message.user_id}",
+              target: "chunks_container",
+              partial: "app/chat_messages/chunks_container",
+              locals: { response: response }
+            )
+            sleep 0.12
+          end
         }
       )
-      
-      # Check if there are tool calls
-      tool_calls = initial_response.dig("choices", 0, "message", "tool_calls")
-      
-      if tool_calls&.any?
-        # Process function calls
+
+      # If we only had tool calls and no regular streaming content, show some activity
+      if response.blank? && tool_calls_buffer.any?
+        # Show a brief "processing" message while tool calls are being handled
+        temp_message = "Processing your request..."
+        Turbo::StreamsChannel.broadcast_update_to(
+          "streaming_channel_#{@chat_message.user_id}",
+          target: "chunks_container",
+          partial: "app/chat_messages/chunks_container",
+          locals: { response: temp_message }
+        )
+        sleep 0.5
+      end
+
+      # Process any accumulated tool calls after streaming completes
+      if tool_calls_buffer.any?
+        # Build conversation with tool results
         messages_with_tools = initial_messages.dup
-        messages_with_tools << {
+        
+        # Add the assistant's response with tool calls
+        assistant_message = {
           role: "assistant",
-          content: initial_response.dig("choices", 0, "message", "content"),
-          tool_calls: tool_calls
+          content: response.present? ? response : nil
         }
         
-        # Execute each tool call
-        tool_calls.each do |tool_call|
-          function_result = execute_function_call({
-            name: tool_call["function"]["name"],
-            arguments: tool_call["function"]["arguments"]
-          })
-          
-          messages_with_tools << {
-            role: "tool",
-            tool_call_id: tool_call["id"],
-            content: function_result
-          }
+        # Add tool calls to assistant message
+        tool_calls_array = []
+        tool_calls_buffer.each do |index, call_data|
+          if call_data[:name] && call_data[:arguments].present?
+            tool_calls_array << {
+              id: call_data[:id] || "call_#{index}",
+              type: "function",
+              function: {
+                name: call_data[:name],
+                arguments: call_data[:arguments]
+              }
+            }
+          end
+        end
+        assistant_message[:tool_calls] = tool_calls_array if tool_calls_array.any?
+        messages_with_tools << assistant_message
+        
+        # Execute tool calls and add results to conversation
+        tool_calls_buffer.each do |index, call_data|
+          if call_data[:name] && call_data[:arguments].present?
+            function_result = execute_function_call(call_data)
+            
+            messages_with_tools << {
+              role: "tool",
+              tool_call_id: call_data[:id] || "call_#{index}",
+              content: function_result
+            }
+          end
         end
         
-        # Now make a streaming call for the final response with tool results
+        # Show brief processing message
+        temp_message = "Analyzing birth chart data..."
+        Turbo::StreamsChannel.broadcast_update_to(
+          "streaming_channel_#{@chat_message.user_id}",
+          target: "chunks_container",
+          partial: "app/chat_messages/chunks_container",
+          locals: { response: temp_message }
+        )
+        sleep 0.5
+        
+        # Reset response and buffer for final streaming
+        response = ""
+        buffer = ""
+        
+        # Make final streaming call with tool results
         client.chat(
           parameters: {
             model: "deepseek-chat",
@@ -61,7 +163,7 @@ class Ai::Astro::ChatMessagesService
               response += delta
               buffer += delta
               
-              # Stream content as before
+              # Stream the final response
               if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
                 buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
                 buffer = buffer.gsub(/[*#]/, '')
@@ -84,75 +186,6 @@ class Ai::Astro::ChatMessagesService
             end
           }
         )
-        
-      else
-        # No tool calls, proceed with normal streaming
-        response = initial_response.dig("choices", 0, "message", "content") || ""
-        
-        # If there's already content from the initial response, stream it
-        if response.present?
-          # Simulate streaming for the existing response
-          words = response.split(' ')
-          words.each_with_index do |word, index|
-            buffer += word + ' '
-            
-            if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/) || index == words.length - 1
-              buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
-              buffer = buffer.gsub(/[*#]/, '')
-              Turbo::StreamsChannel.broadcast_append_to(
-                "streaming_channel_#{@chat_message.user_id}",
-                target: "sentence_chunks_container",
-                partial: "app/chat_messages/sentence_chunk",
-                locals: { sentence: buffer }
-              )
-              buffer = ""
-            end
-            
-            Turbo::StreamsChannel.broadcast_update_to(
-              "streaming_channel_#{@chat_message.user_id}",
-              target: "chunks_container",
-              partial: "app/chat_messages/chunks_container",
-              locals: { response: response[0..response.index(word) + word.length] }
-            )
-            sleep 0.12
-          end
-        else
-          # Make a streaming call for the response
-          client.chat(
-            parameters: {
-              model: "deepseek-chat",
-              temperature: 1.1,
-              messages: initial_messages,
-              stream: proc do |chunk, _bytesize|
-                delta = chunk.dig("choices", 0, "delta", "content")
-                next unless delta
-                
-                response += delta
-                buffer += delta
-                
-                if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
-                  buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
-                  buffer = buffer.gsub(/[*#]/, '')
-                  Turbo::StreamsChannel.broadcast_append_to(
-                    "streaming_channel_#{@chat_message.user_id}",
-                    target: "sentence_chunks_container",
-                    partial: "app/chat_messages/sentence_chunk",
-                    locals: { sentence: buffer }
-                  )
-                  buffer = ""
-                end
-                
-                Turbo::StreamsChannel.broadcast_update_to(
-                  "streaming_channel_#{@chat_message.user_id}",
-                  target: "chunks_container",
-                  partial: "app/chat_messages/chunks_container",
-                  locals: { response: response }
-                )
-                sleep 0.12
-              end
-            }
-          )
-        end
       end
 
     rescue => e
