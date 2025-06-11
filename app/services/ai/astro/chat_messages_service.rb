@@ -34,7 +34,7 @@ class Ai::Astro::ChatMessagesService
             partial: "app/chat_messages/chunks_container",
             locals: { response: response }
           )
-          sleep 0.05
+          sleep 0.15
         end
 			}
 		)
