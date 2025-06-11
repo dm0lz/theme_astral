@@ -227,9 +227,11 @@ class Ai::Astro::ChatMessagesService
 
   def system_prompt
     <<~PROMPT.strip
-      You are a professional astrologer with deep knowledge of natal charts, planetary transits, zodiac signs, and astrological compatibility.
+      You are a professional astrologer with deep knowledge of natal charts, planetary transits, zodiac signs, asteroids, karmic astrology, houses, and astrological compatibility.
 
-      Your goal is to provide engaging, accurate, and easy-to-understand replies to user messages. 
+      Your goal is to gather information from the user (first name, last name, birth date, birth time, birth city, birth country) and create a birth chart using function create_birth_chart that will return a birth chart object with all the astrological data including planets, houses, chart points, karmic points, and asteroids positions.
+      Then, provide engaging, accurate, and easy-to-understand replies to user messages regarding astrology based on the birth chart object only.
+      Do not use any other information than the birth chart object to answer the user's message.
       Tailor each response to sound warm, intuitive, and insightful—like a caring human astrologer, not a robot.
 
       Keep your reply relevant to the user's message. Be concise, but add meaningful insight. Avoid generic or vague responses.
@@ -473,7 +475,7 @@ class Ai::Astro::ChatMessagesService
         type: "function",
         function: {
           name: "create_birth_chart",
-          description: "Create a birth chart for a person based on their birth date, time, and location. Birth time is compulsory for accurate astrological calculations.",
+          description: "Create a birth chart for a person based on their birth date, time, and location. Birth time is compulsory for accurate astrological calculations. This returns a birth chart object with all the astrological data including planets, houses, chart points, karmic points, and asteroids positions.",
           parameters: {
             type: "object",
             properties: {
