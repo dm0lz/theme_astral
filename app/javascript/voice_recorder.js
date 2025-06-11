@@ -1,92 +1,151 @@
 class VoiceRecorder {
   constructor() {
-    this.mediaRecorder = null;
-    this.audioChunks = [];
+    this.recognition = null;
     this.isRecording = false;
-    this.stream = null;
     this.maxDuration = 120000; // 2 minutes max
     this.recordingTimer = null;
     this.recordingStartTime = null;
+    this.silenceTimer = null;
+    this.silenceDelay = 2000; // Stop after 2 seconds of silence
+    this.finalTranscript = '';
   }
 
   async initialize() {
     try {
-      // Check if browser supports audio recording
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Your browser does not support audio recording');
+      // Check if browser supports speech recognition
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        throw new Error('Your browser does not support speech recognition. Please use Chrome, Safari, or Edge.');
       }
 
-      const constraints = { 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-          sampleSize: 16,
-          channelCount: 1
-        }
-      };
+      this.recognition = new SpeechRecognition();
       
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Configure speech recognition
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.lang = navigator.language || 'en-US';
+      this.recognition.maxAlternatives = 1;
+      
+      // Set up event handlers
+      this.setupSpeechRecognitionEvents();
+      
       return true;
     } catch (error) {
       console.error('Error initializing voice recorder:', error);
-      
-      if (error.name === 'NotAllowedError') {
-        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
-      } else if (error.name === 'NotSupportedError') {
-        throw new Error('Audio recording not supported. Please use a compatible browser.');
-      }
-      
       throw error;
     }
+  }
+
+  setupSpeechRecognitionEvents() {
+    this.recognition.onstart = () => {
+      console.log('Speech recognition started');
+      this.isRecording = true;
+      this.updateUI('recording');
+    };
+
+    this.recognition.onresult = (event) => {
+      // Simple approach: just take the complete transcript from the last result
+      let transcript = '';
+      
+      // Get all results and combine them properly
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+        
+        // Add space only after final results, not interim ones
+        if (event.results[i].isFinal && i < event.results.length - 1) {
+          transcript += ' ';
+        }
+      }
+
+      // Show the transcript as live preview
+      if (transcript.trim()) {
+        this.showLivePreview(transcript.trim());
+        this.resetSilenceTimer();
+      }
+    };
+
+    this.recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      
+      let errorMessage = 'Speech recognition failed. ';
+      switch (event.error) {
+        case 'no-speech':
+          errorMessage = 'No speech was detected. Please try again.';
+          break;
+        case 'audio-capture':
+          errorMessage = 'Audio capture failed. Please check your microphone.';
+          break;
+        case 'not-allowed':
+          errorMessage = 'Microphone access denied. Please enable microphone permissions.';
+          break;
+        case 'network':
+          errorMessage = 'Network error occurred during speech recognition.';
+          break;
+        case 'service-not-allowed':
+          errorMessage = 'Speech recognition service not allowed.';
+          break;
+        default:
+          errorMessage += event.error;
+      }
+      
+      this.onTranscriptionError(errorMessage);
+    };
+
+    this.recognition.onend = () => {
+      console.log('Speech recognition ended');
+      this.isRecording = false;
+      this.stopTimer();
+      this.clearSilenceTimer();
+      
+      // Get the final text from the input field where it's already displayed
+      const { notebookTextArea, chatTextArea, trixEditor } = getCurrentTextTargets();
+      let finalText = '';
+      
+      if (trixEditor) {
+        finalText = trixEditor.editor ? trixEditor.editor.getDocument().toString().trim() : '';
+      } else {
+        const textArea = notebookTextArea || chatTextArea;
+        finalText = textArea ? textArea.value.trim() : '';
+      }
+      
+      if (finalText) {
+        this.finalTranscript = finalText;
+        this.onTranscriptionComplete(finalText);
+      }
+      
+      this.updateUI('ready');
+    };
+
+    // Handle speech start/end detection
+    this.recognition.onspeechstart = () => {
+      console.log('Speech detected');
+      this.clearSilenceTimer();
+    };
+
+    this.recognition.onspeechend = () => {
+      console.log('Speech ended');
+      this.setSilenceTimer();
+    };
   }
 
   async startRecording() {
     if (this.isRecording) return;
 
     try {
-      // Always re-initialize the stream for each recording session
       await this.initialize();
 
-      this.audioChunks = [];
+      // Reset transcripts
+      this.finalTranscript = '';
       
-      // Try different MIME types in order of preference
-      const mimeTypes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/wav',
-        'audio/mp3'
-      ];
+      // Clear any existing text in the input to prepare for new voice input
+      this.clearInputField();
       
-      let selectedMimeType = null;
-      for (const mimeType of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mimeType)) {
-          selectedMimeType = mimeType;
-          break;
-        }
-      }
-      
-      const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
-      this.mediaRecorder = new MediaRecorder(this.stream, options);
-
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-        }
-      };
-
-      this.mediaRecorder.onstop = () => {
-        this.handleRecordingStop();
-      };
-
-      this.mediaRecorder.start(1000); // 1 second timeslice
-      
-      this.isRecording = true;
       this.recordingStartTime = Date.now();
-
-      // Start timer display
       this.startTimer();
+
+      // Start speech recognition
+      this.recognition.start();
 
       // Auto-stop after max duration
       setTimeout(() => {
@@ -94,113 +153,113 @@ class VoiceRecorder {
           this.stopRecording();
         }
       }, this.maxDuration);
-
-      this.updateUI('recording');
       
     } catch (error) {
       console.error('Error starting recording:', error);
-      throw error;
+      this.onTranscriptionError(error.message);
     }
   }
 
   stopRecording() {
-    if (!this.isRecording || !this.mediaRecorder) return;
+    if (!this.isRecording || !this.recognition) return;
 
     try {
-      this.mediaRecorder.stop();
-      this.isRecording = false;
-      this.stopTimer();
-      this.updateUI('processing');
-      
-      // Stop the microphone stream immediately
-      this.stopStream();
+      this.recognition.stop();
+      this.clearSilenceTimer();
     } catch (error) {
       console.error('Error stopping recording:', error);
-      this.stopStream();
+      this.isRecording = false;
       this.updateUI('ready');
     }
   }
 
-  stopStream() {
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => {
-        track.stop();
-      });
-      this.stream = null;
+  resetSilenceTimer() {
+    this.clearSilenceTimer();
+    this.setSilenceTimer();
+  }
+
+  setSilenceTimer() {
+    this.silenceTimer = setTimeout(() => {
+      if (this.isRecording) {
+        console.log('Stopping due to silence');
+        this.stopRecording();
+      }
+    }, this.silenceDelay);
+  }
+
+  clearSilenceTimer() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
     }
   }
 
-  handleRecordingStop() {
-    const audioBlob = new Blob(this.audioChunks, { 
-      type: this.mediaRecorder.mimeType || 'audio/webm' 
-    });
+  clearInputField() {
+    const { notebookTextArea, chatTextArea, trixEditor } = getCurrentTextTargets();
     
-    // Validate blob size
-    if (audioBlob.size === 0) {
-      console.error('Audio blob is empty!');
-      this.onTranscriptionError('Recording failed - no audio data captured');
-      return;
+    if (trixEditor) {
+      const editor = trixEditor.editor;
+      if (editor) {
+        editor.loadHTML(''); // Clear trix editor
+      }
+    } else {
+      const textArea = notebookTextArea || chatTextArea;
+      if (textArea) {
+        textArea.value = ''; // Clear textarea
+      }
     }
-    
-    this.transcribeAudio(audioBlob);
   }
 
-  async transcribeAudio(audioBlob) {
-    try {
-      const formData = new FormData();
-      
-      // Use appropriate file extension based on the blob type
-      let fileName = 'recording.webm'; // Default
-      if (audioBlob.type.includes('mp4')) {
-        fileName = 'recording.mp4';
-      } else if (audioBlob.type.includes('wav')) {
-        fileName = 'recording.wav';
-      } else if (audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg')) {
-        fileName = 'recording.mp3';
-      } else if (audioBlob.type.includes('ogg')) {
-        fileName = 'recording.ogg';
+  showLivePreview(text) {
+    // Temporarily replace input content with live preview (don't append)
+    const { notebookTextArea, chatTextArea, trixEditor } = getCurrentTextTargets();
+    
+    if (trixEditor) {
+      const editor = trixEditor.editor;
+      if (editor) {
+        // Replace entire content temporarily
+        editor.loadHTML(text);
+        trixEditor.focus();
       }
-      
-      formData.append('audio', audioBlob, fileName);
-
-      // Get CSRF token
-      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-      const response = await fetch('/app/voice_notes/transcribe', {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': csrfToken
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } else {
+      const textArea = notebookTextArea || chatTextArea;
+      if (textArea) {
+        // Replace entire content temporarily
+        textArea.value = text;
+        textArea.focus();
+        // Move cursor to end
+        textArea.setSelectionRange(text.length, text.length);
       }
-
-      const result = await response.json();
-
-      if (result.success) {
-        this.onTranscriptionComplete(result.transcription);
-      } else {
-        this.onTranscriptionError(result.error || 'Failed to transcribe audio');
-      }
-    } catch (error) {
-      console.error('Error transcribing audio:', error);
-      this.onTranscriptionError('Network error occurred while transcribing audio');
     }
   }
 
   onTranscriptionComplete(transcription) {
-    const ok = insertTranscriptionText(transcription);
+    // The final transcription is already showing from live preview
+    // Just need to trigger auto-submit for chat
+    this.autoSubmitIfChat();
     
     this.updateUI('ready');
-    showNotification('Voice note transcribed successfully!', 'success');
+    showNotification('Voice message ready!', 'success');
   }
 
   onTranscriptionError(error) {
     this.updateUI('ready');
     showNotification(error, 'error');
+  }
+
+  autoSubmitIfChat() {
+    // Auto-submit chat messages for hands-free interaction
+    const chatForm = document.querySelector('#chat_form');
+    const chatTextArea = document.querySelector('#chat_message_body');
+    const submitButton = chatForm?.querySelector('button[type="submit"], input[type="submit"]');
+    
+    if (chatForm && chatTextArea && submitButton && chatTextArea.value.trim()) {
+      // Small delay to ensure text is fully inserted
+      setTimeout(() => {
+        submitButton.click();
+        showNotification('Message sent!', 'success');
+      }, 500);
+    }
   }
 
   startTimer() {
@@ -226,56 +285,96 @@ class VoiceRecorder {
 
   updateUI(state) {
     const voiceButton = document.getElementById('voice-record-btn');
+    const voiceToggleBtn = document.getElementById('voice-toggle-btn');
     const statusText = document.getElementById('voice-status');
     const recordingIndicator = document.getElementById('recording-indicator');
     const timerElement = document.getElementById('recording-timer');
 
-    if (!voiceButton) return;
+    // Update main voice button if it exists
+    if (voiceButton) {
+      switch (state) {
+        case 'recording':
+          voiceButton.querySelector('.record-icon').classList.add('hidden');
+          voiceButton.querySelector('.stop-icon').classList.remove('hidden');
+          voiceButton.classList.add('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
+          voiceButton.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+          
+          if (statusText) statusText.textContent = 'Listening... Speak now';
+          if (recordingIndicator) recordingIndicator.classList.remove('hidden');
+          if (timerElement) timerElement.classList.remove('hidden');
+          break;
 
-    switch (state) {
-      case 'recording':
-        voiceButton.querySelector('.record-icon').classList.add('hidden');
-        voiceButton.querySelector('.stop-icon').classList.remove('hidden');
-        voiceButton.classList.add('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
-        voiceButton.classList.remove('bg-amber-600', 'hover:bg-amber-700');
-        
-        if (statusText) statusText.textContent = 'Recording... Tap to stop';
-        if (recordingIndicator) recordingIndicator.classList.remove('hidden');
-        if (timerElement) timerElement.classList.remove('hidden');
-        break;
+        case 'processing':
+          voiceButton.querySelector('.record-icon').classList.remove('hidden');
+          voiceButton.querySelector('.stop-icon').classList.add('hidden');
+          voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
+          voiceButton.classList.add('bg-amber-600', 'hover:bg-amber-700');
+          voiceButton.disabled = true;
+          
+          if (statusText) statusText.textContent = 'Processing speech...';
+          if (recordingIndicator) recordingIndicator.classList.add('hidden');
+          if (timerElement) timerElement.classList.add('hidden');
+          break;
 
-      case 'processing':
-        voiceButton.querySelector('.record-icon').classList.remove('hidden');
-        voiceButton.querySelector('.stop-icon').classList.add('hidden');
-        voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
-        voiceButton.classList.add('bg-amber-600', 'hover:bg-amber-700');
-        voiceButton.disabled = true;
-        
-        if (statusText) statusText.textContent = 'Processing your voice note...';
-        if (recordingIndicator) recordingIndicator.classList.add('hidden');
-        if (timerElement) timerElement.classList.add('hidden');
-        break;
+        case 'ready':
+        default:
+          voiceButton.querySelector('.record-icon').classList.remove('hidden');
+          voiceButton.querySelector('.stop-icon').classList.add('hidden');
+          voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
+          voiceButton.classList.add('bg-amber-600', 'hover:bg-amber-700');
+          voiceButton.disabled = false;
+          
+          if (statusText) statusText.textContent = 'Tap to speak';
+          if (recordingIndicator) recordingIndicator.classList.add('hidden');
+          if (timerElement) {
+            timerElement.classList.add('hidden');
+            timerElement.textContent = '0:00';
+          }
+          break;
+      }
+    }
 
-      case 'ready':
-      default:
-        voiceButton.querySelector('.record-icon').classList.remove('hidden');
-        voiceButton.querySelector('.stop-icon').classList.add('hidden');
-        voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
-        voiceButton.classList.add('bg-amber-600', 'hover:bg-amber-700');
-        voiceButton.disabled = false;
-        
-        if (statusText) statusText.textContent = 'Tap to record a voice note';
-        if (recordingIndicator) recordingIndicator.classList.add('hidden');
-        if (timerElement) {
-          timerElement.classList.add('hidden');
-          timerElement.textContent = '0:00';
-        }
-        break;
+    // Update voice toggle button if it exists
+    if (voiceToggleBtn) {
+      switch (state) {
+        case 'recording':
+          // Only allow recording state change if not disabled by streaming
+          if (!voiceToggleBtn.disabled) {
+            voiceToggleBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
+            voiceToggleBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700', 'bg-amber-600', 'hover:bg-amber-700');
+          }
+          break;
+
+        case 'processing':
+          // Don't override disabled state from streaming
+          if (!voiceToggleBtn.disabled) {
+            voiceToggleBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse');
+            voiceToggleBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+            voiceToggleBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            voiceToggleBtn.disabled = true;
+          }
+          break;
+
+        case 'ready':
+        default:
+          // Only reset to ready state if not disabled by streaming
+          if (!voiceToggleBtn.hasAttribute('disabled') || voiceToggleBtn.getAttribute('disabled') === 'false') {
+            voiceToggleBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'animate-pulse', 'bg-amber-600', 'hover:bg-amber-700');
+            voiceToggleBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            voiceToggleBtn.disabled = false;
+          }
+          break;
+      }
     }
   }
 
   cleanup() {
-    this.stopStream();
+    if (this.recognition) {
+      this.recognition.stop();
+      this.recognition = null;
+    }
+    
+    this.clearSilenceTimer();
     
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer);
@@ -338,50 +437,6 @@ function initVoiceRecorder() {
     return;
   }
 
-  // Helper function to insert text into Trix editor
-  function insertIntoTrixEditor(text) {
-    if (trixEditor) {
-      const editor = trixEditor.editor;
-      if (editor) {
-        editor.insertString(text);
-        trixEditor.focus();
-      }
-    }
-  }
-
-  // Helper function to insert text into regular textarea
-  function insertIntoTextArea(text) {
-    if (textArea) {
-      const startPos = textArea.selectionStart;
-      const endPos = textArea.selectionEnd;
-      const currentContent = textArea.value;
-      
-      const newContent = currentContent.substring(0, startPos) + text + currentContent.substring(endPos);
-      textArea.value = newContent;
-      
-      const newCursorPos = startPos + text.length;
-      textArea.focus();
-      textArea.setSelectionRange(newCursorPos, newCursorPos);
-      
-      if (textArea.scrollTop !== undefined) {
-        textArea.scrollTop = textArea.scrollHeight;
-      }
-    }
-  }
-
-  // Override transcription callbacks
-  recorder.onTranscriptionComplete = (transcription) => {
-    const ok = insertTranscriptionText(transcription);
-    
-    recorder.updateUI('ready');
-    showNotification('Voice note transcribed successfully!', 'success');
-  };
-
-  recorder.onTranscriptionError = (error) => {
-    recorder.updateUI('ready');
-    showNotification(error, 'error');
-  };
-
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     recorder.cleanup();
@@ -441,32 +496,38 @@ function showNotification(message, type = 'info') {
 
 // Global delegation (attach once)
 if (!window.__voiceToggleDelegated) {
-  const toggleHandler = (event) => {
+  const toggleHandler = async (event) => {
     const btn = event.target.closest('#voice-toggle-btn');
     if (!btn) return;
     event.preventDefault();
 
-    // Locate the voice-recorder-form nearest to this button (works if multiple forms exist)
-    let recorderForm = btn.closest('form, #chat_form, #note_form, body').querySelector('#voice-recorder-form');
-    if (!recorderForm) {
-      // Fallback to first one in DOM
-      recorderForm = document.getElementById('voice-recorder-form');
+    // Check if button is disabled (when AI is streaming)
+    if (btn.disabled) {
+      showNotification('Please wait for AI response to complete', 'info');
+      return;
     }
-    if (!recorderForm) return;
 
-    const isHidden = recorderForm.classList.contains('hidden');
-    if (isHidden) {
-      recorderForm.classList.remove('hidden');
-      btn.classList.add('bg-amber-600', 'hover:bg-amber-700');
-      btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
-    } else {
-      recorderForm.classList.add('hidden');
-      btn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
-      btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-      if (window.voiceRecorderInstance && window.voiceRecorderInstance.isRecording) {
-        window.voiceRecorderInstance.stopRecording();
+    const recorder = window.voiceRecorderInstance;
+    if (!recorder) {
+      showNotification('Voice recorder not available', 'error');
+      return;
+    }
+
+    try {
+      if (recorder.isRecording) {
+        // Stop recording
+        recorder.stopRecording();
+        showNotification('Recording stopped', 'info');
+      } else {
+        // Start recording directly
+        await recorder.startRecording();
+        showNotification('🎤 Listening... Speak now', 'info');
       }
-      if (window.voiceRecorderInstance) window.voiceRecorderInstance.stopStream();
+    } catch (error) {
+      console.error('Voice recording error:', error);
+      showNotification(error.message || 'Error accessing microphone', 'error');
+      // Reset button state on error
+      recorder.updateUI('ready');
     }
   };
 

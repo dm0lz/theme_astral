@@ -16,10 +16,12 @@ class Ai::Astro::ChatMessagesService
           next unless delta
           response += delta
           buffer += delta
-          # if buffer contains a sentence ending, send it to the client
-          if buffer.match(/[.!?]\s*$/)
+          # if buffer contains a sentence ending or a comma, send it to the client
+          if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
             # remove all icons like  ✨, 🌟, 🌈, etc.
             buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+            # remove all * and #
+            buffer = buffer.gsub(/[*#]/, '')
             Turbo::StreamsChannel.broadcast_append_to(
               "streaming_channel_#{@chat_message.user_id}",
               target: "sentence_chunks_container",
@@ -34,7 +36,7 @@ class Ai::Astro::ChatMessagesService
             partial: "app/chat_messages/chunks_container",
             locals: { response: response }
           )
-          sleep 0.15
+          sleep 0.12
         end
 			}
 		)
@@ -45,6 +47,12 @@ class Ai::Astro::ChatMessagesService
       target: "temp_message",
       partial: "app/chat_messages/chat_message",
       locals: { chat_message: chat_message }
+    )
+    Turbo::StreamsChannel.broadcast_update_to(
+      "streaming_channel_#{@chat_message.user_id}",
+      target: "chat_form",
+      partial: "app/chat_messages/form",
+      locals: { chat_message: ChatMessage.new, disabled_send_button: false }
     )
   end
 

@@ -49,7 +49,7 @@
         <% end %> 
       </div>
       <div class="border-t border-indigo-800/30 bg-indigo-950/30 p-4 sm:p-6">
-        <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new } %>
+        <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new, disabled_send_button: false } %>
       </div>
     </div>
   </div>

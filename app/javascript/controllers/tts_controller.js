@@ -213,7 +213,7 @@ export default class extends Controller {
   }
 
   isCompleteSentence(text) {
-    return /[.!?]$/.test(text)
+    return /[.,!?]$/.test(text)
   }
 
   // ===== USER INTERACTIONS =====
