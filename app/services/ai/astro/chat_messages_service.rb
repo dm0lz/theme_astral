@@ -85,7 +85,7 @@ class Ai::Astro::ChatMessagesService
       # If we only had tool calls and no regular streaming content, show some activity
       if response.blank? && tool_calls_buffer.any?
         # Show a brief "processing" message while tool calls are being handled
-        temp_message = "Processing your request..."
+        temp_message = "Processing your request ⏳"
         Turbo::StreamsChannel.broadcast_update_to(
           "streaming_channel_#{@chat_message.user_id}",
           target: "chunks_container",
@@ -136,8 +136,8 @@ class Ai::Astro::ChatMessagesService
           end
         end
         
-        # Show brief processing message
-        temp_message = "Analyzing birth chart data..."
+        # Show brief processing message with icon
+        temp_message = "Analyzing birth chart data 🔍"
         Turbo::StreamsChannel.broadcast_update_to(
           "streaming_channel_#{@chat_message.user_id}",
           target: "chunks_container",
