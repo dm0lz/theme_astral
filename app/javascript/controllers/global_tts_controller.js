@@ -295,11 +295,20 @@ export default class extends Controller {
     // Create handler functions and store them globally to prevent duplicates
     window.TTSToggleHandler = () => this.toggle()
     window.TTSAddHandler = (e) => this.enqueue(e.detail.text, e.detail.messageId)
-    window.TTSStopHandler = () => this.stop()
+    window.TTSStopHandler = (e) => {
+      const reason = e.detail?.reason || 'event'
+      this.stop(reason)
+    }
     window.TTSBeforeUnloadHandler = () => this.cleanup()
     window.TTSEnabledHandler = (e) => {
       window.__ttsEnabled = e.detail
       window.GlobalTTSManager.updateAllButtons()
+      
+      // Stop all TTS when globally disabled
+      if (!e.detail) {
+        console.log('TTS globally disabled via event - stopping all speech')
+        this.stop('global_tts_disabled')
+      }
     }
     window.TTSKeydownHandler = (e) => {
       // Ctrl/Cmd + Shift + V to open voice selector
@@ -620,10 +629,17 @@ export default class extends Controller {
     // Stop health monitoring
     this.stopHealthMonitor()
     
-    console.log('TTS processing completed')
+    console.log('TTS processing completed for current message')
     
-    // Enable hands-free chat: auto-start voice recording when TTS finishes
-    this.enableHandsFreeChat()
+    // Only enable hands-free chat if there's nothing else in the queue
+    // This prevents interrupting ongoing TTS from other messages
+    if (this.queue.length === 0 && !this.playing) {
+      console.log('All TTS processing complete - enabling hands-free chat')
+      // Enable hands-free chat: auto-start voice recording when TTS finishes
+      this.enableHandsFreeChat()
+    } else {
+      console.log('TTS queue still has items or still playing - not enabling hands-free chat yet')
+    }
   }
 
   enableHandsFreeChat() {
@@ -631,6 +647,8 @@ export default class extends Controller {
     // 1. TTS is enabled
     // 2. We're on the chat messages page (has #chat_messages element)
     // 3. Voice toggle button exists and isn't disabled
+    // 4. NO TTS is currently processing or in queue
+    // 5. Speech synthesis is completely idle
     if (!window.__ttsEnabled) return
     
     const chatMessagesContainer = document.getElementById('chat_messages')
@@ -642,14 +660,19 @@ export default class extends Controller {
     const recorder = window.voiceRecorderInstance
     if (!recorder || recorder.isRecording) return // No recorder or already recording
     
-    // Add a small delay to ensure TTS has fully completed
+    // CRITICAL: Check if there's still TTS activity
+    if (this.wouldVoiceRecordingConflict()) {
+      console.log('Skipping hands-free chat - TTS still active')
+      return
+    }
+    
+    // Additional check: wait a bit longer to ensure everything is truly complete
     setTimeout(() => {
-      // Double-check conditions haven't changed
-      if (window.__ttsEnabled && !recorder.isRecording && !voiceToggleBtn.disabled) {
-        // Simulate click on voice toggle button to start recording
-        voiceToggleBtn.click()
+      // Use the safe method to start voice recording
+      if (window.__ttsEnabled && !recorder.isRecording) {
+        this.safeStartVoiceRecording()
       }
-    }, 500) // 500ms delay to ensure smooth transition
+    }, 1500) // Even longer delay to ensure TTS is truly complete
   }
 
   // ===== AUDIO PLAYBACK =====
@@ -1105,11 +1128,31 @@ export default class extends Controller {
 
   // ===== CONTROLS =====
 
-  stop() {
+  stop(reason = 'user') {
+    // Always allow stopping when toggle is disabled by user action or TTS is globally disabled
+    if (reason === 'toggle_disabled_user_action' || 
+        reason === 'global_toggle_disabled' || 
+        reason === 'global_tts_disabled') {
+      console.log(`TTS disabled by user (${reason}) - bypassing protection to stop speech`)
+      // Skip protection checks and proceed with stopping
+    } else {
+      // Don't stop TTS if it's protected (e.g., during voice recording startup)
+      if (window.__ttsProtected) {
+        console.log('TTS is protected - ignoring stop request')
+        return
+      }
+      
+      // Don't stop TTS if voice recording is just starting and TTS is active
+      if (reason === 'voice_recording_start' && this.wouldVoiceRecordingConflict()) {
+        console.log('Ignoring TTS stop request from voice recording start - TTS is active')
+        return
+      }
+    }
+    
     // Mark as user-initiated stop
     this.userStopped = true
     
-    console.log('TTS stop requested by user')
+    console.log(`TTS stop requested by ${reason}`)
     
     // Stop speech synthesis
     if ('speechSynthesis' in window) {
@@ -1169,7 +1212,8 @@ export default class extends Controller {
     window.dispatchEvent(new CustomEvent('tts:enabled',{detail:this.enabled}))
     
     if (!this.enabled) {
-      this.stop()
+      console.log('TTS globally disabled - stopping all speech')
+      this.stop('global_toggle_disabled')
     }
   }
 
@@ -1999,5 +2043,43 @@ export default class extends Controller {
       clearInterval(this.healthMonitorInterval)
       this.healthMonitorInterval = null
     }
+  }
+
+  // ===== VOICE RECORDER INTEGRATION =====
+
+  // Check if starting voice recording would conflict with ongoing TTS
+  wouldVoiceRecordingConflict() {
+    return this.processing || 
+           this.playing || 
+           this.queue.length > 0 || 
+           speechSynthesis.speaking || 
+           speechSynthesis.pending
+  }
+
+  // Safe method to start voice recording that checks for TTS conflicts
+  safeStartVoiceRecording() {
+    if (this.wouldVoiceRecordingConflict()) {
+      console.warn('Cannot start voice recording - TTS is active')
+      return false
+    }
+    
+    const voiceToggleBtn = document.getElementById('voice-toggle-btn')
+    if (voiceToggleBtn && !voiceToggleBtn.disabled) {
+      console.log('Starting voice recording (TTS is idle)')
+      
+      // Set a flag to prevent TTS from being stopped by voice recording startup
+      window.__ttsProtected = true
+      
+      voiceToggleBtn.click()
+      
+      // Remove protection after a short delay
+      setTimeout(() => {
+        window.__ttsProtected = false
+      }, 1000)
+      
+      return true
+    }
+    
+    return false
   }
 } 

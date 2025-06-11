@@ -224,8 +224,24 @@ export default class extends Controller {
     
     if (!text) return
     
+    // Check if TTS is protected from stopping
+    if (window.__ttsProtected) {
+      console.log('TTS is protected - ignoring button click')
+      return
+    }
+    
     if (this.isCurrentlyActive()) {
-      this.stopTTS()
+      // Only stop if this is the same message that's currently playing
+      const messageId = this.getMessageId(button)
+      const currentMessageId = window.GlobalTTSManager?.activeMessageId
+      
+      if (messageId === currentMessageId) {
+        console.log('Stopping TTS - same message button clicked')
+        this.stopTTS('button_click_same_message')
+      } else {
+        console.log('Different message button clicked - switching TTS')
+        this.dispatchTTS(text, messageId)
+      }
     } else {
       const messageId = this.getMessageId(button)
       this.dispatchTTS(text, messageId)
@@ -249,8 +265,10 @@ export default class extends Controller {
     }))
   }
 
-  stopTTS() {
-    window.dispatchEvent(new CustomEvent('tts:stop'))
+  stopTTS(reason = 'individual_controller') {
+    window.dispatchEvent(new CustomEvent('tts:stop', {
+      detail: { reason: reason }
+    }))
   }
 
   // ===== STREAMING TOGGLE BUTTON =====
@@ -359,11 +377,14 @@ export default class extends Controller {
   }
 
   handleToggleClick(button) {
+    // Always allow toggle to change state - this is explicit user action
     this.enabledValue = !this.enabledValue
     this.updateToggleButtonState(button)
     
     if (!this.enabledValue) {
-      this.stopTTS()
+      console.log('TTS toggle disabled by user - stopping TTS (overriding protection)')
+      // Use a special reason that will bypass protection
+      this.stopTTS('toggle_disabled_user_action')
     }
   }
 
