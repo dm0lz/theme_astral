@@ -6,24 +6,20 @@ import { Controller } from "@hotwired/stimulus"
  */
 window.GlobalTTSManager = {
   isActive: false,
-  activeMessageId: null, // Track the message ID instead of button element
-  allButtons: new Map(), // Map button -> message ID for cleanup
+  activeMessageId: null,
+  allButtons: new Map(),
   
   registerButton(button, messageId = null) {
-    // Extract message ID from button if not provided
     if (!messageId) {
       messageId = this.extractMessageId(button)
     }
     
     this.allButtons.set(button, messageId)
 
-    // If active message element disappeared, adopt this new one if ids differ
     if (this.isActive && this.activeMessageId && !document.getElementById(this.activeMessageId)) {
-      // Update to new messageId (likely replacement of temp message)
       this.activeMessageId = messageId
     }
     
-    // Determine enabled flag lazily
     let enabled
     if (window.__ttsEnabled === undefined) {
       enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
@@ -32,20 +28,17 @@ window.GlobalTTSManager = {
       enabled = window.__ttsEnabled
     }
     
-    // Handle button visibility based on TTS enabled state
     if (enabled) {
-      // Show button - remove hidden class and ensure visibility
       button.classList.remove('hidden')
       button.style.display = 'inline-flex'
       button.style.opacity = '1'
       button.style.visibility = 'visible'
     } else {
-      // Hide button - use inline styles to override any existing styles
       button.classList.add('hidden')
       button.style.display = 'none'
       button.style.opacity = '0'
       button.style.visibility = 'hidden'
-      return // Don't set button state if TTS is disabled
+      return
     }
     
     if (enabled && this.isActive && messageId === this.activeMessageId) {
@@ -60,11 +53,9 @@ window.GlobalTTSManager = {
   },
   
   extractMessageId(button) {
-    // Try to find message ID from various sources
     let messageId = button.dataset.ttsMessageId
     
     if (!messageId) {
-      // Look for closest message container with an ID
       const messageContainer = button.closest('[id*="chat_message"], [id*="temp_message"]')
       if (messageContainer) {
         messageId = messageContainer.id
@@ -72,7 +63,6 @@ window.GlobalTTSManager = {
     }
     
     if (!messageId) {
-      // Extract from data-tts-text-value or create from text content
       const text = button.dataset.ttsTextValue
       if (text) {
         messageId = 'tts_' + this.hashString(text)
@@ -87,7 +77,7 @@ window.GlobalTTSManager = {
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i)
       hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32bit integer
+      hash = hash & hash
     }
     return Math.abs(hash).toString()
   },
@@ -96,11 +86,9 @@ window.GlobalTTSManager = {
     this.activeMessageId = messageId
     this.isActive = true
     
-    // set loading spinner on active button
     const btn = this.getButtonByMessageId(messageId)
-    if (btn) this.showLoading(btn)
+    if (btn) this.setStopState(btn)
     
-    // reset others
     this.allButtons.forEach((msg, button) => {
       if (msg !== messageId) this.setSpeakerState(button)
     })
@@ -109,26 +97,22 @@ window.GlobalTTSManager = {
   clearActiveMessage() {
     this.activeMessageId = null
     this.isActive = false
-    
-    // Reset all buttons to speaker state
     this.updateAllButtons()
   },
   
   updateAllButtons() {
     this.allButtons.forEach((messageId, button) => {
       if (window.__ttsEnabled) {
-        // Show button - remove hidden class and ensure visibility
         button.classList.remove('hidden')
-        button.style.display = 'inline-flex' // Restore display
+        button.style.display = 'inline-flex'
         button.style.opacity = '1'
         button.style.visibility = 'visible'
       } else {
-        // Hide button - use inline styles to override any existing styles
         button.classList.add('hidden')
         button.style.display = 'none'
         button.style.opacity = '0'
         button.style.visibility = 'hidden'
-        return // Don't update button state if TTS is disabled
+        return
       }
       
       if (this.isActive && messageId === this.activeMessageId) {
@@ -148,7 +132,6 @@ window.GlobalTTSManager = {
     button.dataset.speaking = "true"
     button.title = "Stop reading"
     
-    // Only make visible if TTS is enabled
     if (window.__ttsEnabled) {
       button.style.opacity = '1'
       button.style.visibility = 'visible'
@@ -167,7 +150,6 @@ window.GlobalTTSManager = {
     button.dataset.speaking = "false"
     button.title = "Read message aloud"
     
-    // Only make visible if TTS is enabled
     if (window.__ttsEnabled) {
       button.style.opacity = '1'
       button.style.visibility = 'visible'
@@ -195,12 +177,11 @@ window.GlobalTTSManager = {
 }
 
 /**
- * Global TTS Controller
- * Manages speech synthesis queue and audio playback using Speech Synthesis API
+ * Global TTS Controller with Google TTS API
+ * Manages audio queue with prefetching and iOS compatibility
  */
 export default class extends Controller {
   connect() {
-    // Prevent multiple global controllers
     if (window.GlobalTTSInstance) {
       window.GlobalTTSInstance.cleanup()
     }
@@ -210,14 +191,12 @@ export default class extends Controller {
     this.initializeState()
     this.setupEventListeners()
     this.setupIOSAudioUnlock()
-    this.createVoiceSelectorButton()
+    this.createVoiceSelector()
     
-    // iOS compatibility: ensure all existing TTS buttons are visible
     setTimeout(() => {
       this.ensureAllButtonsVisible()
     }, 100)
     
-    // Debug: Check if there are multiple global controllers
     if (window.GlobalTTSControllerCount) {
       window.GlobalTTSControllerCount++
     } else {
@@ -231,13 +210,11 @@ export default class extends Controller {
       window.GlobalTTSControllerCount--
     }
     
-    // Remove voice selector button
     const voiceButton = document.getElementById('tts-voice-selector-btn')
     if (voiceButton) {
       voiceButton.remove()
     }
     
-    // Clear global instance reference
     if (window.GlobalTTSInstance === this) {
       window.GlobalTTSInstance = null
     }
@@ -247,42 +224,44 @@ export default class extends Controller {
 
   initializeState() {
     this.queue = []
-    this.spoken = new Set()
-    this.playing = false
+    this.audioQueue = []
+    this.prefetchedAudio = new Map()
+    this.speaking = false
     this.processing = false
-    this.prefetched = new Map()
-    this.prefetchQueue = new Set()
-    this.currentMessageId = null // Track which message initiated current session
+    this.currentMessageId = null
     this.enabled = JSON.parse(localStorage.getItem('ttsEnabled') ?? 'true')
     window.__ttsEnabled = this.enabled
     
-    // User interaction flags
+    // iOS compatibility
+    this.audioContext = null
+    this.isIOSUnlocked = false
+    this.pendingTexts = []
+    
+    // Voice selection
+    this.selectedVoice = localStorage.getItem('googleTTSVoice') || 'en-US-Neural2-A'
+    this.selectedSpeed = parseFloat(localStorage.getItem('googleTTSSpeed')) || 1.0
+    
+    // Audio management
+    this.currentAudio = null
+    this.isPlaying = false
+    
+    // Duplicate prevention
+    this.recentTexts = new Map()
+    this.spoken = new Set()
+    
+    // User interaction tracking
     this.userStopped = false
-    this.userInitiated = false
-    
-    // Simplified duplicate prevention - only very recent duplicates
-    this.veryRecentTexts = new Map() // Track very recent texts (last 100ms)
-    
-    // Audio-level deduplication
-    this.currentlyPlayingKey = null
-    
-    // Frontend request queue to prevent concurrent API calls
-    this.requestQueue = []
-    this.processingRequest = false
-    
-    // Autoplay detection and handling
-    this.autoplayBlocked = false
     this.hasUserGesture = false
-    this.voicesReady = false
-    this.retryAttempts = new Map() // Track retry attempts per text
     
-    // Initialize autoplay detection
-    this.detectAutoplayCapability()
-    this.initializeVoiceReadiness()
+    // Prefetch management
+    this.maxPrefetchItems = 5
+    this.prefetchQueue = new Set()
+    
+    this.initializeAudioContext()
   }
 
   setupEventListeners() {
-    // Remove any existing listeners first to prevent duplicates
+    // Remove existing listeners to prevent duplicates
     if (window.TTSEventListenersAdded) {
       window.removeEventListener('tts:toggle', window.TTSToggleHandler)
       window.removeEventListener('tts:add', window.TTSAddHandler) 
@@ -292,7 +271,7 @@ export default class extends Controller {
       window.removeEventListener('keydown', window.TTSKeydownHandler)
     }
     
-    // Create handler functions and store them globally to prevent duplicates
+    // Create handler functions
     window.TTSToggleHandler = () => this.toggle()
     window.TTSAddHandler = (e) => this.enqueue(e.detail.text, e.detail.messageId)
     window.TTSStopHandler = (e) => {
@@ -304,9 +283,8 @@ export default class extends Controller {
       window.__ttsEnabled = e.detail
       window.GlobalTTSManager.updateAllButtons()
       
-      // Stop all TTS when globally disabled
       if (!e.detail) {
-        console.log('TTS globally disabled via event - stopping all speech')
+        console.log('TTS globally disabled via event - stopping all audio')
         this.stop('global_tts_disabled')
       }
     }
@@ -326,19 +304,14 @@ export default class extends Controller {
     window.addEventListener('tts:enabled', window.TTSEnabledHandler)
     window.addEventListener('keydown', window.TTSKeydownHandler)
     
-    // Mark that event listeners have been added
     window.TTSEventListenersAdded = true
     window.TTSEventListenerCount = (window.TTSEventListenerCount || 0) + 1
     
     // Expose voice selector globally
     window.showTTSVoiceSelector = () => this.showVoiceSelector()
-    
-    // Set up user gesture detection for autoplay
-    this.setupUserGestureDetection()
   }
 
   setupUserGestureDetection() {
-    // Track user interactions to enable autoplay
     const gestureEvents = ['click', 'touchstart', 'keydown', 'mousedown']
     const gestureHandler = () => {
       if (!this.hasUserGesture) {
@@ -353,26 +326,21 @@ export default class extends Controller {
       })
     })
     
-    // Store reference for cleanup
     this.gestureHandler = gestureHandler
     this.gestureEvents = gestureEvents
   }
 
   // ===== CONTENT DETECTION =====
-  // Removed redundant streaming observer and content handling methods
-  // Individual TTS controllers handle their own streaming content
 
   // ===== PREFETCHING =====
 
   async prefetchText(text) {
     const key = this.normalizeText(text)
-    if (this.prefetched.has(key) || this.prefetchQueue.has(key)) return
+    if (this.prefetchedAudio.has(key) || this.prefetchQueue.has(key)) return
     
     this.prefetchQueue.add(key)
     try {
-      // For Speech Synthesis, we don't actually prefetch audio blobs
-      // but we can prepare the utterance
-      this.prefetched.set(key, text)
+      this.prefetchedAudio.set(key, text)
     } catch (error) {
       console.error('TTS prefetch failed:', error.message)
     } finally {
@@ -382,187 +350,179 @@ export default class extends Controller {
 
   // ===== QUEUE MANAGEMENT =====
 
-  enqueue(text, messageId = null) {
-    if (!this.enabled || !text) {
+  async enqueue(text, messageId = null) {
+    if (!this.enabled || !text) return
+    
+    // Check for iOS audio unlock
+    if (this.isIOS() && !this.isIOSUnlocked) {
+      this.pendingTexts.push({ text, messageId })
       return
     }
     
-    // Enhanced iOS check - be more aggressive about preventing requests
-    if (this.isIOS()) {
-      if (!window.__audioUnlocked) {
-        // Queue the text for later without showing prompt
-        this.pendingIOSTexts = this.pendingIOSTexts || []
-        this.pendingIOSTexts.push({ text, messageId })
+    // Clean text before processing
+    const cleanedText = this.cleanTextForTTS(text)
+    if (!cleanedText.trim()) return
+    
+    const normalizedText = this.normalizeText(cleanedText)
+    
+    // Prevent duplicates
+    if (this.isDuplicate(normalizedText)) {
         return
       }
+      
+    this.markAsRecent(normalizedText)
+    
+    // Split text into sentences for better streaming
+    const sentences = this.splitIntoSentences(cleanedText)
+    
+    for (const sentence of sentences) {
+      if (sentence.trim()) {
+        const queueItem = {
+          text: sentence.trim(),
+          messageId: messageId,
+          normalizedText: this.normalizeText(sentence),
+          audioUrl: null,
+          prefetched: false
+        }
+        
+        this.queue.push(queueItem)
+      }
     }
-    
-    // Check if autoplay is blocked and we don't have user gesture
-    if (this.autoplayBlocked && !this.hasUserGesture) {
-      console.warn('TTS autoplay blocked - waiting for user gesture')
-      // Queue for later when user interacts
-      this.pendingIOSTexts = this.pendingIOSTexts || []
-      this.pendingIOSTexts.push({ text, messageId })
-      return
-    }
-    
-    // Wait for voices to be ready
-    if (!this.voicesReady) {
-      console.warn('TTS voices not ready - queuing text')
-      setTimeout(() => this.enqueue(text, messageId), 500)
-      return
-    }
-    
-    const key = this.normalizeText(text)
-    
-    // Simplified duplicate prevention - only check if currently in queue or already spoken
-    if (this.isAlreadyProcessed(key)) {
-      return
-    }
-    
-    // Only prevent very rapid duplicates (same content within 100ms)
-    if (this.isVeryRecentDuplicate(key)) {
-      return
-    }
-    
-    this.markAsVeryRecent(key)
-    this.prefetchText(text)
-    this.queue.push({ text, key, messageId, retryCount: 0 })
     
     if (!this.processing) {
       this.startProcessing(messageId)
     }
     
+    // Start prefetching
+    this.prefetchNext()
+    
+    // Process queue
     this.processQueue()
   }
 
-  isAlreadyProcessed(key) {
-    return this.spoken.has(key) || this.queue.some(item => item.key === key)
+  cleanTextForTTS(text) {
+    return text
+      // Remove emojis (comprehensive Unicode ranges)
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map Symbols
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Regional Indicator Symbols (flags)
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols (☀️ ⭐ etc)
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols and Pictographs
+      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols and Pictographs Extended-A
+      
+      // Remove markdown formatting
+      .replace(/\*\*(.*?)\*\*/g, '$1')        // **bold** -> bold
+      .replace(/\*(.*?)\*/g, '$1')            // *italic* -> italic
+      .replace(/`(.*?)`/g, '$1')             // `code` -> code
+      .replace(/~~(.*?)~~/g, '$1')           // ~~strikethrough~~ -> strikethrough
+      .replace(/#{1,6}\s*(.*)/g, '$1')       // # Header -> Header
+      
+      // Remove special characters that shouldn't be read
+      .replace(/[#@&%$€£¥]/g, '')            // Currency and symbols
+      .replace(/[↑↓←→↔]/g, '')               // Arrows
+      .replace(/[★☆✓✗✘]/g, '')              // Stars and checkmarks
+      .replace(/[♠♣♥♦]/g, '')                // Card suits
+      .replace(/[♀♂]/g, '')                  // Gender symbols
+      .replace(/[©®™]/g, '')                 // Copyright symbols
+      
+      // Clean up multiple spaces and normalize punctuation
+      .replace(/\s+/g, ' ')                  // Multiple spaces -> single space
+      .replace(/\.\.\./g, '.')               // ... -> .
+      .replace(/[!]{2,}/g, '!')              // Multiple ! -> single !
+      .replace(/[?]{2,}/g, '?')              // Multiple ? -> single ?
+      .replace(/\n\s*\n/g, '. ')             // Double newlines -> period + space
+      .replace(/\n/g, '. ')                  // Single newlines -> period + space
+      
+      // Remove parenthetical content that's often metadata
+      .replace(/\([^)]*\)/g, '')             // Remove content in parentheses
+      .replace(/\[[^\]]*\]/g, '')            // Remove content in brackets
+      
+      // Clean up final result
+      .replace(/\s*[.]{2,}\s*/g, '. ')       // Clean up dots
+      .replace(/\s*[,]{2,}\s*/g, ', ')       // Clean up commas
+      .replace(/\s+/g, ' ')                  // Final space cleanup
+      .trim()
+  }
+
+  isDuplicate(normalizedText) {
+    // Check if recently processed
+    if (this.recentTexts.has(normalizedText)) {
+      const lastTime = this.recentTexts.get(normalizedText)
+      if (Date.now() - lastTime < 1000) { // 1 second window
+        return true
+      }
+    }
+    
+    // Check if already in queue
+    return this.queue.some(item => item.normalizedText === normalizedText) ||
+           this.spoken.has(normalizedText)
   }
   
-  isVeryRecentDuplicate(key) {
-    if (!this.veryRecentTexts.has(key)) return false
+  markAsRecent(normalizedText) {
+    this.recentTexts.set(normalizedText, Date.now())
     
-    const lastTimestamp = this.veryRecentTexts.get(key)
-    const now = Date.now()
-    
-    // Only prevent duplicates within 100ms (very rapid)
-    return (now - lastTimestamp) < 100
-  }
-  
-  markAsVeryRecent(key) {
-    const now = Date.now()
-    this.veryRecentTexts.set(key, now)
-    
-    // Clean up old entries more frequently
-    for (const [textKey, timestamp] of this.veryRecentTexts.entries()) {
-      if (now - timestamp > 500) { // Clean up after 500ms
-        this.veryRecentTexts.delete(textKey)
+    // Cleanup old entries
+    for (const [text, time] of this.recentTexts.entries()) {
+      if (Date.now() - time > 5000) { // 5 second cleanup
+        this.recentTexts.delete(text)
       }
     }
   }
 
   startProcessing(messageId) {
-    // Only stop current session if explicitly different message AND user didn't manually start
-    if (this.processing && this.currentMessageId !== messageId && !this.userInitiated) {
-      this.stop()
+    if (this.processing && this.currentMessageId !== messageId) {
+      this.stop('new_message')
     }
     
     this.processing = true
     this.currentMessageId = messageId
-    this.userInitiated = false // Reset flag
+    this.userStopped = false
+    
     window.GlobalTTSManager.setActiveMessage(messageId)
-    
-    // Start health monitoring to ensure speech continues
-    this.setupSpeechHealthMonitor()
-    
     console.log(`Started TTS processing for message: ${messageId}`)
   }
 
   async processQueue() {
-    // Continue processing even if currently playing (queue up next items)
     if (this.queue.length === 0) {
-      if (this.processing && !this.playing) {
+      if (this.processing && !this.isPlaying) {
         this.endProcessing()
       }
       return
     }
     
-    // If already playing, wait and retry
-    if (this.playing) {
-      setTimeout(() => this.processQueue(), 50)
-      return
-    }
-    
-    // Don't process if user stopped or TTS is disabled
-    if (!this.shouldContinueSpeaking()) {
-      console.log('Stopping queue processing - user stopped or TTS disabled')
+    if (this.isPlaying || this.userStopped || !this.enabled) {
       return
     }
     
     const queueItem = this.queue.shift()
-    const { text, key, messageId, retryCount } = queueItem
-    
-    console.log(`Processing TTS queue item: "${text.substring(0, 100)}..." (retry: ${retryCount})`)
+    console.log(`Processing: "${queueItem.text.substring(0, 50)}..."`)
     
     try {
-      this.playing = true
-      await this.playAudio(text, key)
-      this.spoken.add(key)
-      
-      // Clear retry attempts on success
-      this.retryAttempts.delete(key)
-      
-      console.log('TTS queue item completed successfully')
+      await this.playAudioItem(queueItem)
+      this.spoken.add(queueItem.normalizedText)
       
     } catch (error) {
-      // Handle different types of errors
-      const shouldRetry = this.shouldRetryPlayback(error, retryCount)
-      
-      if (shouldRetry && retryCount < 3) {
-        console.warn(`TTS playback failed, retrying (${retryCount + 1}/3):`, error.message)
-        
-        // Add back to queue with incremented retry count
-        queueItem.retryCount = retryCount + 1
-        this.queue.unshift(queueItem) // Add to front for immediate retry
-        
-        // Wait before retry (progressive backoff)
-        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)))
-        
-      } else {
-        // Max retries reached or non-retryable error
-        console.error('TTS playback failed permanently:', error.message)
-        this.handlePlaybackFailure(text, messageId, error)
-        
-        // Don't stop the entire queue for one failed item
-        // Mark as spoken to continue with next items
-        this.spoken.add(key)
-      }
-    } finally {
-      this.playing = false
-      
-      // Ensure we continue processing even after errors
-      // Small delay to prevent tight loops
-      setTimeout(() => {
-        if (this.shouldContinueSpeaking()) {
-          this.processQueue()
-        }
-      }, 100)
+      console.error('Audio playback failed:', error)
+      // Continue with next item
+    }
+    
+    // Continue processing
+    if (!this.userStopped && this.enabled) {
+      setTimeout(() => this.processQueue(), 100)
     }
   }
 
   shouldRetryPlayback(error, retryCount) {
-    // Don't retry user-initiated stops
     if (error.message.includes('interrupted') || error.message.includes('cancelled')) {
       return false
     }
     
-    // Don't retry if user explicitly stopped
     if (this.userStopped) {
       return false
     }
     
-    // Retry on autoplay blocks, voice loading issues, or temporary failures
     const retryableErrors = [
       'autoplay',
       'gesture',
@@ -578,17 +538,14 @@ export default class extends Controller {
   }
 
   handlePlaybackFailure(text, messageId, error) {
-    // Mark this content as spoken to prevent infinite retries
     const key = this.normalizeText(text)
     this.spoken.add(key)
     
-    // If it's an autoplay issue, try to prompt for user gesture
     if (error.message.toLowerCase().includes('autoplay') || 
         error.message.toLowerCase().includes('gesture')) {
       this.promptForUserGesture()
     }
     
-    // Reset button state
     const btn = window.GlobalTTSManager.getButtonByMessageId(messageId)
     if (btn) {
       window.GlobalTTSManager.setSpeakerState(btn)
@@ -596,14 +553,11 @@ export default class extends Controller {
   }
 
   promptForUserGesture() {
-    // Only prompt once
     if (this.hasPromptedForGesture) return
     this.hasPromptedForGesture = true
     
-    // Show a subtle notification that user interaction is needed
     console.info('TTS requires user interaction - click anywhere to enable autoplay')
     
-    // Set up one-time listeners for user gesture
     const gestureEvents = ['click', 'touchstart', 'keydown']
     const gestureHandler = () => {
       this.markUserGesture()
@@ -626,489 +580,180 @@ export default class extends Controller {
     this.currentMessageId = null
     window.GlobalTTSManager.clearActiveMessage()
     
-    // Stop health monitoring
-    this.stopHealthMonitor()
+    console.log('TTS processing completed')
     
-    console.log('TTS processing completed for current message')
-    
-    // Only enable hands-free chat if there's nothing else in the queue
-    // This prevents interrupting ongoing TTS from other messages
-    if (this.queue.length === 0 && !this.playing) {
-      console.log('All TTS processing complete - enabling hands-free chat')
-      // Enable hands-free chat: auto-start voice recording when TTS finishes
+    // Enable hands-free chat if on chat page
+    if (this.queue.length === 0 && !this.isPlaying) {
       this.enableHandsFreeChat()
-    } else {
-      console.log('TTS queue still has items or still playing - not enabling hands-free chat yet')
     }
   }
 
   enableHandsFreeChat() {
-    // Only enable hands-free chat if:
-    // 1. TTS is enabled
-    // 2. We're on the chat messages page (has #chat_messages element)
-    // 3. Voice toggle button exists and isn't disabled
-    // 4. NO TTS is currently processing or in queue
-    // 5. Speech synthesis is completely idle
     if (!window.__ttsEnabled) return
     
     const chatMessagesContainer = document.getElementById('chat_messages')
-    if (!chatMessagesContainer) return // Not on chat page
+    if (!chatMessagesContainer) return
     
     const voiceToggleBtn = document.getElementById('voice-toggle-btn')
-    if (!voiceToggleBtn || voiceToggleBtn.disabled) return // Button not available or disabled
+    if (!voiceToggleBtn || voiceToggleBtn.disabled) return
     
     const recorder = window.voiceRecorderInstance
-    if (!recorder || recorder.isRecording) return // No recorder or already recording
+    if (!recorder || recorder.isRecording) return
     
-    // CRITICAL: Check if there's still TTS activity
-    if (this.wouldVoiceRecordingConflict()) {
-      console.log('Skipping hands-free chat - TTS still active')
-      return
-    }
-    
-    // Additional check: wait a bit longer to ensure everything is truly complete
     setTimeout(() => {
-      // Use the safe method to start voice recording
-      if (window.__ttsEnabled && !recorder.isRecording) {
-        this.safeStartVoiceRecording()
+      if (window.__ttsEnabled && !recorder.isRecording && !this.processing) {
+        console.log('Starting hands-free chat')
+        voiceToggleBtn.click()
       }
-    }, 1500) // Even longer delay to ensure TTS is truly complete
+    }, 1500)
   }
 
   // ===== AUDIO PLAYBACK =====
 
-  splitTextIntoChunks(text, maxLength = 200) {
-    // Clean emojis and icons from text before processing
-    let cleanedText = text.replace(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/gu, '')
-    
-    // Split text into sentences, including those that don't end with punctuation
-    const sentences = []
-    
-    // First, split by sentence-ending punctuation
-    const parts = cleanedText.split(/([.!?]+)/)
-    let currentSentence = ''
-    
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim()
-      if (!part) continue
-      
-      if (/^[.!?]+$/.test(part)) {
-        // This is punctuation, add it to current sentence
-        currentSentence += part
-        if (currentSentence.trim()) {
-          sentences.push(currentSentence.trim())
-        }
-        currentSentence = ''
-      } else {
-        // This is text content
-        currentSentence += part
-        
-        // If this is the last part and we have content, it's the final sentence
-        if (i === parts.length - 1 && currentSentence.trim()) {
-          sentences.push(currentSentence.trim())
-        }
-      }
-    }
-    
-    // If we didn't find any sentences with the split method, treat entire text as one sentence
-    if (sentences.length === 0 && cleanedText.trim()) {
-      sentences.push(cleanedText.trim())
-    }
-    
-    // Now chunk the sentences
-    const chunks = []
-    let currentChunk = ''
-
-    for (const sentence of sentences) {
-      if (!sentence) continue
-
-      // If adding this sentence would exceed maxLength, save current chunk and start new one
-      if (currentChunk.length + sentence.length > maxLength && currentChunk.length > 0) {
-        chunks.push(currentChunk.trim())
-        currentChunk = sentence
-      } else {
-        currentChunk += (currentChunk ? ' ' : '') + sentence
-      }
-    }
-
-    // Add the last chunk if it's not empty
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim())
-    }
-
-    return chunks.length > 0 ? chunks : [cleanedText.trim()]
-  }
-
-  async speakChunk(chunk, voice, chunkIndex, totalChunks) {
-    return new Promise((resolve, reject) => {
-      // Don't start if user explicitly stopped
-      if (this.userStopped || !this.processing) {
-        resolve()
-        return
-      }
-
-      const utterance = new SpeechSynthesisUtterance(chunk)
-      const browserLang = navigator.language || navigator.userLanguage
-      utterance.lang = browserLang
-      
-      // Configure voice settings for better reliability
-      utterance.rate = 1.0
-      utterance.pitch = 1.2
-      utterance.volume = 1.0
-      
-      if (voice) {
-        utterance.voice = voice
-      }
-
-      // Track if this utterance has started
-      let hasStarted = false
-      let hasEnded = false
-      let timeoutId = null
-
-      // Set up a safety timeout to prevent hanging
-      const setupSafetyTimeout = () => {
-        if (timeoutId) clearTimeout(timeoutId)
-        
-        // Calculate reasonable timeout based on chunk length
-        const wordsPerMinute = 150 // Average speaking rate
-        const words = chunk.split(' ').length
-        const estimatedDuration = (words / wordsPerMinute) * 60 * 1000
-        const safetyMargin = Math.max(5000, estimatedDuration * 2) // At least 5s, or 2x estimated
-        
-        timeoutId = setTimeout(() => {
-          if (!hasEnded && hasStarted) {
-            console.warn('Speech chunk timed out, continuing to next chunk')
-            if (!hasEnded) {
-              hasEnded = true
-              resolve()
-            }
-          }
-        }, safetyMargin)
-      }
-
-      utterance.onstart = () => {
-        hasStarted = true
-        setupSafetyTimeout() // Start timeout only after speech begins
-        
-        // Ensure speech synthesis isn't paused
-        if (speechSynthesis.paused) {
-          speechSynthesis.resume()
-        }
-      }
-
-      utterance.onend = () => {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (!hasEnded) {
-          hasEnded = true
-          resolve()
-        }
-      }
-      
-      utterance.onerror = (event) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        
-        if (hasEnded) return // Already handled
-        hasEnded = true
-        
-        // Handle different error types
-        if (event.error === 'interrupted') {
-          // Check if user actually stopped or if it's an automatic interruption
-          if (this.userStopped) {
-            resolve() // User intentionally stopped
-          } else {
-            console.warn('Speech interrupted unexpectedly, continuing...')
-            resolve() // Continue to next chunk
-          }
-        } else if (event.error === 'canceled') {
-          resolve() // Treat as completed
-        } else {
-          console.error(`Speech synthesis error: ${event.error}`)
-          reject(new Error(`Speech synthesis failed: ${event.error}`))
-        }
-      }
-
-      utterance.onpause = () => {
-        // Auto-resume if paused (unless user stopped)
-        if (!this.userStopped && this.processing) {
-          setTimeout(() => {
-            if (speechSynthesis.paused && !this.userStopped) {
-              speechSynthesis.resume()
-            }
-          }, 100)
-        }
-      }
-
-      // Start speaking
-      try {
-        speechSynthesis.speak(utterance)
-        
-        // Fallback timeout in case onstart never fires
-        setTimeout(() => {
-          if (!hasStarted && !hasEnded && !this.userStopped) {
-            console.warn('Speech failed to start, skipping chunk')
-            if (!hasEnded) {
-              hasEnded = true
-              resolve()
-            }
-          }
-        }, 3000)
-        
-      } catch (error) {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (!hasEnded) {
-          hasEnded = true
-          reject(new Error(`Failed to start speech: ${error.message}`))
-        }
-      }
-    })
-  }
-
-  async getAvailableVoices() {
-    return new Promise((resolve) => {
-      let voices = speechSynthesis.getVoices()
-      
-      if (voices.length > 0) {
-        resolve(voices)
-        return
-      }
-      
-      // Voices not ready yet, wait for them
-      const handleVoicesChanged = () => {
-        voices = speechSynthesis.getVoices()
-        if (voices.length > 0) {
-          speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
-          resolve(voices)
-        }
-      }
-      
-      speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged)
-      
-      // Fallback timeout in case voiceschanged never fires
-      setTimeout(() => {
-        speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
-        resolve(speechSynthesis.getVoices()) // Return whatever we have
-      }, 1000)
-    })
-  }
-
-  async selectBestVoice() {
-    let voices = await this.getAvailableVoices()
-    
-    if (voices.length === 0) {
-      return null
-    }
-    
-    // First priority: Check for stored voice preference
-    const selectedVoiceName = this.getSelectedVoiceName()
-    if (selectedVoiceName) {
-      const storedVoice = voices.find(voice => voice.name === selectedVoiceName)
-      if (storedVoice) {
-        return storedVoice
-    } else {
-        // Clear invalid stored voice
-        localStorage.removeItem('ttsSelectedVoice')
-      }
-    }
-    
-    // Get browser language and country
-    const browserLang = navigator.language || navigator.userLanguage
-    const browserCountry = browserLang.split('-')[1]?.toUpperCase()
-    
-    // Filter voices by browser country if available
-    const countryVoices = browserCountry ? 
-      voices.filter(voice => {
-        const voiceCountry = voice.lang.split('-')[1]?.toUpperCase()
-        return voiceCountry === browserCountry
-      }) : []
-      
-    if (countryVoices.length > 0) {
-      voices = countryVoices
-    }
-
-    // select siri voice specifically from country voices
-    const siriVoice = countryVoices.find(voice => 
-      voice.name.toLowerCase().includes("siri")
-    )
-    if (siriVoice) {
-    }
-    
-    // Check for google voice specifically
-    const googleVoice = voices.find(voice => 
-      voice.name.toLowerCase().includes("google")
-    )
-    if (googleVoice) {
-    } else {
-    }
-    
-    // Prefer siri voice FIRST, then google voice, then language-based fallbacks
-    const preferredVoice = siriVoice || googleVoice || voices.find(voice => 
-      voice.lang.startsWith('en') ||
-      voice.lang.startsWith('fr') ||
-      voice.default
-    ) || voices[0]
-    
-    return preferredVoice
-  }
-
-  async playAudio(text, key) {
-    // Only check for same content if it's actually currently playing
-    if (this.currentlyPlayingKey === key && this.playing) {
-      return
-    }
-    
-    // Mark this audio as currently playing
-    this.currentlyPlayingKey = key
-    window.CurrentlyPlayingTTSKey = key
+  async playAudioItem(queueItem) {
+    this.isPlaying = true
     
     try {
-      // Check browser support
-      if (!('speechSynthesis' in window)) {
-        throw new Error('Speech synthesis not supported in this browser')
-      }
-
-      // Ensure speech synthesis is ready and not stuck
-      if (speechSynthesis.speaking) {
-        // If something else is speaking, cancel it first
-        speechSynthesis.cancel()
-        // Wait a moment for cleanup
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-
-      // Check if speechSynthesis is paused and resume it
-      if (speechSynthesis.paused) {
-        speechSynthesis.resume()
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-
-      // iOS-specific handling
-      if (this.isIOS()) {
-        if (!window.__audioUnlocked) {
-          throw new Error('Audio not unlocked on iOS - user gesture required')
-        }
-      }
-
-      // Check autoplay capability
-      if (this.autoplayBlocked && !this.hasUserGesture) {
-        throw new Error('Autoplay blocked - user gesture required')
-      }
-
-      // Ensure voices are ready
-      if (!this.voicesReady) {
-        console.warn('Voices not ready, waiting...')
-        await this.waitForVoices()
-      }
-
-      // Select the best available voice
-      const selectedVoice = await this.selectBestVoice()
+      let audioUrl = queueItem.audioUrl
       
-      // Split text into manageable chunks
-      const chunks = this.splitTextIntoChunks(text)
-
-      // Update button to show it's starting
-      const btn = window.GlobalTTSManager.getButtonByMessageId(this.currentMessageId)
-      if (btn) {
-        window.GlobalTTSManager.setStopState(btn)
-      }
-
-      // Set up monitoring to ensure speech continues
-      const monitorSpeech = () => {
-        // Check every 500ms if speech is still active when it should be
-        if (this.processing && !this.userStopped) {
-          if (speechSynthesis.paused) {
-            console.warn('Speech unexpectedly paused, resuming...')
-            speechSynthesis.resume()
-          }
-          
-          // Continue monitoring
-          setTimeout(monitorSpeech, 500)
-        }
+      // Fetch audio if not prefetched
+      if (!audioUrl) {
+        console.log('Audio not prefetched, fetching now...')
+        audioUrl = await this.fetchGoogleTTS(queueItem.text)
       }
       
-      // Start monitoring
-      setTimeout(monitorSpeech, 500)
-
-      // Speak each chunk sequentially with robust continuation
-      for (let i = 0; i < chunks.length; i++) {
-        // Only check if user explicitly stopped
-        if (this.userStopped) {
-          console.log('User stopped speech, exiting chunks loop')
-          break
-        }
-        
-        // Double-check processing state
-        if (!this.processing) {
-          console.log('Processing stopped, exiting chunks loop')
-          break
-        }
-
-        console.log(`Speaking chunk ${i + 1}/${chunks.length}: "${chunks[i].substring(0, 50)}..."`)
-        
-        try {
-          await this.speakChunk(chunks[i], selectedVoice, i, chunks.length)
-        } catch (chunkError) {
-          console.warn(`Chunk ${i + 1} failed, continuing to next:`, chunkError.message)
-          // Continue to next chunk instead of failing entirely
-        }
-        
-        // Small delay between chunks to prevent issues, but check for stops
-        if (i < chunks.length - 1 && !this.userStopped && this.processing) {
-          await new Promise(resolve => setTimeout(resolve, 150))
-        }
-      }
-
-      console.log('All chunks completed successfully')
-
-    } catch (error) {
-      // Enhance error information
-      let enhancedError = error
+      await this.playAudio(audioUrl)
       
-      if (error.message.includes('synthesis') || error.name === 'SpeechSynthesisErrorEvent') {
-        enhancedError = new Error(`Speech synthesis error: ${error.message}`)
-      } else if (error.message.includes('network')) {
-        enhancedError = new Error(`Network error during TTS: ${error.message}`)
-      }
-      
-      // Don't log "interrupted" errors as they are expected when user stops speech
-      if (!error.message.includes('interrupted') && !error.message.includes('cancelled')) {
-        console.error('TTS playback error:', enhancedError.message)
-      }
-      
-      throw enhancedError
     } finally {
-      // Clear markers on completion
-      this.currentlyPlayingKey = null
-      window.CurrentlyPlayingTTSKey = null
+      this.isPlaying = false
+      
+      // Cleanup audio URL to free memory
+      if (queueItem.audioUrl) {
+        URL.revokeObjectURL(queueItem.audioUrl)
+      }
     }
   }
 
-  async waitForVoices(timeout = 3000) {
-    return new Promise((resolve) => {
-      if (this.voicesReady) {
-        resolve()
-        return
+  async playAudio(audioUrl) {
+    return new Promise((resolve, reject) => {
+      const audio = new Audio()
+      this.currentAudio = audio
+      
+      audio.preload = 'auto'
+      audio.src = audioUrl
+      
+      audio.onloadeddata = () => {
+        console.log('Audio loaded, starting playback')
       }
       
-      const checkVoices = () => {
-        const voices = speechSynthesis.getVoices()
-        if (voices.length > 0) {
-          this.voicesReady = true
-          resolve()
+      audio.onended = () => {
+        console.log('Audio playback completed')
+        this.currentAudio = null
+        resolve()
+      }
+      
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error)
+        this.currentAudio = null
+        reject(new Error(`Audio playback failed: ${error.message}`))
+      }
+      
+      audio.onpause = () => {
+        if (!this.userStopped) {
+          console.log('Audio paused unexpectedly')
         }
       }
       
-      // Check immediately
-      checkVoices()
-      
-      // Set up listener
-      speechSynthesis.addEventListener('voiceschanged', checkVoices)
-      
-      // Timeout fallback
-      setTimeout(() => {
-        speechSynthesis.removeEventListener('voiceschanged', checkVoices)
-        this.voicesReady = true
-        resolve()
-      }, timeout)
+      // Start playback
+      audio.play().catch(error => {
+        console.error('Audio play failed:', error)
+        this.currentAudio = null
+        reject(error)
+      })
     })
+  }
+
+  splitIntoSentences(text) {
+    // Text is already cleaned by cleanTextForTTS, so just split by sentence boundaries
+    const sentences = text.split(/(?<=[.!?])\s+/)
+      .filter(sentence => sentence.trim().length > 0)
+    
+    // If no sentences found, return the whole text
+    return sentences.length > 0 ? sentences : [text.trim()]
+  }
+
+  async prefetchNext() {
+    if (this.prefetchQueue.size >= this.maxPrefetchItems) return
+    
+    // Find next unprefetched item
+    const nextItem = this.queue.find(item => !item.prefetched && !this.prefetchQueue.has(item.normalizedText))
+    
+    if (!nextItem) return
+    
+    this.prefetchQueue.add(nextItem.normalizedText)
+    
+    try {
+      console.log(`Prefetching: "${nextItem.text.substring(0, 50)}..."`)
+      const audioUrl = await this.fetchGoogleTTS(nextItem.text)
+      
+      nextItem.audioUrl = audioUrl
+      nextItem.prefetched = true
+      this.prefetchedAudio.set(nextItem.normalizedText, audioUrl)
+      
+      console.log('Prefetch completed successfully')
+      
+      // Prefetch next item
+      setTimeout(() => this.prefetchNext(), 100)
+      
+    } catch (error) {
+      console.error('Prefetch failed:', error)
+    } finally {
+      this.prefetchQueue.delete(nextItem.normalizedText)
+    }
+  }
+
+  processPendingTexts() {
+    if (this.pendingTexts.length === 0) return
+    
+    console.log(`Processing ${this.pendingTexts.length} pending texts`)
+    const pending = [...this.pendingTexts]
+    this.pendingTexts = []
+    
+    pending.forEach(({ text, messageId }) => {
+      this.enqueue(text, messageId)
+    })
+  }
+
+  // ===== GOOGLE TTS API =====
+
+  async fetchGoogleTTS(text, voice = null, speed = null) {
+    const selectedVoice = voice || this.selectedVoice
+    const selectedSpeed = speed || this.selectedSpeed
+    
+    try {
+      const response = await fetch('/api/google_tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': this.getCSRFToken()
+        },
+        body: JSON.stringify({
+          text: text,
+          voice: selectedVoice,
+          speed: selectedSpeed
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`TTS API failed: ${response.status} ${response.statusText}`)
+      }
+      
+      const audioBlob = await response.blob()
+      return URL.createObjectURL(audioBlob)
+    } catch (error) {
+      console.error('Google TTS fetch failed:', error)
+      throw error
+    }
   }
 
   // ===== UTILITIES =====
@@ -1116,9 +761,9 @@ export default class extends Controller {
   normalizeText(text) {
     return text
       .toLowerCase()
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/[.!?]+$/, '') // Remove trailing punctuation
-      .replace(/[^\w\s]/g, '') // Remove all non-word characters except spaces
+      .replace(/\s+/g, ' ')
+      .replace(/[.!?]+$/, '')
+      .replace(/[^\w\s]/g, '')
       .trim()
   }
 
@@ -1126,234 +771,7 @@ export default class extends Controller {
     return document.querySelector('meta[name="csrf-token"]')?.content || ''
   }
 
-  // ===== CONTROLS =====
-
-  stop(reason = 'user') {
-    // Always allow stopping when toggle is disabled by user action or TTS is globally disabled
-    if (reason === 'toggle_disabled_user_action' || 
-        reason === 'global_toggle_disabled' || 
-        reason === 'global_tts_disabled') {
-      console.log(`TTS disabled by user (${reason}) - bypassing protection to stop speech`)
-      // Skip protection checks and proceed with stopping
-    } else {
-      // Don't stop TTS if it's protected (e.g., during voice recording startup)
-      if (window.__ttsProtected) {
-        console.log('TTS is protected - ignoring stop request')
-        return
-      }
-      
-      // Don't stop TTS if voice recording is just starting and TTS is active
-      if (reason === 'voice_recording_start' && this.wouldVoiceRecordingConflict()) {
-        console.log('Ignoring TTS stop request from voice recording start - TTS is active')
-        return
-      }
-    }
-    
-    // Mark as user-initiated stop
-    this.userStopped = true
-    
-    console.log(`TTS stop requested by ${reason}`)
-    
-    // Stop speech synthesis
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel()
-    }
-    
-    // Legacy audio cleanup (if any)
-    if (this.audio) {
-      this.audio.pause()
-      this.audio = null
-    }
-    
-    this.playing = false
-    this.processing = false
-    this.queue = []
-    this.currentMessageId = null
-    
-    // Clear currently playing markers
-    this.currentlyPlayingKey = null
-    window.CurrentlyPlayingTTSKey = null
-    
-    window.GlobalTTSManager.clearActiveMessage()
-    
-    // Reset user stop flag after a brief delay to allow for cleanup
-    setTimeout(() => {
-      this.userStopped = false
-      console.log('TTS stop flag reset')
-    }, 500) // Increased delay to ensure cleanup completes
-  }
-
-  // New method to check if speech should continue
-  shouldContinueSpeaking() {
-    return this.processing && 
-           !this.userStopped && 
-           this.enabled && 
-           window.__ttsEnabled
-  }
-
-  // Method to handle unexpected speech interruptions
-  handleUnexpectedStop() {
-    // Only restart if it wasn't a user-initiated stop
-    if (this.shouldContinueSpeaking() && this.queue.length > 0) {
-      console.warn('Speech unexpectedly stopped, attempting to continue...')
-      
-      // Small delay before retrying
-      setTimeout(() => {
-        if (this.shouldContinueSpeaking()) {
-          this.processQueue()
-        }
-      }, 1000)
-    }
-  }
-
-  toggle() {
-    this.enabled = !this.enabled
-    localStorage.setItem('ttsEnabled', JSON.stringify(this.enabled))
-    window.dispatchEvent(new CustomEvent('tts:enabled',{detail:this.enabled}))
-    
-    if (!this.enabled) {
-      console.log('TTS globally disabled - stopping all speech')
-      this.stop('global_toggle_disabled')
-    }
-  }
-
-  cleanup() {
-    if (this.audio) {
-      this.audio.pause()
-    }
-    
-    // Stop health monitoring
-    this.stopHealthMonitor()
-    
-    // Clear pending iOS texts
-    this.pendingIOSTexts = []
-    
-    // Clean up gesture detection listeners
-    if (this.gestureHandler && this.gestureEvents) {
-      this.gestureEvents.forEach(event => {
-        document.removeEventListener(event, this.gestureHandler, { capture: true })
-      })
-      this.gestureHandler = null
-      this.gestureEvents = null
-    }
-    
-    // Clean up event listeners
-    if (window.TTSEventListenersAdded) {
-      window.removeEventListener('tts:toggle', window.TTSToggleHandler)
-      window.removeEventListener('tts:add', window.TTSAddHandler)
-      window.removeEventListener('tts:stop', window.TTSStopHandler)
-      window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
-      window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
-      window.removeEventListener('keydown', window.TTSKeydownHandler)
-      
-      // Clear the global references
-      window.TTSEventListenersAdded = false
-      window.TTSEventListenerCount = Math.max(0, (window.TTSEventListenerCount || 1) - 1)
-    }
-  }
-
-  // ===== iOS AUDIO UNLOCK SYSTEM =====
-
-  setupIOSAudioUnlock() {
-    if (!this.isIOS()) return
-    
-    // Add early unlock listeners for common user interactions
-    const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown']
-    
-    this.earlyUnlockHandler = async () => {
-      if (!window.__audioUnlocked) {
-        await this.unlockIOSAudio()
-      }
-    }
-    
-    // Add listeners to document to catch any user interaction
-    unlockEvents.forEach(event => {
-      document.addEventListener(event, this.earlyUnlockHandler, { 
-        once: true, 
-        passive: true,
-        capture: true 
-      })
-    })
-  }
-
-  async unlockIOSAudio() {
-    if (window.__audioUnlocked) return true
-    
-    try {
-      // Small delay to ensure "Enabling Audio..." is visible
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // For Speech Synthesis, we mainly need user gesture
-      // Test if speechSynthesis works
-      if ('speechSynthesis' in window) {
-        // Try to speak a silent utterance to unlock
-        const testUtterance = new SpeechSynthesisUtterance('')
-        testUtterance.volume = 0
-        speechSynthesis.speak(testUtterance)
-        
-        // Wait a moment for the test
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        window.__audioUnlocked = true
-        
-        // Mark that we have user gesture now
-        this.markUserGesture()
-        
-        // Process pending texts immediately
-        if (this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-          const pendingTexts = [...this.pendingIOSTexts] // Create copy
-          this.pendingIOSTexts = []
-          
-          console.log(`Processing ${pendingTexts.length} pending TTS texts`)
-          
-          // Process each pending text with a small delay between them
-          for (let i = 0; i < pendingTexts.length; i++) {
-            const { text, messageId } = pendingTexts[i]
-            
-            // Add small delay to prevent overwhelming the system
-            if (i > 0) {
-              await new Promise(resolve => setTimeout(resolve, 100))
-            }
-            
-            this.enqueue(text, messageId)
-          }
-        }
-        
-        return true
-      } else {
-        return false
-      }
-    } catch (error) {
-      // For Speech Synthesis, even errors can indicate unlock worked
-      window.__audioUnlocked = true
-      this.markUserGesture()
-      return true
-    }
-  }
-
-  isIOS() {
-    // Enhanced iOS detection for better reliability
-    const userAgent = navigator.userAgent.toLowerCase()
-    const isIOSDevice = /ipad|iphone|ipod/.test(userAgent)
-    const isMacWithTouch = userAgent.includes('mac') && 'ontouchend' in document
-    const isIOSWebKit = /webkit/.test(userAgent) && /mobile/.test(userAgent)
-    
-    // Additional iOS indicators
-    const hasIOSVendor = /apple/.test(navigator.vendor.toLowerCase())
-    const isIOSSafari = /safari/.test(userAgent) && /mobile/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent)
-    const isIOSChrome = /crios/.test(userAgent)
-    const isIOSFirefox = /fxios/.test(userAgent)
-    
-    // Check for iOS-specific APIs
-    const hasIOSAPIs = 'ontouchstart' in window && window.DeviceMotionEvent !== undefined
-    
-    const isIOS = isIOSDevice || isMacWithTouch || isIOSWebKit || hasIOSVendor || isIOSSafari || isIOSChrome || isIOSFirefox || hasIOSAPIs
-    
-    return isIOS
-  }
-
   ensureAllButtonsVisible() {
-    // Find all TTS buttons in the document and ensure they're visible if TTS is enabled
     if (!window.__ttsEnabled) return
     
     const allTTSButtons = document.querySelectorAll('[data-controller*="tts"], [data-tts-button], [data-action*="tts"]')
@@ -1366,59 +784,434 @@ export default class extends Controller {
     })
   }
 
-  // ===== VOICE SELECTION SYSTEM =====
+  // ===== CONTROLS =====
 
-  async showVoiceSelector() {
-    const allVoices = await this.getAvailableVoices()
-    if (allVoices.length === 0) {
-      alert('No voices available')
+  stop(reason = 'user') {
+    // Always allow stopping when disabled by user action
+    if (reason === 'toggle_disabled_user_action' || 
+        reason === 'global_toggle_disabled' || 
+        reason === 'global_tts_disabled') {
+      console.log(`TTS disabled by user (${reason}) - stopping audio`)
+    } else if (window.__ttsProtected) {
+      console.log('TTS is protected - ignoring stop request')
       return
     }
-
-    // Filter voices by browser language country
-    const browserLang = navigator.language || navigator.userLanguage
-    const browserCountry = browserLang.split('-')[1]?.toUpperCase()
     
-    let voices = allVoices
-    if (browserCountry) {
-      const countryVoices = allVoices.filter(voice => {
-        const voiceCountry = voice.lang.split('-')[1]?.toUpperCase()
-        return voiceCountry === browserCountry
-      })
-      
-      if (countryVoices.length > 0) {
-        voices = countryVoices
+    this.userStopped = true
+    console.log(`TTS stop requested by ${reason}`)
+    
+    // Stop current audio
+    if (this.currentAudio) {
+      this.currentAudio.pause()
+      this.currentAudio = null
+    }
+    
+    this.isPlaying = false
+    this.processing = false
+    this.queue = []
+    this.audioQueue = []
+    this.currentMessageId = null
+    
+    window.GlobalTTSManager.clearActiveMessage()
+    
+    // Cleanup prefetched audio URLs
+    this.prefetchedAudio.forEach(url => URL.revokeObjectURL(url))
+    this.prefetchedAudio.clear()
+    
+    // Reset user stop flag
+    setTimeout(() => {
+      this.userStopped = false
+      console.log('TTS stop flag reset')
+    }, 500)
+  }
+
+  toggle() {
+    this.enabled = !this.enabled
+    localStorage.setItem('ttsEnabled', JSON.stringify(this.enabled))
+    window.dispatchEvent(new CustomEvent('tts:enabled', { detail: this.enabled }))
+    
+    if (!this.enabled) {
+      console.log('TTS globally disabled - stopping all audio')
+      this.stop('global_toggle_disabled')
+    }
+  }
+
+  // ===== VOICE SELECTION =====
+
+  createVoiceSelector() {
+    const chatMessagesContainer = document.getElementById('chat_messages')
+    if (!chatMessagesContainer) return
+
+    const existingButton = document.getElementById('tts-voice-selector-btn')
+    if (existingButton) existingButton.remove()
+
+    // Style to match the clear chat button
+    const buttonClasses = 'inline-flex items-center justify-center px-3 sm:px-4 py-1.5 sm:py-1.5 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white font-medium rounded-full shadow transition duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/50 text-xs sm:text-xs ml-2'
+
+    const button = document.createElement('button')
+    button.id = 'tts-voice-selector-btn'
+    button.className = buttonClasses
+    button.innerHTML = `
+      <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+      </svg>
+      <span class="hidden sm:inline">Voice</span>
+      <span class="sm:hidden">Voice</span>
+    `
+    button.title = 'Select Google TTS Voice (Ctrl+Shift+V)'
+    
+    button.onclick = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this.showVoiceSelector()
+    }
+
+    // Find container and add button
+    const targetContainer = this.findVoiceButtonContainer()
+    if (targetContainer) {
+      targetContainer.appendChild(button)
       } else {
+      button.classList.add('fixed', 'top-5', 'right-5', 'z-50')
+      document.body.appendChild(button)
+    }
+  }
+
+  findVoiceButtonContainer() {
+    // Look for the clear chat button container specifically
+    const clearChatButton = document.querySelector('button[data-turbo-confirm*="clear"]') || 
+                           document.querySelector('form[action*="clear"]') ||
+                           document.querySelector('[method="delete"]')
+    
+    if (clearChatButton) {
+      return clearChatButton.parentElement
+    }
+
+    // Fallback to other containers
+    const containerSelectors = [
+      '.chat-controls',
+      '.chat-actions', 
+      '.message-controls',
+      '.toolbar-buttons',
+      '.action-buttons',
+      '.flex.items-center.space-x-2',
+      '.flex.gap-2'
+    ]
+    
+    for (const selector of containerSelectors) {
+      const container = document.querySelector(selector)
+      if (container && container.querySelector('button')) {
+        return container
       }
     }
 
-    // Create modal
-    const modal = this.createVoiceSelectorModal(voices, browserCountry)
+    return document.querySelector('.chat-header') || document.querySelector('header')
+  }
+
+  async showVoiceSelector() {
+    const voices = this.getGoogleVoices()
+    const modal = this.createVoiceSelectorModal(voices)
     document.body.appendChild(modal)
-    
-    // Show modal
     setTimeout(() => modal.classList.add('show'), 10)
   }
 
-  createVoiceSelectorModal(voices, browserCountry) {
+  getGoogleVoices() {
+    // Complete Google Cloud TTS voices list based on official documentation
+    const allVoices = [
+      // English US - Chirp 3 HD (Latest generation for conversational agents)
+      { name: 'en-US-Chirp3-HD-Aoede', lang: 'en-US', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Charon', lang: 'en-US', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Fenrir', lang: 'en-US', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Kore', lang: 'en-US', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Leda', lang: 'en-US', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Orus', lang: 'en-US', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Puck', lang: 'en-US', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'en-US-Chirp3-HD-Zephyr', lang: 'en-US', gender: 'Female', type: 'Chirp3 HD' },
+
+      // English US - Chirp HD (Optimized by LLMs for conversations)
+      { name: 'en-US-Chirp-HD-A', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-B', lang: 'en-US', gender: 'Male', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-C', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-D', lang: 'en-US', gender: 'Male', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-F', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-G', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-H', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-I', lang: 'en-US', gender: 'Male', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-J', lang: 'en-US', gender: 'Male', type: 'Chirp HD' },
+      { name: 'en-US-Chirp-HD-O', lang: 'en-US', gender: 'Female', type: 'Chirp HD' },
+
+      // English US - Neural2
+      { name: 'en-US-Neural2-A', lang: 'en-US', gender: 'Female', type: 'Neural2' },
+      { name: 'en-US-Neural2-B', lang: 'en-US', gender: 'Male', type: 'Neural2' },
+      { name: 'en-US-Neural2-C', lang: 'en-US', gender: 'Female', type: 'Neural2' },
+      { name: 'en-US-Neural2-D', lang: 'en-US', gender: 'Male', type: 'Neural2' },
+      { name: 'en-US-Neural2-E', lang: 'en-US', gender: 'Female', type: 'Neural2' },
+      { name: 'en-US-Neural2-F', lang: 'en-US', gender: 'Male', type: 'Neural2' },
+      { name: 'en-US-Neural2-G', lang: 'en-US', gender: 'Female', type: 'Neural2' },
+      { name: 'en-US-Neural2-H', lang: 'en-US', gender: 'Female', type: 'Neural2' },
+      { name: 'en-US-Neural2-I', lang: 'en-US', gender: 'Male', type: 'Neural2' },
+      { name: 'en-US-Neural2-J', lang: 'en-US', gender: 'Male', type: 'Neural2' },
+      { name: 'en-US-Studio-M', lang: 'en-US', gender: 'Male', type: 'Studio' },
+      { name: 'en-US-Studio-O', lang: 'en-US', gender: 'Female', type: 'Studio' },
+      { name: 'en-US-Wavenet-A', lang: 'en-US', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-B', lang: 'en-US', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-C', lang: 'en-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-D', lang: 'en-US', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-E', lang: 'en-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-F', lang: 'en-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-G', lang: 'en-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-H', lang: 'en-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-I', lang: 'en-US', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-US-Wavenet-J', lang: 'en-US', gender: 'Male', type: 'WaveNet' },
+
+      // English GB
+      { name: 'en-GB-Neural2-A', lang: 'en-GB', gender: 'Female', type: 'Neural2' },
+      { name: 'en-GB-Neural2-B', lang: 'en-GB', gender: 'Male', type: 'Neural2' },
+      { name: 'en-GB-Neural2-C', lang: 'en-GB', gender: 'Female', type: 'Neural2' },
+      { name: 'en-GB-Neural2-D', lang: 'en-GB', gender: 'Male', type: 'Neural2' },
+      { name: 'en-GB-Neural2-F', lang: 'en-GB', gender: 'Female', type: 'Neural2' },
+      { name: 'en-GB-Studio-B', lang: 'en-GB', gender: 'Male', type: 'Studio' },
+      { name: 'en-GB-Studio-C', lang: 'en-GB', gender: 'Female', type: 'Studio' },
+      { name: 'en-GB-Wavenet-A', lang: 'en-GB', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-GB-Wavenet-B', lang: 'en-GB', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-GB-Wavenet-C', lang: 'en-GB', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-GB-Wavenet-D', lang: 'en-GB', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-GB-Wavenet-F', lang: 'en-GB', gender: 'Female', type: 'WaveNet' },
+
+      // English AU
+      { name: 'en-AU-Neural2-A', lang: 'en-AU', gender: 'Female', type: 'Neural2' },
+      { name: 'en-AU-Neural2-B', lang: 'en-AU', gender: 'Male', type: 'Neural2' },
+      { name: 'en-AU-Neural2-C', lang: 'en-AU', gender: 'Female', type: 'Neural2' },
+      { name: 'en-AU-Neural2-D', lang: 'en-AU', gender: 'Male', type: 'Neural2' },
+      { name: 'en-AU-Wavenet-A', lang: 'en-AU', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-AU-Wavenet-B', lang: 'en-AU', gender: 'Male', type: 'WaveNet' },
+      { name: 'en-AU-Wavenet-C', lang: 'en-AU', gender: 'Female', type: 'WaveNet' },
+      { name: 'en-AU-Wavenet-D', lang: 'en-AU', gender: 'Male', type: 'WaveNet' },
+
+      // French FR - Chirp 3 HD
+      { name: 'fr-FR-Chirp3-HD-Aoede', lang: 'fr-FR', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Charon', lang: 'fr-FR', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Fenrir', lang: 'fr-FR', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Kore', lang: 'fr-FR', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Leda', lang: 'fr-FR', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Orus', lang: 'fr-FR', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Puck', lang: 'fr-FR', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'fr-FR-Chirp3-HD-Zephyr', lang: 'fr-FR', gender: 'Female', type: 'Chirp3 HD' },
+
+      // French FR - Neural2
+      { name: 'fr-FR-Neural2-A', lang: 'fr-FR', gender: 'Female', type: 'Neural2' },
+      { name: 'fr-FR-Neural2-B', lang: 'fr-FR', gender: 'Male', type: 'Neural2' },
+      { name: 'fr-FR-Neural2-C', lang: 'fr-FR', gender: 'Female', type: 'Neural2' },
+      { name: 'fr-FR-Neural2-D', lang: 'fr-FR', gender: 'Male', type: 'Neural2' },
+      { name: 'fr-FR-Neural2-E', lang: 'fr-FR', gender: 'Female', type: 'Neural2' },
+      { name: 'fr-FR-Studio-A', lang: 'fr-FR', gender: 'Female', type: 'Studio' },
+      { name: 'fr-FR-Studio-D', lang: 'fr-FR', gender: 'Male', type: 'Studio' },
+      { name: 'fr-FR-Wavenet-A', lang: 'fr-FR', gender: 'Female', type: 'WaveNet' },
+      { name: 'fr-FR-Wavenet-B', lang: 'fr-FR', gender: 'Male', type: 'WaveNet' },
+      { name: 'fr-FR-Wavenet-C', lang: 'fr-FR', gender: 'Female', type: 'WaveNet' },
+      { name: 'fr-FR-Wavenet-D', lang: 'fr-FR', gender: 'Male', type: 'WaveNet' },
+      { name: 'fr-FR-Wavenet-E', lang: 'fr-FR', gender: 'Female', type: 'WaveNet' },
+
+      // French CA
+      { name: 'fr-CA-Neural2-A', lang: 'fr-CA', gender: 'Female', type: 'Neural2' },
+      { name: 'fr-CA-Neural2-B', lang: 'fr-CA', gender: 'Male', type: 'Neural2' },
+      { name: 'fr-CA-Neural2-C', lang: 'fr-CA', gender: 'Female', type: 'Neural2' },
+      { name: 'fr-CA-Neural2-D', lang: 'fr-CA', gender: 'Male', type: 'Neural2' },
+      { name: 'fr-CA-Wavenet-A', lang: 'fr-CA', gender: 'Female', type: 'WaveNet' },
+      { name: 'fr-CA-Wavenet-B', lang: 'fr-CA', gender: 'Male', type: 'WaveNet' },
+      { name: 'fr-CA-Wavenet-C', lang: 'fr-CA', gender: 'Female', type: 'WaveNet' },
+      { name: 'fr-CA-Wavenet-D', lang: 'fr-CA', gender: 'Male', type: 'WaveNet' },
+
+      // Spanish ES - Chirp 3 HD
+      { name: 'es-ES-Chirp3-HD-Aoede', lang: 'es-ES', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Charon', lang: 'es-ES', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Fenrir', lang: 'es-ES', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Kore', lang: 'es-ES', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Leda', lang: 'es-ES', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Orus', lang: 'es-ES', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Puck', lang: 'es-ES', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'es-ES-Chirp3-HD-Zephyr', lang: 'es-ES', gender: 'Female', type: 'Chirp3 HD' },
+
+      // Spanish ES - Neural2
+      { name: 'es-ES-Neural2-A', lang: 'es-ES', gender: 'Female', type: 'Neural2' },
+      { name: 'es-ES-Neural2-B', lang: 'es-ES', gender: 'Male', type: 'Neural2' },
+      { name: 'es-ES-Neural2-C', lang: 'es-ES', gender: 'Female', type: 'Neural2' },
+      { name: 'es-ES-Neural2-D', lang: 'es-ES', gender: 'Female', type: 'Neural2' },
+      { name: 'es-ES-Neural2-E', lang: 'es-ES', gender: 'Female', type: 'Neural2' },
+      { name: 'es-ES-Neural2-F', lang: 'es-ES', gender: 'Male', type: 'Neural2' },
+      { name: 'es-ES-Wavenet-B', lang: 'es-ES', gender: 'Male', type: 'WaveNet' },
+      { name: 'es-ES-Wavenet-C', lang: 'es-ES', gender: 'Female', type: 'WaveNet' },
+      { name: 'es-ES-Wavenet-D', lang: 'es-ES', gender: 'Female', type: 'WaveNet' },
+
+      // Spanish US
+      { name: 'es-US-Neural2-A', lang: 'es-US', gender: 'Female', type: 'Neural2' },
+      { name: 'es-US-Neural2-B', lang: 'es-US', gender: 'Male', type: 'Neural2' },
+      { name: 'es-US-Neural2-C', lang: 'es-US', gender: 'Male', type: 'Neural2' },
+      { name: 'es-US-Studio-B', lang: 'es-US', gender: 'Male', type: 'Studio' },
+      { name: 'es-US-Wavenet-A', lang: 'es-US', gender: 'Female', type: 'WaveNet' },
+      { name: 'es-US-Wavenet-B', lang: 'es-US', gender: 'Male', type: 'WaveNet' },
+      { name: 'es-US-Wavenet-C', lang: 'es-US', gender: 'Male', type: 'WaveNet' },
+
+      // German DE - Chirp 3 HD
+      { name: 'de-DE-Chirp3-HD-Aoede', lang: 'de-DE', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Charon', lang: 'de-DE', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Fenrir', lang: 'de-DE', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Kore', lang: 'de-DE', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Leda', lang: 'de-DE', gender: 'Female', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Orus', lang: 'de-DE', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Puck', lang: 'de-DE', gender: 'Male', type: 'Chirp3 HD' },
+      { name: 'de-DE-Chirp3-HD-Zephyr', lang: 'de-DE', gender: 'Female', type: 'Chirp3 HD' },
+
+      // German DE - Neural2
+      { name: 'de-DE-Neural2-A', lang: 'de-DE', gender: 'Female', type: 'Neural2' },
+      { name: 'de-DE-Neural2-B', lang: 'de-DE', gender: 'Male', type: 'Neural2' },
+      { name: 'de-DE-Neural2-C', lang: 'de-DE', gender: 'Female', type: 'Neural2' },
+      { name: 'de-DE-Neural2-D', lang: 'de-DE', gender: 'Male', type: 'Neural2' },
+      { name: 'de-DE-Neural2-F', lang: 'de-DE', gender: 'Female', type: 'Neural2' },
+      { name: 'de-DE-Studio-B', lang: 'de-DE', gender: 'Male', type: 'Studio' },
+      { name: 'de-DE-Wavenet-A', lang: 'de-DE', gender: 'Female', type: 'WaveNet' },
+      { name: 'de-DE-Wavenet-B', lang: 'de-DE', gender: 'Male', type: 'WaveNet' },
+      { name: 'de-DE-Wavenet-C', lang: 'de-DE', gender: 'Female', type: 'WaveNet' },
+      { name: 'de-DE-Wavenet-D', lang: 'de-DE', gender: 'Male', type: 'WaveNet' },
+      { name: 'de-DE-Wavenet-F', lang: 'de-DE', gender: 'Female', type: 'WaveNet' },
+
+      // Italian IT
+      { name: 'it-IT-Neural2-A', lang: 'it-IT', gender: 'Female', type: 'Neural2' },
+      { name: 'it-IT-Neural2-C', lang: 'it-IT', gender: 'Male', type: 'Neural2' },
+      { name: 'it-IT-Wavenet-A', lang: 'it-IT', gender: 'Female', type: 'WaveNet' },
+      { name: 'it-IT-Wavenet-B', lang: 'it-IT', gender: 'Female', type: 'WaveNet' },
+      { name: 'it-IT-Wavenet-C', lang: 'it-IT', gender: 'Male', type: 'WaveNet' },
+      { name: 'it-IT-Wavenet-D', lang: 'it-IT', gender: 'Female', type: 'WaveNet' },
+
+      // Portuguese BR
+      { name: 'pt-BR-Neural2-A', lang: 'pt-BR', gender: 'Female', type: 'Neural2' },
+      { name: 'pt-BR-Neural2-B', lang: 'pt-BR', gender: 'Male', type: 'Neural2' },
+      { name: 'pt-BR-Neural2-C', lang: 'pt-BR', gender: 'Female', type: 'Neural2' },
+      { name: 'pt-BR-Wavenet-A', lang: 'pt-BR', gender: 'Female', type: 'WaveNet' },
+      { name: 'pt-BR-Wavenet-B', lang: 'pt-BR', gender: 'Male', type: 'WaveNet' },
+      { name: 'pt-BR-Wavenet-C', lang: 'pt-BR', gender: 'Female', type: 'WaveNet' },
+
+      // Portuguese PT
+      { name: 'pt-PT-Wavenet-A', lang: 'pt-PT', gender: 'Female', type: 'WaveNet' },
+      { name: 'pt-PT-Wavenet-B', lang: 'pt-PT', gender: 'Male', type: 'WaveNet' },
+      { name: 'pt-PT-Wavenet-C', lang: 'pt-PT', gender: 'Male', type: 'WaveNet' },
+      { name: 'pt-PT-Wavenet-D', lang: 'pt-PT', gender: 'Female', type: 'WaveNet' },
+
+      // Japanese JA
+      { name: 'ja-JP-Neural2-B', lang: 'ja-JP', gender: 'Female', type: 'Neural2' },
+      { name: 'ja-JP-Neural2-C', lang: 'ja-JP', gender: 'Male', type: 'Neural2' },
+      { name: 'ja-JP-Neural2-D', lang: 'ja-JP', gender: 'Male', type: 'Neural2' },
+      { name: 'ja-JP-Wavenet-A', lang: 'ja-JP', gender: 'Female', type: 'WaveNet' },
+      { name: 'ja-JP-Wavenet-B', lang: 'ja-JP', gender: 'Female', type: 'WaveNet' },
+      { name: 'ja-JP-Wavenet-C', lang: 'ja-JP', gender: 'Male', type: 'WaveNet' },
+      { name: 'ja-JP-Wavenet-D', lang: 'ja-JP', gender: 'Male', type: 'WaveNet' },
+
+      // Korean KO
+      { name: 'ko-KR-Neural2-A', lang: 'ko-KR', gender: 'Female', type: 'Neural2' },
+      { name: 'ko-KR-Neural2-B', lang: 'ko-KR', gender: 'Female', type: 'Neural2' },
+      { name: 'ko-KR-Neural2-C', lang: 'ko-KR', gender: 'Male', type: 'Neural2' },
+      { name: 'ko-KR-Wavenet-A', lang: 'ko-KR', gender: 'Female', type: 'WaveNet' },
+      { name: 'ko-KR-Wavenet-B', lang: 'ko-KR', gender: 'Female', type: 'WaveNet' },
+      { name: 'ko-KR-Wavenet-C', lang: 'ko-KR', gender: 'Male', type: 'WaveNet' },
+      { name: 'ko-KR-Wavenet-D', lang: 'ko-KR', gender: 'Male', type: 'WaveNet' },
+
+      // Chinese CN
+      { name: 'zh-CN-Wavenet-A', lang: 'zh-CN', gender: 'Female', type: 'WaveNet' },
+      { name: 'zh-CN-Wavenet-B', lang: 'zh-CN', gender: 'Male', type: 'WaveNet' },
+      { name: 'zh-CN-Wavenet-C', lang: 'zh-CN', gender: 'Male', type: 'WaveNet' },
+      { name: 'zh-CN-Wavenet-D', lang: 'zh-CN', gender: 'Female', type: 'WaveNet' },
+
+      // Chinese TW
+      { name: 'zh-TW-Wavenet-A', lang: 'zh-TW', gender: 'Female', type: 'WaveNet' },
+      { name: 'zh-TW-Wavenet-B', lang: 'zh-TW', gender: 'Male', type: 'WaveNet' },
+      { name: 'zh-TW-Wavenet-C', lang: 'zh-TW', gender: 'Male', type: 'WaveNet' },
+
+      // Dutch NL
+      { name: 'nl-NL-Wavenet-A', lang: 'nl-NL', gender: 'Female', type: 'WaveNet' },
+      { name: 'nl-NL-Wavenet-B', lang: 'nl-NL', gender: 'Male', type: 'WaveNet' },
+      { name: 'nl-NL-Wavenet-C', lang: 'nl-NL', gender: 'Male', type: 'WaveNet' },
+      { name: 'nl-NL-Wavenet-D', lang: 'nl-NL', gender: 'Female', type: 'WaveNet' },
+      { name: 'nl-NL-Wavenet-E', lang: 'nl-NL', gender: 'Female', type: 'WaveNet' },
+
+      // Russian RU
+      { name: 'ru-RU-Wavenet-A', lang: 'ru-RU', gender: 'Female', type: 'WaveNet' },
+      { name: 'ru-RU-Wavenet-B', lang: 'ru-RU', gender: 'Male', type: 'WaveNet' },
+      { name: 'ru-RU-Wavenet-C', lang: 'ru-RU', gender: 'Female', type: 'WaveNet' },
+      { name: 'ru-RU-Wavenet-D', lang: 'ru-RU', gender: 'Male', type: 'WaveNet' },
+      { name: 'ru-RU-Wavenet-E', lang: 'ru-RU', gender: 'Female', type: 'WaveNet' },
+
+      // Arabic AR
+      { name: 'ar-XA-Wavenet-A', lang: 'ar-XA', gender: 'Female', type: 'WaveNet' },
+      { name: 'ar-XA-Wavenet-B', lang: 'ar-XA', gender: 'Male', type: 'WaveNet' },
+      { name: 'ar-XA-Wavenet-C', lang: 'ar-XA', gender: 'Male', type: 'WaveNet' },
+
+      // Hindi HI
+      { name: 'hi-IN-Neural2-A', lang: 'hi-IN', gender: 'Female', type: 'Neural2' },
+      { name: 'hi-IN-Neural2-B', lang: 'hi-IN', gender: 'Male', type: 'Neural2' },
+      { name: 'hi-IN-Neural2-C', lang: 'hi-IN', gender: 'Male', type: 'Neural2' },
+      { name: 'hi-IN-Neural2-D', lang: 'hi-IN', gender: 'Female', type: 'Neural2' },
+      { name: 'hi-IN-Wavenet-A', lang: 'hi-IN', gender: 'Female', type: 'WaveNet' },
+      { name: 'hi-IN-Wavenet-B', lang: 'hi-IN', gender: 'Male', type: 'WaveNet' },
+      { name: 'hi-IN-Wavenet-C', lang: 'hi-IN', gender: 'Male', type: 'WaveNet' },
+      { name: 'hi-IN-Wavenet-D', lang: 'hi-IN', gender: 'Female', type: 'WaveNet' },
+
+      // More languages can be added based on the full documentation...
+    ]
+
+    // Get browser language
+    const browserLang = navigator.language || navigator.userLanguage || 'en-US'
+    const mainLang = browserLang.split('-')[0] // e.g., 'fr' from 'fr-FR'
+    
+    // Filter voices by browser language
+    const languageFilteredVoices = allVoices.filter(voice => {
+      const voiceLang = voice.lang.split('-')[0]
+      return voiceLang === mainLang
+    })
+    
+    // If no voices found for browser language, fallback to English
+    if (languageFilteredVoices.length === 0) {
+      return allVoices.filter(voice => voice.lang.startsWith('en-'))
+    }
+    
+    // Sort by type priority (Chirp3 HD > Chirp HD > Neural2 > Studio > WaveNet > Standard) and then by name
+    const typePriority = { 'Chirp3 HD': 1, 'Chirp HD': 2, 'Neural2': 3, 'Studio': 4, 'WaveNet': 5, 'Standard': 6 }
+    
+    return languageFilteredVoices.sort((a, b) => {
+      if (typePriority[a.type] !== typePriority[b.type]) {
+        return typePriority[a.type] - typePriority[b.type]
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }
+
+  createVoiceSelectorModal(voices) {
     const modal = document.createElement('div')
     modal.className = 'tts-voice-modal'
     modal.innerHTML = `
       <div class="tts-voice-modal-content">
         <div class="tts-voice-modal-header">
           <div>
-            <h3>Select Voice</h3>
-            <div class="tts-voice-country-info">${browserCountry ? `Showing ${voices.length} voices for ${browserCountry}` : `Showing all ${voices.length} voices`}</div>
+            <h3>Select Google TTS Voice</h3>
+            <div class="tts-voice-info">Chirp voices optimized for conversations • ${voices.length} voices available</div>
           </div>
           <button class="tts-voice-modal-close">&times;</button>
         </div>
         <div class="tts-voice-modal-body">
+          <div class="tts-speed-control">
+            <label>Speech Speed: <span id="speed-value">${this.selectedSpeed}</span></label>
+            <input type="range" id="speed-slider" min="0.5" max="2.0" step="0.1" value="${this.selectedSpeed}">
+          </div>
           <div class="tts-voice-list">
             ${voices.map(voice => `
-              <div class="tts-voice-item" data-voice-name="${voice.name}">
+              <div class="tts-voice-item ${voice.name === this.selectedVoice ? 'selected' : ''}" data-voice-name="${voice.name}">
                 <div class="tts-voice-info">
-                  <div class="tts-voice-name">${voice.name}</div>
-                  <div class="tts-voice-lang">${voice.lang}</div>
+                  <div class="tts-voice-name">
+                    ${voice.name}
+                    ${this.getVoiceTypeBadge(voice.type)}
+                  </div>
+                  <div class="tts-voice-details">
+                    ${voice.lang} • ${voice.gender}
+                    ${this.getVoiceDescription(voice.type)}
+                  </div>
                 </div>
                 <button class="tts-voice-preview" data-voice-name="${voice.name}">
                   Preview
@@ -1430,16 +1223,33 @@ export default class extends Controller {
       </div>
     `
 
-    // Add styles
     this.addVoiceSelectorStyles()
-
-    // Add event listeners
     this.setupVoiceSelectorEvents(modal, voices)
-
-    // Highlight current selection
-    this.highlightCurrentVoice(modal)
-
     return modal
+  }
+
+  getVoiceTypeBadge(type) {
+    const badges = {
+      'Chirp3 HD': '<span class="voice-type-badge chirp3-hd">✨ Chirp3 HD</span>',
+      'Chirp HD': '<span class="voice-type-badge chirp-hd">🎭 Chirp HD</span>',
+      'Neural2': '<span class="voice-type-badge neural2">🧠 Neural2</span>',
+      'Studio': '<span class="voice-type-badge studio">🎙️ Studio</span>',
+      'WaveNet': '<span class="voice-type-badge wavenet">🌊 WaveNet</span>',
+      'Standard': '<span class="voice-type-badge standard">📢 Standard</span>'
+    }
+    return badges[type] || ''
+  }
+
+  getVoiceDescription(type) {
+    const descriptions = {
+      'Chirp3 HD': ' • Latest AI for natural conversations',
+      'Chirp HD': ' • LLM-optimized for chat applications',
+      'Neural2': ' • High-quality general purpose',
+      'Studio': ' • Professional media voiceover',
+      'WaveNet': ' • Premium quality synthesis',
+      'Standard': ' • Basic text-to-speech'
+    }
+    return descriptions[type] || ''
   }
 
   addVoiceSelectorStyles() {
@@ -1449,156 +1259,106 @@ export default class extends Controller {
     styles.id = 'tts-voice-styles'
     styles.textContent = `
       .tts-voice-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        backdrop-filter: blur(4px);
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center;
+        z-index: 10000; opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(4px);
       }
-      .tts-voice-modal.show {
-        opacity: 1;
-      }
+      .tts-voice-modal.show { opacity: 1; }
       .tts-voice-modal-content {
-        background: rgba(17, 24, 39, 0.95);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        width: 90%;
-        max-width: 500px;
-        max-height: 80vh;
-        color: white;
+        background: rgba(17, 24, 39, 0.95); border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px; width: 90%; max-width: 500px; max-height: 80vh; color: white;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(20px);
       }
       .tts-voice-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 24px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
       .tts-voice-modal-header h3 {
-        margin: 0;
-        color: rgba(255, 255, 255, 0.95);
-        font-size: 18px;
-        font-weight: 600;
+        margin: 0; color: rgba(255, 255, 255, 0.95); font-size: 18px; font-weight: 600;
       }
-      .tts-voice-country-info {
-        font-size: 13px;
-        color: rgba(255, 255, 255, 0.6);
-        margin-top: 4px;
+      .tts-voice-info {
+        font-size: 13px; color: rgba(255, 255, 255, 0.6); margin-top: 4px;
       }
       .tts-voice-modal-close {
-        background: none;
-        border: none;
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 24px;
-        cursor: pointer;
-        padding: 4px;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 6px;
+        background: none; border: none; color: rgba(255, 255, 255, 0.5);
+        font-size: 24px; cursor: pointer; padding: 4px; width: 32px; height: 32px;
+        display: flex; align-items: center; justify-content: center; border-radius: 6px;
         transition: all 0.2s ease;
       }
       .tts-voice-modal-close:hover {
-        color: rgba(255, 255, 255, 0.9);
-        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.1);
       }
       .tts-voice-modal-body {
-        padding: 20px;
-        overflow-y: auto;
-        max-height: 60vh;
+        padding: 20px; overflow-y: auto; max-height: 60vh;
+      }
+      .tts-speed-control {
+        margin-bottom: 20px; padding: 16px; background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .tts-speed-control label {
+        display: block; margin-bottom: 8px; font-size: 14px; color: rgba(255, 255, 255, 0.9);
+      }
+      .tts-speed-control input[type="range"] {
+        width: 100%; height: 6px; background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px; outline: none; appearance: none;
       }
       .tts-voice-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+        display: flex; flex-direction: column; gap: 8px;
       }
       .tts-voice-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 16px; background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
+        cursor: pointer; transition: all 0.2s ease;
       }
       .tts-voice-item:hover {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.2);
-        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2);
       }
       .tts-voice-item.selected {
-        background: rgba(34, 197, 94, 0.15);
-        border-color: rgba(34, 197, 94, 0.4);
-        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2);
-      }
-      .tts-voice-item.selected:hover {
-        background: rgba(34, 197, 94, 0.2);
-        border-color: rgba(34, 197, 94, 0.5);
-      }
-      .tts-voice-info {
-        flex: 1;
-        min-width: 0;
+        background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4);
       }
       .tts-voice-name {
-        font-weight: 500;
-        margin-bottom: 4px;
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 14px;
+        font-weight: 500; margin-bottom: 4px; color: rgba(255, 255, 255, 0.9);
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
       }
-      .tts-voice-item.selected .tts-voice-name {
-        color: rgba(34, 197, 94, 1);
-      }
-      .tts-voice-lang {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.5);
-        font-family: monospace;
-      }
-      .tts-voice-item.selected .tts-voice-lang {
-        color: rgba(34, 197, 94, 0.8);
+      .tts-voice-details {
+        font-size: 12px; color: rgba(255, 255, 255, 0.5);
       }
       .tts-voice-preview {
-        background: rgba(99, 102, 241, 0.2);
-        border: 1px solid rgba(99, 102, 241, 0.4);
-        color: rgba(99, 102, 241, 1);
-        padding: 8px 14px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 500;
-        transition: all 0.2s ease;
-        margin-left: 12px;
-        flex-shrink: 0;
+        background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4);
+        color: rgba(99, 102, 241, 1); padding: 8px 14px; border-radius: 6px;
+        cursor: pointer; font-size: 12px; transition: all 0.2s ease;
       }
       .tts-voice-preview:hover {
-        background: rgba(99, 102, 241, 0.3);
-        border-color: rgba(99, 102, 241, 0.6);
-        color: rgba(99, 102, 241, 1);
-        transform: translateY(-1px);
+        background: rgba(99, 102, 241, 0.3); border-color: rgba(99, 102, 241, 0.6);
       }
-      .tts-voice-preview:active {
-        transform: translateY(0);
-        background: rgba(99, 102, 241, 0.4);
+      .voice-type-badge {
+        display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px;
+        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
       }
-      .tts-voice-preview:disabled {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.4);
-        cursor: not-allowed;
-        transform: none;
+      .voice-type-badge.chirp3-hd {
+        background: linear-gradient(45deg, #8b5cf6, #a855f7); color: white;
+        box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+      }
+      .voice-type-badge.chirp-hd {
+        background: linear-gradient(45deg, #06b6d4, #0891b2); color: white;
+        box-shadow: 0 2px 4px rgba(6, 182, 212, 0.3);
+      }
+      .voice-type-badge.neural2 {
+        background: linear-gradient(45deg, #10b981, #059669); color: white;
+        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+      }
+      .voice-type-badge.studio {
+        background: linear-gradient(45deg, #f59e0b, #d97706); color: white;
+        box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+      }
+      .voice-type-badge.wavenet {
+        background: linear-gradient(45deg, #3b82f6, #2563eb); color: white;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+      }
+      .voice-type-badge.standard {
+        background: linear-gradient(45deg, #6b7280, #4b5563); color: white;
+        box-shadow: 0 2px 4px rgba(107, 114, 128, 0.3);
       }
     `
     document.head.appendChild(styles)
@@ -1610,11 +1370,19 @@ export default class extends Controller {
       this.closeVoiceSelector(modal)
     }
 
-    // Close on backdrop click
     modal.onclick = (e) => {
-      if (e.target === modal) {
-        this.closeVoiceSelector(modal)
-      }
+      if (e.target === modal) this.closeVoiceSelector(modal)
+    }
+
+    // Speed control
+    const speedSlider = modal.querySelector('#speed-slider')
+    const speedValue = modal.querySelector('#speed-value')
+    
+    speedSlider.oninput = (e) => {
+      const speed = parseFloat(e.target.value)
+      speedValue.textContent = speed
+      this.selectedSpeed = speed
+      localStorage.setItem('googleTTSSpeed', speed.toString())
     }
 
     // Voice selection
@@ -1624,7 +1392,10 @@ export default class extends Controller {
         
         const voiceName = item.dataset.voiceName
         this.selectVoice(voiceName)
-        this.highlightCurrentVoice(modal)
+        
+        // Update UI
+        modal.querySelectorAll('.tts-voice-item').forEach(i => i.classList.remove('selected'))
+        item.classList.add('selected')
       }
     })
 
@@ -1633,62 +1404,37 @@ export default class extends Controller {
       button.onclick = async (e) => {
         e.stopPropagation()
         const voiceName = button.dataset.voiceName
-        const voice = voices.find(v => v.name === voiceName)
-        await this.previewVoice(voice, button)
+        await this.previewVoice(voiceName, button)
       }
     })
-  }
-
-  highlightCurrentVoice(modal) {
-    const selectedVoiceName = this.getSelectedVoiceName()
-    
-    modal.querySelectorAll('.tts-voice-item').forEach(item => {
-      item.classList.remove('selected')
-      if (item.dataset.voiceName === selectedVoiceName) {
-        item.classList.add('selected')
-      }
-    })
-  }
-
-  async previewVoice(voice, button) {
-    // Stop any current speech
-    speechSynthesis.cancel()
-    
-    // Disable button during preview
-    button.disabled = true
-    button.textContent = 'Playing...'
-    
-    try {
-      const utterance = new SpeechSynthesisUtterance('bonjour et bienvenue sous les étoiles')
-      utterance.voice = voice
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
-      utterance.volume = 1.0
-      
-      utterance.onend = () => {
-        button.disabled = false
-        button.textContent = 'Preview'
-      }
-      
-      utterance.onerror = () => {
-        button.disabled = false
-        button.textContent = 'Preview'
-      }
-      
-      speechSynthesis.speak(utterance)
-    } catch (error) {
-      console.error('Voice preview error:', error)
-      button.disabled = false
-      button.textContent = 'Preview'
-    }
   }
 
   selectVoice(voiceName) {
-    localStorage.setItem('ttsSelectedVoice', voiceName)
+    this.selectedVoice = voiceName
+    localStorage.setItem('googleTTSVoice', voiceName)
   }
 
-  getSelectedVoiceName() {
-    return localStorage.getItem('ttsSelectedVoice')
+  async previewVoice(voiceName, button) {
+    button.disabled = true
+    button.textContent = 'Loading...'
+    
+    try {
+      // Use a clean sample text for preview
+      const sampleText = this.cleanTextForTTS('Bonjour et bienvenue sous les étoiles ✨ Voici un exemple de voix 🌟')
+      const audioUrl = await this.fetchGoogleTTS(sampleText, voiceName, this.selectedSpeed)
+      
+      button.textContent = 'Playing...'
+      await this.playAudio(audioUrl)
+      
+      // Cleanup
+      URL.revokeObjectURL(audioUrl)
+      
+    } catch (error) {
+      console.error('Voice preview failed:', error)
+    } finally {
+      button.disabled = false
+      button.textContent = 'Preview'
+    }
   }
 
   closeVoiceSelector(modal) {
@@ -1698,307 +1444,123 @@ export default class extends Controller {
     }, 300)
   }
 
-  createVoiceSelectorButton() {
-    // Only show voice selector button on chat messages index page
-    const chatMessagesContainer = document.getElementById('chat_messages')
-    if (!chatMessagesContainer) {
-      return // Exit early if not on chat messages page
-    }
+  // ===== CLEANUP =====
 
-    // Remove existing button if present
-    const existingButton = document.getElementById('tts-voice-selector-btn')
-    if (existingButton) {
-      existingButton.remove()
-    }
-
-    // Define shared button classes for consistency
-    const buttonClasses = 'inline-flex items-center justify-center gap-1.5 bg-transparent border border-white/20 text-white/70 px-3 py-2 rounded-md cursor-pointer text-sm font-normal transition-all duration-200 whitespace-nowrap min-h-8 relative z-10 flex-shrink-0 hover:bg-white/10 hover:border-white/30 hover:text-white/90 active:bg-white/15 active:scale-95 focus:outline-2 focus:outline-blue-500/50 focus:outline-offset-2'
-
-    // Create voice selector button using Tailwind classes
-    const button = document.createElement('button')
-    button.id = 'tts-voice-selector-btn'
-    button.className = buttonClasses + ' ml-2'
-    button.innerHTML = `
-      <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0 opacity-80 hover:opacity-100" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-      </svg>
-      <span class="hidden sm:inline">Voice</span>
-      <span class="sm:hidden">Voice</span>
-    `
-    button.title = 'Select TTS Voice (Ctrl+Shift+V)'
-    
-    // Ensure click event doesn't propagate
-    button.onclick = (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      this.showVoiceSelector()
-    }
-
-    // Find and style the clear button with the same design
-    this.styleClearButton(buttonClasses)
-
-    // Find a good place to insert the button
-    const targetContainer = this.findVoiceButtonContainer()
-    if (targetContainer) {
-      // Look for a clear button to place next to
-      const clearButton = this.findClearButton(targetContainer)
-      
-      if (clearButton) {
-        // Insert right after the clear button
-        clearButton.parentNode.insertBefore(button, clearButton.nextSibling)
-      } else {
-        // Add to the end of the container
-        targetContainer.appendChild(button)
-      }
-    } else {
-      // Fallback: add to body with fixed positioning
-      button.classList.add('fixed', 'top-5', 'right-5', 'z-50')
-      document.body.appendChild(button)
-    }
-  }
-
-  findClearButton(container) {
-    // Try multiple selectors to find the clear button
-    const selectors = [
-      '[data-action*="clear"]',
-      '[data-controller*="clear"]', 
-      'button[title*="clear" i]',
-      'button[title*="Clear" i]',
-      '.clear-chat',
-      '.clear-button',
-      '#clear-chat',
-      '#clear-button'
-    ]
-    
-    for (const selector of selectors) {
-      const clearButton = container.querySelector(selector)
-      if (clearButton) {
-        return clearButton
-      }
+  cleanup() {
+    // Stop current audio
+    if (this.currentAudio) {
+      this.currentAudio.pause()
     }
     
-    // Also check for buttons with "clear" text content
-    const allButtons = container.querySelectorAll('button')
-    for (const button of allButtons) {
-      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
-        return button
-      }
-    }
+    this.stopHealthMonitor()
     
-    return null
-  }
-
-  styleClearButton(buttonClasses) {
-    // Find clear button globally and apply consistent styling
-    const clearButton = this.findClearButtonGlobally()
+    this.pendingTexts = []
     
-    if (clearButton) {
-      
-      // Remove existing classes that might conflict
-      clearButton.removeAttribute('class')
-      
-      // Apply the same classes as voice button
-      clearButton.className = buttonClasses
-      
-      // Ensure the button content is properly structured
-      if (!clearButton.querySelector('svg') && !clearButton.innerHTML.includes('<')) {
-        // If it's just text, wrap it properly
-        const originalText = clearButton.textContent.trim()
-        clearButton.innerHTML = `<span class="font-normal text-sm">${originalText}</span>`
-      }
-      
-    }
-  }
-
-  findClearButtonGlobally() {
-    // Try to find clear button in the entire document
-    const selectors = [
-      '[data-action*="clear"]',
-      '[data-controller*="clear"]', 
-      'button[title*="clear" i]',
-      'button[title*="Clear" i]',
-      '.clear-chat',
-      '.clear-button',
-      '#clear-chat',
-      '#clear-button'
-    ]
-    
-    for (const selector of selectors) {
-      const clearButton = document.querySelector(selector)
-      if (clearButton) {
-        return clearButton
-      }
-    }
-    
-    // Check all buttons for "clear" text
-    const allButtons = document.querySelectorAll('button')
-    for (const button of allButtons) {
-      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
-        return button
-      }
-    }
-    
-    return null
-  }
-
-  findVoiceButtonContainer() {
-    // First priority: Look for clear chat button and place voice button next to it
-    const clearChatSelectors = [
-      '[data-action*="clear"]',
-      '[data-controller*="clear"]', 
-      'button[title*="clear" i]',
-      'button[title*="Clear" i]',
-      '.clear-chat',
-      '.clear-button',
-      '#clear-chat',
-      '#clear-button'
-    ]
-    
-    for (const selector of clearChatSelectors) {
-      const clearButton = document.querySelector(selector)
-      if (clearButton) {
-        return clearButton.parentElement
-      }
-    }
-    
-    // Also check for buttons with "clear" text content manually
-    const allButtons = document.querySelectorAll('button')
-    for (const button of allButtons) {
-      if (button.textContent && button.textContent.toLowerCase().includes('clear')) {
-        return button.parentElement
-      }
-    }
-    
-    // Second priority: Look for button containers that might contain the clear button
-    const buttonContainerSelectors = [
-      '.chat-controls',
-      '.chat-actions', 
-      '.message-controls',
-      '.toolbar-buttons',
-      '.action-buttons',
-      '.flex.items-center.space-x-2',
-      '.flex.gap-2',
-      '.flex.space-x-2'
-    ]
-    
-    for (const selector of buttonContainerSelectors) {
-      const container = document.querySelector(selector)
-      if (container && container.querySelector('button')) {
-        return container
-      }
-    }
-    
-    // Third priority: Try to find an appropriate container for the voice button
-    const generalContainers = [
-      '.chat-header',
-      '.toolbar',
-      '.controls',
-      'header',
-      '.header',
-      'nav',
-      '.nav'
-    ]
-
-    for (const selector of generalContainers) {
-      const container = document.querySelector(selector)
-      if (container) {
-        return container
-      }
-    }
-
-    return null
-  }
-
-  // ===== AUTOPLAY DETECTION =====
-
-  async detectAutoplayCapability() {
-    try {
-      // Test if speechSynthesis is available
-      if (!('speechSynthesis' in window)) {
-        this.autoplayBlocked = true
-        return
-      }
-
-      // Try a silent test utterance to check autoplay capability
-      const testUtterance = new SpeechSynthesisUtterance('')
-      testUtterance.volume = 0
-      testUtterance.rate = 10 // Very fast to minimize delay
-      
-      const testPromise = new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          this.autoplayBlocked = true
-          resolve(false)
-        }, 1000)
-        
-        testUtterance.onstart = () => {
-          clearTimeout(timeout)
-          this.autoplayBlocked = false
-          resolve(true)
-        }
-        
-        testUtterance.onerror = () => {
-          clearTimeout(timeout)
-          this.autoplayBlocked = true
-          resolve(false)
-        }
-        
-        testUtterance.onend = () => {
-          clearTimeout(timeout)
-          resolve(true)
-        }
+    if (this.gestureHandler && this.gestureEvents) {
+      this.gestureEvents.forEach(event => {
+        document.removeEventListener(event, this.gestureHandler, { capture: true })
       })
+      this.gestureHandler = null
+      this.gestureEvents = null
+    }
+    
+    if (window.TTSEventListenersAdded) {
+      window.removeEventListener('tts:toggle', window.TTSToggleHandler)
+      window.removeEventListener('tts:add', window.TTSAddHandler)
+      window.removeEventListener('tts:stop', window.TTSStopHandler)
+      window.removeEventListener('beforeunload', window.TTSBeforeUnloadHandler)
+      window.removeEventListener('tts:enabled', window.TTSEnabledHandler)
+      window.removeEventListener('keydown', window.TTSKeydownHandler)
       
-      speechSynthesis.speak(testUtterance)
-      await testPromise
-      
-    } catch (error) {
-      console.warn('Autoplay detection failed:', error.message)
-      this.autoplayBlocked = true
+      window.TTSEventListenersAdded = false
+      window.TTSEventListenerCount = Math.max(0, (window.TTSEventListenerCount || 1) - 1)
+    }
+    
+    // Close audio context
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close()
     }
   }
 
-  async initializeVoiceReadiness() {
+  // ===== AUDIO CONTEXT & IOS SETUP =====
+
+  async initializeAudioContext() {
     try {
-      const voices = await this.getAvailableVoices()
-      this.voicesReady = voices.length > 0
+      // Create AudioContext for iOS compatibility
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
       
-      if (!this.voicesReady) {
-        // Set up a listener for when voices become available
-        const checkVoices = () => {
-          const currentVoices = speechSynthesis.getVoices()
-          if (currentVoices.length > 0) {
-            this.voicesReady = true
-            speechSynthesis.removeEventListener('voiceschanged', checkVoices)
-          }
-        }
-        
-        speechSynthesis.addEventListener('voiceschanged', checkVoices)
-        
-        // Fallback timeout
-        setTimeout(() => {
-          speechSynthesis.removeEventListener('voiceschanged', checkVoices)
-          this.voicesReady = true // Assume ready after timeout
-        }, 3000)
+      if (this.audioContext.state === 'suspended') {
+        // Will be resumed on first user interaction
+        this.setupUserGestureListener()
+    } else {
+        this.isIOSUnlocked = true
       }
     } catch (error) {
-      console.warn('Voice readiness check failed:', error.message)
-      this.voicesReady = true // Assume ready on error
+      console.warn('AudioContext initialization failed:', error)
+      // Fallback to HTML5 audio
+      this.audioContext = null
     }
   }
 
-  markUserGesture() {
-    this.hasUserGesture = true
-    this.autoplayBlocked = false
-    
-    // If we have pending iOS texts, process them now
-    if (this.isIOS() && this.pendingIOSTexts && this.pendingIOSTexts.length > 0) {
-      this.unlockIOSAudio()
+  setupUserGestureListener() {
+    const gestureEvents = ['touchstart', 'touchend', 'click', 'keydown']
+    const gestureHandler = async () => {
+      if (!this.hasUserGesture) {
+        await this.unlockAudio()
+        this.hasUserGesture = true
+        
+        // Remove listeners after first gesture
+        gestureEvents.forEach(event => {
+          document.removeEventListener(event, gestureHandler, { capture: true })
+        })
+        
+        // Process pending texts
+        this.processPendingTexts()
+      }
     }
+    
+    gestureEvents.forEach(event => {
+      document.addEventListener(event, gestureHandler, { 
+        passive: true, 
+        capture: true 
+      })
+    })
+  }
+
+  async unlockAudio() {
+    try {
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        await this.audioContext.resume()
+        this.isIOSUnlocked = true
+        console.log('AudioContext unlocked for iOS')
+      }
+      
+      // Test HTML5 audio as well
+      const testAudio = new Audio()
+      testAudio.volume = 0.1
+      testAudio.muted = true
+      await testAudio.play().catch(() => {})
+      testAudio.pause()
+      
+      this.isIOSUnlocked = true
+    } catch (error) {
+      console.warn('Audio unlock failed:', error)
+    }
+  }
+
+  setupIOSAudioUnlock() {
+    if (!this.isIOS()) return
+    this.setupUserGestureListener()
+  }
+
+  isIOS() {
+    const userAgent = navigator.userAgent.toLowerCase()
+    return /ipad|iphone|ipod/.test(userAgent) || 
+           (userAgent.includes('mac') && 'ontouchend' in document)
   }
 
   // ===== RECOVERY MECHANISMS =====
 
-  // Monitor speech synthesis health and recover from stuck states
   setupSpeechHealthMonitor() {
     if (this.healthMonitorInterval) {
       clearInterval(this.healthMonitorInterval)
@@ -2006,29 +1568,25 @@ export default class extends Controller {
     
     this.healthMonitorInterval = setInterval(() => {
       this.checkSpeechHealth()
-    }, 2000) // Check every 2 seconds
+    }, 2000)
   }
 
   checkSpeechHealth() {
-    // Only monitor when we should be speaking
     if (!this.processing || this.userStopped || !this.enabled) {
       return
     }
 
-    // Check if speechSynthesis is in an unexpected state
-    if (this.playing && !speechSynthesis.speaking && !speechSynthesis.pending) {
+    if (this.isPlaying && !speechSynthesis.speaking && !speechSynthesis.pending) {
       console.warn('Speech synthesis appears stuck - no active speech detected')
       this.handleUnexpectedStop()
     }
 
-    // Check if speech is paused when it shouldn't be
-    if (this.playing && speechSynthesis.paused && !this.userStopped) {
+    if (this.isPlaying && speechSynthesis.paused && !this.userStopped) {
       console.warn('Speech synthesis unexpectedly paused - resuming')
       speechSynthesis.resume()
     }
 
-    // Check for queue backup when speech should be active
-    if (this.processing && this.queue.length > 0 && !this.playing && !speechSynthesis.speaking) {
+    if (this.processing && this.queue.length > 0 && !this.isPlaying && !speechSynthesis.speaking) {
       console.warn('Queue has items but speech is not active - restarting processing')
       setTimeout(() => {
         if (this.shouldContinueSpeaking()) {
@@ -2047,16 +1605,14 @@ export default class extends Controller {
 
   // ===== VOICE RECORDER INTEGRATION =====
 
-  // Check if starting voice recording would conflict with ongoing TTS
   wouldVoiceRecordingConflict() {
     return this.processing || 
-           this.playing || 
+           this.isPlaying || 
            this.queue.length > 0 || 
            speechSynthesis.speaking || 
            speechSynthesis.pending
   }
 
-  // Safe method to start voice recording that checks for TTS conflicts
   safeStartVoiceRecording() {
     if (this.wouldVoiceRecordingConflict()) {
       console.warn('Cannot start voice recording - TTS is active')
@@ -2067,12 +1623,10 @@ export default class extends Controller {
     if (voiceToggleBtn && !voiceToggleBtn.disabled) {
       console.log('Starting voice recording (TTS is idle)')
       
-      // Set a flag to prevent TTS from being stopped by voice recording startup
       window.__ttsProtected = true
       
       voiceToggleBtn.click()
       
-      // Remove protection after a short delay
       setTimeout(() => {
         window.__ttsProtected = false
       }, 1000)

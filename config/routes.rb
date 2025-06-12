@@ -47,4 +47,8 @@ Rails.application.routes.draw do
   # Admin analytics - must be before the catch-all admin route
   get "admin/analytics", to: "admin#analytics"
   get "admin", to: "admin#index"
+
+  namespace :api do
+    post 'google_tts', to: 'google_tts#synthesize'
+  end
 end
