@@ -34,8 +34,8 @@ const GOOGLE_TTS_VOICES = [
   { name: "en-GB-Standard-A", label: "Standard A (UK)", quality: 4, language: "en", country: "GB" },
   // French - FR (all voices from Google Cloud TTS docs as of June 2024)
   // Chirp3 HD voices
-  { name: "fr-FR-Chirp-HD-F", label: "Chirp3 HD F (FR)", quality: 1, language: "fr", country: "FR" },
   { name: "fr-FR-Chirp-HD-O", label: "Chirp3 HD O (FR)", quality: 1, language: "fr", country: "FR" },
+  { name: "fr-FR-Chirp-HD-F", label: "Chirp3 HD F (FR)", quality: 1, language: "fr", country: "FR" },
   { name: "fr-FR-Chirp3-HD-Alnilam", label: "Chirp3 HD Alnilam (FR)", quality: 1, language: "fr", country: "FR" },
   { name: "fr-FR-Chirp3-HD-Aoede", label: "Chirp3 HD Aoede (FR)", quality: 1, language: "fr", country: "FR" },
   { name: "fr-FR-Chirp3-HD-Autonoe", label: "Chirp3 HD Autonoe (FR)", quality: 1, language: "fr", country: "FR" },
