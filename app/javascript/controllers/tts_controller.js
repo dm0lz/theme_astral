@@ -7,6 +7,12 @@ export default class extends Controller {
     // Ensure the global manager exists
     this.player = window.ttsManager;
 
+    // Hide/show button based on TTS enabled state
+    this._updateVisibility();
+    // Store bound handler to remove later
+    this._ttsEnabledHandler = (e) => this._updateVisibility(e.detail);
+    window.addEventListener("tts:enabled", this._ttsEnabledHandler);
+
     // If this element has a chunks target, set up mutation observer
     if (this.hasChunksTarget) {
       this._observeSentenceChunks();
@@ -14,8 +20,33 @@ export default class extends Controller {
   }
 
   disconnect() {
+    // Clean event listener
+    if (this._ttsEnabledHandler) {
+      window.removeEventListener("tts:enabled", this._ttsEnabledHandler);
+    }
+
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
+    }
+  }
+
+  /* ------------------------------------------------------------ */
+  /* Helper: hide/show button according to TTS enabled state      */
+  /* ------------------------------------------------------------ */
+  _updateVisibility(state = null) {
+    // Determine state: argument takes precedence, else localStorage
+    if (state === null) {
+      state = JSON.parse(localStorage.getItem("ttsEnabled") ?? "true");
+    }
+    if (state) {
+      this.element.classList.remove("hidden");
+    } else {
+      // Only hide elements that explicitly opt-in via data-attribute
+      if (this.element.dataset.ttsHideWhenDisabled !== undefined) {
+        this.element.classList.add("hidden");
+      } else {
+        this.element.classList.remove("hidden");
+      }
     }
   }
 
@@ -80,6 +111,8 @@ export default class extends Controller {
     return text
       // Remove markdown formatting characters like * or #
       .replace(/[\*#]/g, "")
+      // Remove parentheses
+      .replace(/[()]/g, "")
       // Remove common sparkle, moon and other emoji/symbol ranges
       .replace(/[\u{1F300}-\u{1F64F}\u{2700}-\u{27BF}]/gu, "")
       .trim();

@@ -12,6 +12,7 @@
           <span class="text-xs font-medium text-white/90 hidden sm:inline"><%= chat_message.author == 'user' ? 'You' : 'Assistant' %></span>
           <button 
             data-controller="tts"
+            data-tts-hide-when-disabled="true"
             data-action="click->tts#speakMessage"
             data-tts-text-value="<%= chat_message.body.gsub('\"', '&quot;') %>"
             data-speaking="false"
