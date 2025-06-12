@@ -21,3 +21,9 @@ application.register("tts-toggle", TtsToggleController)
 
 import LoadingController from "./loading_controller"
 application.register("loading", LoadingController)
+
+import TtsPrepareController from "./tts_prepare_controller"
+application.register("tts-prepare", TtsPrepareController)
+
+import TtsVoiceSelectorController from "./tts_voice_selector_controller"
+application.register("tts-voice-selector", TtsVoiceSelectorController)

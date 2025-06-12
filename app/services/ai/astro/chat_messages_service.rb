@@ -59,7 +59,7 @@ class Ai::Astro::ChatMessagesService
             buffer += delta
             
             # Stream content as before
-            if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/)
+            if buffer.match(/[.!?]\s*$/) || buffer.match(/,\s*$/) || buffer.match(/–\s*$/)
               buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
               buffer = buffer.gsub(/[*#]/, '')
               Turbo::StreamsChannel.broadcast_append_to(
@@ -81,6 +81,19 @@ class Ai::Astro::ChatMessagesService
           end
         }
       )
+
+      # After streaming, if buffer still has content, send it as a final chunk
+      if buffer.strip.present?
+        buffer = buffer.gsub(/[\u{1F600}-\u{1F64F}\u{2728}\u{1F319}\u{1F52E}]/, '')
+        buffer = buffer.gsub(/[*#]/, '')
+        Turbo::StreamsChannel.broadcast_append_to(
+          "streaming_channel_#{@chat_message.user_id}",
+          target: "sentence_chunks_container",
+          partial: "app/chat_messages/sentence_chunk",
+          locals: { sentence: buffer }
+        )
+        buffer = ""
+      end
 
       # If we only had tool calls and no regular streaming content, show some activity
       if response.blank? && tool_calls_buffer.any?
@@ -235,7 +248,7 @@ class Ai::Astro::ChatMessagesService
       Tailor each response to sound warm, intuitive, and insightful—like a caring human astrologer, not a robot.
 
       IMPORTANT NOTE: Your responses will be spoken aloud using text-to-speech.
-      Therefore, write in a conversational, friendly tone, using natural pauses, contractions (like “you’re” instead of “you are”), and phrasing that sounds good when spoken.
+      Therefore, write in a conversational, friendly tone, using natural pauses, contractions (like "you're" instead of "you are"), and phrasing that sounds good when spoken.
       Avoid overly complex sentences, long paragraphs, or academic/formal language. Aim for smooth, easy-to-understand speech, like you're talking to a friend.
       You can use emojis to make your responses more engaging and friendly but do not use * # and other special characters.
 

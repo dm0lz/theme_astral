@@ -59,6 +59,7 @@
         <button type="button" 
                 id="voice-toggle-btn" 
                 <% if disabled_send_button %>disabled<% end %>
+                data-controller="tts-prepare" data-action="click->tts-prepare#prepare touchend->tts-prepare#prepare"
                 class="flex items-center justify-center p-2 text-white rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 touch-manipulation select-none <%= 
                   disabled_send_button ? 
                     'bg-gray-600 text-gray-300 cursor-not-allowed opacity-50' : 
@@ -73,6 +74,7 @@
         <%= form.submit disabled_send_button ? "Send" : "Send", 
             id: "send_chat_message_button", 
             disabled: disabled_send_button,
+            data: { controller: "tts-prepare", action: "click->tts-prepare#prepare" },
             class: "flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 font-medium rounded-lg transition duration-200 focus:outline-none h-fit text-sm sm:text-base #{
               disabled_send_button ? 
                 'bg-gray-600 text-gray-300 cursor-not-allowed opacity-50' : 
