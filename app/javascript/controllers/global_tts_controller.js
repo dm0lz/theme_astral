@@ -353,9 +353,33 @@ export default class extends Controller {
   async enqueue(text, messageId = null) {
     if (!this.enabled || !text) return
     
-    // Check for iOS audio unlock
+    console.log(`TTS enqueue called for message: ${messageId}`)
+    
+    // Check for iOS audio unlock - enhanced check
     if (this.isIOS() && !this.isIOSUnlocked) {
+      console.log('iOS detected but audio not unlocked - adding to pending queue')
       this.pendingTexts.push({ text, messageId })
+      
+      // Show iOS audio prompt immediately
+      this.promptIOSAudioEnable()
+      return
+    }
+    
+    // Additional iOS check - verify AudioContext state
+    if (this.isIOS() && this.audioContext && this.audioContext.state === 'suspended') {
+      console.log('iOS AudioContext still suspended - adding to pending queue')
+      this.pendingTexts.push({ text, messageId })
+      
+      // Try to resume AudioContext
+      try {
+        await this.audioContext.resume()
+        console.log('AudioContext resumed, processing pending texts')
+        this.isIOSUnlocked = true
+        this.processPendingTexts()
+      } catch (error) {
+        console.warn('Failed to resume AudioContext:', error)
+        this.promptIOSAudioEnable()
+      }
       return
     }
     
@@ -639,11 +663,35 @@ export default class extends Controller {
       const audio = new Audio()
       this.currentAudio = audio
       
+      // Enhanced iOS compatibility
       audio.preload = 'auto'
+      audio.crossOrigin = 'anonymous'
       audio.src = audioUrl
+      
+      // Set audio properties for iOS
+      if (this.isIOS()) {
+        audio.playsInline = true
+        audio.muted = false
+        audio.volume = 1.0
+      }
       
       audio.onloadeddata = () => {
         console.log('Audio loaded, starting playback')
+        
+        // For iOS, ensure we have proper audio context
+        if (this.isIOS() && this.audioContext) {
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().then(() => {
+              this.attemptPlayback(audio, resolve, reject)
+            }).catch(() => {
+              this.attemptPlayback(audio, resolve, reject)
+            })
+          } else {
+            this.attemptPlayback(audio, resolve, reject)
+          }
+        } else {
+          this.attemptPlayback(audio, resolve, reject)
+        }
       }
       
       audio.onended = () => {
@@ -655,7 +703,7 @@ export default class extends Controller {
       audio.onerror = (error) => {
         console.error('Audio playback error:', error)
         this.currentAudio = null
-        reject(new Error(`Audio playback failed: ${error.message}`))
+        reject(new Error(`Audio playback failed: ${error.message || 'Unknown error'}`))
       }
       
       audio.onpause = () => {
@@ -664,13 +712,124 @@ export default class extends Controller {
         }
       }
       
-      // Start playback
-      audio.play().catch(error => {
-        console.error('Audio play failed:', error)
+      // Handle loading errors
+      audio.onabort = () => {
+        console.log('Audio loading aborted')
         this.currentAudio = null
-        reject(error)
+        reject(new Error('Audio loading was aborted'))
+      }
+      
+      audio.onstalled = () => {
+        console.log('Audio loading stalled')
+      }
+    })
+  }
+
+  attemptPlayback(audio, resolve, reject) {
+    console.log('Attempting audio playback')
+    
+    const playPromise = audio.play()
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('Audio playback started successfully')
+        })
+        .catch(error => {
+          console.error('Audio play failed:', error)
+          
+          // iOS specific handling
+          if (this.isIOS() && (error.name === 'NotAllowedError' || error.message.includes('interact'))) {
+            console.log('iOS autoplay blocked - requiring user interaction')
+            this.handleIOSAutoplayBlock(audio, resolve, reject)
+          } else {
+            this.currentAudio = null
+            reject(error)
+          }
+        })
+    } else {
+      // Older browsers without promise-based play()
+      console.log('Legacy audio play without promise')
+    }
+  }
+
+  handleIOSAutoplayBlock(audio, resolve, reject) {
+    console.log('Handling iOS autoplay block')
+    
+    // Store the audio for later playback
+    this.pendingIOSAudio = { audio, resolve, reject }
+    
+    // Show a user-friendly message or button to enable audio
+    this.promptIOSAudioEnable()
+    
+    // Try to play after next user interaction
+    const playAfterGesture = () => {
+      if (this.pendingIOSAudio) {
+        console.log('Retrying audio playback after user gesture')
+        const { audio: pendingAudio, resolve: pendingResolve, reject: pendingReject } = this.pendingIOSAudio
+        this.pendingIOSAudio = null
+        
+        pendingAudio.play()
+          .then(() => {
+            console.log('Audio playback successful after user gesture')
+          })
+          .catch(pendingReject)
+        
+        // Remove gesture listeners
+        ['touchstart', 'click', 'keydown'].forEach(event => {
+          document.removeEventListener(event, playAfterGesture, { capture: true })
+        })
+      }
+    }
+    
+    // Add gesture listeners
+    ['touchstart', 'click', 'keydown'].forEach(event => {
+      document.addEventListener(event, playAfterGesture, { 
+        capture: true, 
+        once: false,
+        passive: true 
       })
     })
+  }
+
+  promptIOSAudioEnable() {
+    // Only show prompt once per session
+    if (this.hasShownIOSPrompt) return
+    this.hasShownIOSPrompt = true
+    
+    console.info('🔊 Tap anywhere to enable audio playback on iOS')
+    
+    // Show a temporary visual indicator
+    const indicator = document.createElement('div')
+    indicator.style.cssText = `
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
+      border-radius: 8px; z-index: 10001; font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `
+    indicator.textContent = '🔊 Tap to enable audio'
+    document.body.appendChild(indicator)
+    
+    // Remove indicator after first interaction
+    const removeIndicator = () => {
+      if (indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator)
+      }
+      ['touchstart', 'click', 'keydown'].forEach(event => {
+        document.removeEventListener(event, removeIndicator, { capture: true })
+      })
+    }
+    
+    ['touchstart', 'click', 'keydown'].forEach(event => {
+      document.addEventListener(event, removeIndicator, { 
+        capture: true, 
+        once: true,
+        passive: true 
+      })
+    })
+    
+    // Auto-remove after 5 seconds
+    setTimeout(removeIndicator, 5000)
   }
 
   splitIntoSentences(text) {
@@ -1450,12 +1609,19 @@ export default class extends Controller {
     // Stop current audio
     if (this.currentAudio) {
       this.currentAudio.pause()
+      this.currentAudio = null
+    }
+    
+    // Clean up pending iOS audio
+    if (this.pendingIOSAudio) {
+      this.pendingIOSAudio = null
     }
     
     this.stopHealthMonitor()
     
     this.pendingTexts = []
     
+    // Clean up gesture handlers
     if (this.gestureHandler && this.gestureEvents) {
       this.gestureEvents.forEach(event => {
         document.removeEventListener(event, this.gestureHandler, { capture: true })
@@ -1480,6 +1646,14 @@ export default class extends Controller {
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close()
     }
+    
+    // Clean up prefetched audio URLs
+    this.prefetchedAudio.forEach(url => {
+      if (typeof url === 'string' && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url)
+      }
+    })
+    this.prefetchedAudio.clear()
   }
 
   // ===== AUDIO CONTEXT & IOS SETUP =====
@@ -1489,33 +1663,52 @@ export default class extends Controller {
       // Create AudioContext for iOS compatibility
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
       
+      console.log(`AudioContext created, state: ${this.audioContext.state}`)
+      
       if (this.audioContext.state === 'suspended') {
+        console.log('AudioContext suspended, will resume on user gesture')
         // Will be resumed on first user interaction
         this.setupUserGestureListener()
-    } else {
+      } else {
         this.isIOSUnlocked = true
+        console.log('AudioContext ready for playback')
       }
     } catch (error) {
       console.warn('AudioContext initialization failed:', error)
-      // Fallback to HTML5 audio
+      // Fallback to HTML5 audio only
       this.audioContext = null
+      this.isIOSUnlocked = true // Allow HTML5 audio fallback
     }
   }
 
   setupUserGestureListener() {
     const gestureEvents = ['touchstart', 'touchend', 'click', 'keydown']
-    const gestureHandler = async () => {
+    const gestureHandler = async (event) => {
+      console.log(`User gesture detected: ${event.type}`)
+      
       if (!this.hasUserGesture) {
         await this.unlockAudio()
         this.hasUserGesture = true
         
         // Remove listeners after first gesture
-        gestureEvents.forEach(event => {
-          document.removeEventListener(event, gestureHandler, { capture: true })
+        gestureEvents.forEach(eventType => {
+          document.removeEventListener(eventType, gestureHandler, { capture: true })
         })
         
         // Process pending texts
         this.processPendingTexts()
+        
+        // If there's pending iOS audio, try to play it
+        if (this.pendingIOSAudio) {
+          const { audio, resolve, reject } = this.pendingIOSAudio
+          this.pendingIOSAudio = null
+          
+          audio.play()
+            .then(() => {
+              console.log('Pending iOS audio started successfully')
+            })
+            .catch(reject)
+        }
       }
     }
     
@@ -1525,26 +1718,40 @@ export default class extends Controller {
         capture: true 
       })
     })
+    
+    this.gestureHandler = gestureHandler
+    this.gestureEvents = gestureEvents
   }
 
   async unlockAudio() {
     try {
       if (this.audioContext && this.audioContext.state === 'suspended') {
         await this.audioContext.resume()
-        this.isIOSUnlocked = true
-        console.log('AudioContext unlocked for iOS')
+        console.log('AudioContext resumed successfully')
       }
       
-      // Test HTML5 audio as well
+      // Test HTML5 audio as well with a silent sound
       const testAudio = new Audio()
       testAudio.volume = 0.1
       testAudio.muted = true
-      await testAudio.play().catch(() => {})
-      testAudio.pause()
+      
+      // Create a minimal audio data URL
+      testAudio.src = 'data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAAAA'
+      
+      try {
+        await testAudio.play()
+        testAudio.pause()
+        console.log('HTML5 audio test successful')
+      } catch (e) {
+        console.log('HTML5 audio test failed:', e.message)
+      }
       
       this.isIOSUnlocked = true
+      console.log('Audio unlocked for iOS')
     } catch (error) {
       console.warn('Audio unlock failed:', error)
+      // Still set as unlocked to allow attempts
+      this.isIOSUnlocked = true
     }
   }
 
@@ -1555,8 +1762,14 @@ export default class extends Controller {
 
   isIOS() {
     const userAgent = navigator.userAgent.toLowerCase()
-    return /ipad|iphone|ipod/.test(userAgent) || 
-           (userAgent.includes('mac') && 'ontouchend' in document)
+    const isIOSDevice = /ipad|iphone|ipod/.test(userAgent) || 
+                       (userAgent.includes('mac') && 'ontouchend' in document)
+    
+    // Also check for iOS Safari specifically
+    const isIOSSafari = /safari/.test(userAgent) && /version/.test(userAgent) && isIOSDevice
+    
+    console.log(`iOS detection: device=${isIOSDevice}, safari=${isIOSSafari}`)
+    return isIOSDevice
   }
 
   // ===== RECOVERY MECHANISMS =====
