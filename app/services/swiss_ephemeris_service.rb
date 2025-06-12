@@ -209,10 +209,28 @@ class SwissEphemerisService
 
   def parse_chart_points(output)
     chart_points = []
+    
+    # Variables to store positions for Part of Fortune calculation
+    ascendant_longitude = nil
+    sun_longitude = nil
+    moon_longitude = nil
+    
+    # First, extract planet positions for Part of Fortune calculation
+    output.each_line do |line|
+      parts = line.strip.split(',')
+      case parts[0]&.strip
+      when 'Sun'
+        sun_longitude = parts[1].to_f
+      when 'Moon'
+        moon_longitude = parts[1].to_f
+      end
+    end
+    
     output.each_line do |line|
       case line.strip
       when /^Ascendant\s*,\s*([\d.]+),\s*(.+)$/
-        chart_points << { name: "Ascendant", longitude: $1.to_f, zodiac: $2.strip }
+        ascendant_longitude = $1.to_f
+        chart_points << { name: "Ascendant", longitude: ascendant_longitude, zodiac: $2.strip }
       when /^MC\s*,\s*([\d.]+),\s*(.+)$/
         chart_points << { name: "MC", longitude: $1.to_f, zodiac: $2.strip }
       when /^ARMC\s*,\s*([\d.]+),\s*(.+)$/
@@ -229,6 +247,24 @@ class SwissEphemerisService
         chart_points << { name: "PolarAsc", longitude: $1.to_f, zodiac: $2.strip }
       end
     end
+    
+    # Calculate Part of Fortune if we have all required positions
+    if ascendant_longitude && sun_longitude && moon_longitude
+      # Determine if it's a day or night birth based on Sun's position relative to Ascendant
+      # If Sun is above horizon (houses 7-12), it's day; if below (houses 1-6), it's night
+      # For simplicity, we'll use the traditional formula: Ascendant + Moon - Sun (day formula)
+      # Night formula would be: Ascendant + Sun - Moon
+      
+      # Use day formula as default (most common in modern astrology)
+      part_of_fortune_longitude = (ascendant_longitude + moon_longitude - sun_longitude) % 360
+      
+      chart_points << { 
+        name: "PartOfFortune", 
+        longitude: part_of_fortune_longitude, 
+        zodiac: calculate_zodiac_from_longitude(part_of_fortune_longitude) 
+      }
+    end
+    
     chart_points
   end
 

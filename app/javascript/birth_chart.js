@@ -375,7 +375,8 @@ function initBirthChart() {
       'EquatAsc': 'EA',
       'CoAscWK': 'CW',
       'CoAscM': 'CM',
-      'PolarAsc': 'PA'
+      'PolarAsc': 'PA',
+      'PartOfFortune': '⊕'
     };
     
     chartPoints.forEach((point, i) => {
