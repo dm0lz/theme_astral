@@ -13,16 +13,22 @@
           <button 
             data-controller="tts"
             data-action="click->tts#speakMessage"
-            data-tts-text-value="<%= chat_message.body.gsub('"', '&quot;') %>"
+            data-tts-text-value="<%= chat_message.body.gsub('\"', '&quot;') %>"
             data-speaking="false"
             data-tts-message-id="<%= dom_id(chat_message) %>"
             class="text-white/70 hover:text-white transition-colors duration-200 p-1 rounded hover:bg-white/10"
             title="Read message aloud"
           >
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <!-- Speaker icon -->
+            <svg class="speaker-icon w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M5 9v6h4l5 5V4L9 9H5z"></path>
               <path d="M15 9.5a3.5 3.5 0 010 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
               <path d="M17.5 7a6 6 0 010 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+            <!-- Loading spinner -->
+            <svg class="spinner-icon w-4 h-4 hidden animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
             </svg>
           </button>
         </div>

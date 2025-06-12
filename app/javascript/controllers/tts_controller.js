@@ -23,10 +23,66 @@ export default class extends Controller {
   /* Speak entire message when user clicks the play icon          */
   /* ------------------------------------------------------------ */
   speakMessage(event) {
-    const text = event.currentTarget?.dataset?.ttsTextValue;
+    // make sure we have the latest manager
+    this.player ||= window.ttsManager
+
+    const button = event.currentTarget
+    const rawText = button?.dataset?.ttsTextValue
+    const text    = this._sanitize(rawText)
+
+    // show spinner
+    this._toggleSpinner(button, true)
+
     if (text && this.player) {
-      this.player.speakImmediately(text);
+      console.log('speakMessage', text)
+
+      // hide spinner when audio stops (or fails)
+      const stopLoading = () => {
+        this._toggleSpinner(button, false)
+        this.player.audio.removeEventListener('ended', stopLoading)
+        this.player.audio.removeEventListener('error', stopLoading)
+      }
+      this.player.audio.addEventListener('ended', stopLoading)
+      this.player.audio.addEventListener('error', stopLoading)
+
+      this.player.speakImmediately(text)
+    } else {
+      // player not ready – revert UI
+      this._toggleSpinner(button, false)
+      console.warn('Cannot speak message', { text, player: this.player })
     }
+  }
+
+  /* ------------------------------------------------------------ */
+  /* Helper: toggle speaker ↔ spinner                              */
+  /* ------------------------------------------------------------ */
+  _toggleSpinner(button, loading) {
+    const speakerIcon = button.querySelector('.speaker-icon')
+    const spinnerIcon = button.querySelector('.spinner-icon')
+    if (!speakerIcon || !spinnerIcon) return
+
+    if (loading) {
+      button.dataset.speaking = 'true'
+      speakerIcon.classList.add('hidden')
+      spinnerIcon.classList.remove('hidden')
+    } else {
+      button.dataset.speaking = 'false'
+      spinnerIcon.classList.add('hidden')
+      speakerIcon.classList.remove('hidden')
+    }
+  }
+
+  /* ------------------------------------------------------------ */
+  /* Helper: sanitize text before sending to TTS                   */
+  /* ------------------------------------------------------------ */
+  _sanitize(text) {
+    if (!text) return "";
+    return text
+      // Remove markdown formatting characters like * or #
+      .replace(/[\*#]/g, "")
+      // Remove common sparkle, moon and other emoji/symbol ranges
+      .replace(/[\u{1F300}-\u{1F64F}\u{2700}-\u{27BF}]/gu, "")
+      .trim();
   }
 
   /* ------------------------------------------------------------ */
@@ -57,8 +113,9 @@ export default class extends Controller {
     const sentences = text.match(/[^\.\!\?]+[\.\!\?]+|[^\.\!\?]+/g) || [];
     sentences.forEach((sentence) => {
       const trimmed = sentence.trim();
-      if (trimmed) {
-        this.player.enqueue(trimmed);
+      const clean   = this._sanitize(trimmed);
+      if (clean) {
+        this.player.enqueue(clean);
       }
     });
   }

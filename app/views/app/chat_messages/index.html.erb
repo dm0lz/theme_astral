@@ -29,6 +29,13 @@
         <span class="sm:hidden">Clear</span>
       <% end %>
 
+      <button id="open-voice-modal" type="button" class="ml-4 inline-flex items-center justify-center px-3 sm:px-4 py-1.5 sm:py-1.5 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white font-medium rounded-full shadow transition duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/50 text-xs sm:text-xs">
+        <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+        </svg>
+        Voices
+      </button>
+
       <button data-controller="tts-toggle" data-action="click->tts-toggle#toggle" class="mt-2 ml-2 text-white/80 hover:text-white transition-colors">
         <label data-controller="tts-toggle" class="inline-flex items-center cursor-pointer ml-2 space-x-2">
           <input type="checkbox" class="sr-only peer" data-action="tts-toggle#toggle" data-tts-toggle-target="checkbox">
@@ -37,9 +44,6 @@
         </label>
       </button>
 
-      <!-- Voice selector -->
-      <select data-controller="tts-voice-selector" data-action="change->tts-voice-selector#change" class="ml-2 mt-2 bg-gray-700 text-white text-xs rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-300">
-      </select>
     </div>
   </div>
 </div>
@@ -56,5 +60,17 @@
         <%= render partial: "app/chat_messages/form", locals: { chat_message: ChatMessage.new, disabled_send_button: false } %>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Voice Selection Modal -->
+<div id="voice-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xl hidden">
+  <div class="relative w-full max-w-md rounded-2xl shadow-2xl border border-indigo-800/40 bg-indigo-950/70 backdrop-blur-xl p-0" data-controller="tts-voice-selector">
+    <div class="flex items-center justify-between px-6 pt-5 pb-2 border-b border-indigo-800/40">
+      <h2 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-amber-100 to-amber-300">Select Voice</h2>
+      <button id="close-voice-modal" class="text-2xl text-indigo-300 hover:text-amber-400 transition-colors px-2 py-0.5 rounded focus:outline-none">&times;</button>
+    </div>
+    <div id="tts-voice-list" class="max-h-72 overflow-y-auto px-6 py-4 space-y-1"></div>
+    <div class="px-6 pb-5 pt-2 text-xs text-indigo-200/80">Tap a voice to select. Preview lets you hear a sample.</div>
   </div>
 </div>

@@ -25,6 +25,7 @@
 
   <body>
     <canvas id="starBackground" class="fixed top-0 left-0 w-full h-full pointer-events-none z-0"></canvas>
+    <div id="tts-root" data-controller="global-tts" style="display:none"></div>
     <%= turbo_stream_from "streaming_channel_#{Current.user.id}" %>
     <section class="min-h-screen bg-gradient-to-b from-indigo-950 via-[#121139] to-[#0A0A20] text-white">
       <%= render "shared/app/header" %>
@@ -34,7 +35,6 @@
         </section>
       </section>
       <%= render "shared/footer" %>
-      <div id="tts-root" data-controller="global-tts" style="display:none"></div>
     </section>
   </body>
 </html>
