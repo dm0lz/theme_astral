@@ -121,12 +121,12 @@ accessories:
   db:
     image: pgvector/pgvector:pg17
     host: theme-astral.me
-    port: "127.0.0.1:5436:5436"
+    port: "127.0.0.1:5432:5432"
     env:
       clear:
         POSTGRES_USER: "theme_astral"
         POSTGRES_DB: "theme_astral_production"
-        PGPORT: 5436
+        PGPORT: 5432
       secret:
         - POSTGRES_PASSWORD
     files:
