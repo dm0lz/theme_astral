@@ -133,3 +133,12 @@ accessories:
       - db/production.sql:/docker-entrypoint-initdb.d/setup.sql
     directories:
       - data:/var/lib/postgresql/data
+  swiss-ephemeris-mcp-server:
+    image: olivier86/swiss-ephemeris-mcp-server:latest
+    host: theme-astral.me
+    port: "127.0.0.1:8000:8000"
+    env:
+      clear:
+        MCP_HTTP_MODE: "true"
+    directories:
+      - data:/var/lib/swiss-ephemeris-mcp-server
